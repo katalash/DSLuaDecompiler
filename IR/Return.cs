@@ -1,0 +1,74 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace luadec.IR
+{
+    class Return : IInstruction
+    {
+        public List<Expression> ReturnExpressions;
+        
+        public Return(List<Expression> expr)
+        {
+            ReturnExpressions = expr;
+        }
+
+        public Return(Expression expr)
+        {
+            ReturnExpressions = new List<Expression>();
+            ReturnExpressions.Add(expr);
+        }
+
+        public override HashSet<Identifier> GetUses(bool regonly)
+        {
+            var uses = new HashSet<Identifier>();
+            foreach (var exp in ReturnExpressions)
+            {
+                uses.UnionWith(exp.GetUses(regonly));
+            }
+            return uses;
+        }
+
+        public override void RenameUses(Identifier orig, Identifier newi)
+        {
+            foreach (var exp in ReturnExpressions)
+            {
+                exp.RenameUses(orig, newi);
+            }
+        }
+
+        public override bool ReplaceUses(Identifier orig, Expression sub)
+        {
+            bool replace = false;
+            for (int i = 0; i < ReturnExpressions.Count(); i++)
+            {
+                if (Expression.ShouldReplace(orig, ReturnExpressions[i]))
+                {
+                    ReturnExpressions[i] = sub;
+                    replace = true;
+                }
+                else
+                {
+                    replace = replace || ReturnExpressions[i].ReplaceUses(orig, sub);
+                }
+            }
+            return replace;
+        }
+
+        public override string ToString()
+        {
+            string ret = "return ";
+            for (int i = 0; i < ReturnExpressions.Count(); i++)
+            {
+                ret += ReturnExpressions[i].ToString();
+                if (i != ReturnExpressions.Count() - 1)
+                {
+                    ret += ", ";
+                }
+            }
+            return ret;
+        }
+    }
+}

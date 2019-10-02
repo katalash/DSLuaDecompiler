@@ -30,3 +30,9 @@
 *.exe
 *.out
 *.app
+*.pdb
+*.cache
+*.CopyComplete
+obj/Debug/luadec.csproj.FileListAbsolute.txt
+obj/Debug/DSLuaDecompiler.csproj.FileListAbsolute.txt
+*.user
