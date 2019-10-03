@@ -33,6 +33,12 @@
 *.pdb
 *.cache
 *.CopyComplete
-obj/Debug/luadec.csproj.FileListAbsolute.txt
-obj/Debug/DSLuaDecompiler.csproj.FileListAbsolute.txt
+obj/*
+bin/*
+.vs/*
 *.user
+*.lock
+*.ide
+*.ide-shm
+*.ide-wal
+*.config

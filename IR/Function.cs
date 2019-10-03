@@ -1117,6 +1117,11 @@ namespace luadec.IR
                             maxNode = b.Successors[1];
                         }
                     }
+                    // If you don't match anything, but you dominate the end node, then it's probably the follow
+                    if (maxNode == null && b.DominanceTreeSuccessors.Contains(EndBlock))
+                    {
+                        maxNode = EndBlock;
+                    }
                     if (maxNode != null)
                     {
                         b.Follow = maxNode;
