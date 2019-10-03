@@ -1069,7 +1069,7 @@ namespace luadec.IR
             var debugVisited = new HashSet<CFG.BasicBlock>();
             HashSet<CFG.BasicBlock> Visit(CFG.BasicBlock b)
             {
-                if (b.BlockID == 11)
+                if (b.BlockID == 29)
                 {
                     //Console.WriteLine("Hi");
                 }
@@ -1103,7 +1103,20 @@ namespace luadec.IR
                         }
                     }
                     // Heuristic: if the true branch leads to a return or is if-orphaned and the follow isn't defined already, then the follow is always the false branch
-                    if (maxNode == null && (b.Successors[0].Instructions.Last() is Return || b.Successors[0].IfOrphaned))
+                    // If the true branch also has a follow chain defined that leads to a return or if-orphaned node, then it is also disjoint from the rest of the CFG
+                    // and the false branch is the follow
+                    bool isDisjoint = false;
+                    var testfollow = b.Successors[0].Follow;
+                    while (testfollow != null)
+                    {
+                        if (testfollow.Instructions.Last() is Return || testfollow.IfOrphaned)
+                        {
+                            isDisjoint = true;
+                            break;
+                        }
+                        testfollow = testfollow.Follow;
+                    }
+                    if (maxNode == null && (b.Successors[0].Instructions.Last() is Return || b.Successors[0].IfOrphaned || isDisjoint))
                     {
                         // If the false branch leads to an isolated return node or an if-orphaned node, then we are if-orphaned, which essentially means we don't
                         // have a follow defined in the CFG. This means that to structure this, the if-orphaned node must be adopted by the next node with a CFG
