@@ -416,6 +416,17 @@ namespace luadec.IR
                         }
                         lastIndeterminantRet = null;
                     }
+                    if (i is Return ret && ret.IsIndeterminantReturnCount)
+                    {
+                        if (lastIndeterminantRet == null)
+                        {
+                            throw new Exception("Error: Indeterminant return without preceding indeterminant return function call");
+                        }
+                        for (uint r = ret.BeginRet; r <= lastIndeterminantRet.Regnum; r++)
+                        {
+                            ret.ReturnExpressions.Add(new IdentifierReference(table.GetRegister(r)));
+                        }
+                    }
                     if (i is Assignment a && a.Left.Count() == 1 && !a.Left[0].HasIndex && a.Right is FunctionCall fc && fc.IsIndeterminantReturnCount)
                     {
                         lastIndeterminantRet = a.Left[0].Identifier;
@@ -1179,12 +1190,21 @@ namespace luadec.IR
                     }
                 }
 
-                // The loop head is the implicit follow of any unmatched conditionals
+                // The loop head or latch is the implicit follow of any unmatched conditionals
                 if (b.IsLoopHead)
                 {
                     foreach (var ur in unresolved)
                     {
-                        ur.Follow = b;
+                        // If the loop latch has multiple predecessors, it's probably the follow
+                        if (b.LoopLatch != null && b.LoopLatch.Predecessors.Count() > 1)
+                        {
+                            ur.Follow = b.LoopLatch;
+                        }
+                        // Otherwise the detected latch (of multiple) is probably within an if statement and the head is the true follow
+                        else
+                        {
+                            ur.Follow = b;
+                        }
                     }
                     unresolved.Clear();
                 }
@@ -1460,11 +1480,14 @@ namespace luadec.IR
             // Traverse all the nodes in post-order and try to convert jumps to if statements
             var usedFollows = new HashSet<CFG.BasicBlock>();
 
+            // Heads of for statements
+            var forHeads = new HashSet<CFG.BasicBlock>();
+
             // Step 1: build the AST for ifs/loops based on follow information
             foreach (var node in PostorderTraversal(true))
             {
                 // A for loop is a pretested loop where the follow does not match the head
-                if (node.LoopFollow != null && node.LoopFollow != node && node.Predecessors.Count() == 2 && node.LoopType == CFG.LoopType.LoopPretested)
+                if (node.LoopFollow != null && node.LoopFollow != node && node.Predecessors.Count() >= 2 && node.LoopType == CFG.LoopType.LoopPretested)
                 {
                     var loopInitializer = node.Predecessors.First(x => x != node.LoopLatch);
                     if (node.Instructions.Last() is Jump loopJump && loopJump.Condition is BinOp loopCondition && loopCondition.Operation == BinOp.OperationType.OpLoopCompare)
@@ -1487,8 +1510,16 @@ namespace luadec.IR
                         }
                         nfor.Body = node.Successors[1];
                         nfor.Body.MarkCodegened(DebugID);
-                        nfor.Follow = node.LoopFollow;
+                        if (!usedFollows.Contains(node.LoopFollow))
+                        {
+                            nfor.Follow = node.LoopFollow;
+                            usedFollows.Add(node.LoopFollow);
+                            node.LoopFollow.MarkCodegened(DebugID);
+                        }
                         loopInitializer.Instructions[loopInitializer.Instructions.Count() - 1] = nfor;
+                        node.MarkCodegened(DebugID);
+                        // The head might be the follow of an if statement, so do this to not codegen it
+                        usedFollows.Add(node);
                     }
                 }
 
@@ -1547,6 +1578,15 @@ namespace luadec.IR
                 }
             }
 
+            // Step 3: For debug walk the CFG and print blocks that haven't been codegened
+            foreach (var b in PostorderTraversal(true))
+            {
+                if (b != BeginBlock && !b.Codegened())
+                {
+                    Console.WriteLine($@"Warning: block_{b.BlockID} in function {DebugID} was not used in code generation");
+                }
+            }
+
             IsAST = true;
         }
 
@@ -1586,8 +1626,8 @@ namespace luadec.IR
 
         public override string ToString()
         {
-            //string str = $@"function {DebugID} (";
-            string str = $@"function (";
+            string str = $@"function {DebugID} (";
+            //string str = $@"function (";
             for (int i = 0; i < Parameters.Count(); i++)
             {
                 str += Parameters[i].ToString();

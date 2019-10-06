@@ -9,7 +9,9 @@ namespace luadec.IR
     class Return : IInstruction
     {
         public List<Expression> ReturnExpressions;
-        
+        public uint BeginRet = 0;
+        public bool IsIndeterminantReturnCount = false;
+
         public Return(List<Expression> expr)
         {
             ReturnExpressions = expr;

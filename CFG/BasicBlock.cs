@@ -138,6 +138,11 @@ namespace luadec.CFG
             IsCodegened = true;
         }
 
+        public bool Codegened()
+        {
+            return IsCodegened;
+        }
+
         public static void ResetCounter()
         {
             BlockIDCounter = 0;

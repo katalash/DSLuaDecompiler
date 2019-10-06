@@ -483,11 +483,20 @@ namespace luadec
                         break;
                     case Lua502Ops.OpReturn:
                         args = new List<IR.Expression>();
-                        for (int arg = (int)a; arg < a + b - 1; arg++)
+                        if (b != 0)
                         {
-                            args.Add(new IR.IdentifierReference(SymbolTable.GetRegister((uint)arg)));
+                            for (int arg = (int)a; arg < a + b - 1; arg++)
+                            {
+                                args.Add(new IR.IdentifierReference(SymbolTable.GetRegister((uint)arg)));
+                            }
                         }
-                        instructions.Add(new IR.Return(args));
+                        var ret = new IR.Return(args);
+                        if (b == 0)
+                        {
+                            ret.BeginRet = a;
+                            ret.IsIndeterminantReturnCount = true;
+                        }
+                        instructions.Add(ret);
                         //instructions.Add(new IR.PlaceholderInstruction(($@"return {args}")));
                         break;
                     case Lua502Ops.OpForLoop:
