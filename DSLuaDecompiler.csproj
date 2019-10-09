@@ -48,6 +48,7 @@
     <Compile Include="CFG\LoopType.cs" />
     <Compile Include="IR\Assignment.cs" />
     <Compile Include="IR\Break.cs" />
+    <Compile Include="IR\Data.cs" />
     <Compile Include="IR\Expression.cs" />
     <Compile Include="IR\Function.cs" />
     <Compile Include="IR\Identifier.cs" />

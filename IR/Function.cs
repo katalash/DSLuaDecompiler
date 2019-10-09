@@ -53,6 +53,8 @@ namespace luadec.IR
         public static int DebugIDCounter = 0;
         public int DebugID = 0;
 
+        public List<LuaFile.Local> ArgumentNames = null;
+
         public Function()
         {
             Parameters = new List<Identifier>();
@@ -114,6 +116,29 @@ namespace luadec.IR
                         Instructions.Insert(i, l.Value);
                         break;
                     }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Removes data instructions from the IR, which from what I can tell doesn't help with decompilation
+        /// </summary>
+        public void ClearDataInstructions()
+        {
+            for (int i = Instructions.Count() - 1; i > 0; i--)
+            {
+                if (Instructions[i] is Data d1)
+                {
+                    if (Instructions[i - 1] is Data d2)
+                    {
+                        d2.Locals = d1.Locals;
+                    }
+                    else if (Instructions[i - 1] is Assignment a)
+                    {
+                        a.LocalAssignments = d1.Locals;
+                    }
+                    Instructions.RemoveAt(i);
+                    i++;
                 }
             }
         }
@@ -436,6 +461,24 @@ namespace luadec.IR
         }
 
         /// <summary>
+        /// Finishes implementing the last part of the Lua 5.1 FORLOOP op. I.e. in the block that follows the loop head that doesn't
+        /// break the loop insert the following IR: R(A+3) := R(A)
+        /// </summary>
+        public void CompleteLua51Loops()
+        {
+            foreach (var b in BlockList)
+            {
+                if (b.Instructions.Count() > 0 && b.Instructions.Last() is Jump jmp && jmp.PostTakenAssignment != null)
+                {
+                    b.Successors[1].Instructions.Insert(0, jmp.PostTakenAssignment);
+                    jmp.PostTakenAssignment.PropogateAlways = true;
+                    jmp.PostTakenAssignment.Block = b.Successors[1];
+                    jmp.PostTakenAssignment = null;
+                }
+            }
+        }
+
+        /// <summary>
         /// Computes the dominance sets for all the nodes as well as the dominance tree
         /// </summary>
         private void ComputeDominance()
@@ -562,7 +605,7 @@ namespace luadec.IR
                         if (d != EndBlock && !d.PhiFunctions.ContainsKey(g))
                         {
                             // Heuristic: if the block is just a single return, we don't need phi functions
-                            if (d.Instructions.First() is Return)
+                            if (d.Instructions.First() is Return r && r.ReturnExpressions.Count() == 0)
                             {
                                 continue;
                             }
@@ -636,6 +679,7 @@ namespace luadec.IR
                             if (Stacks[phi.Value.Right[index]].Count() > 0)
                             {
                                 phi.Value.Right[index] = Stacks[phi.Value.Right[index]].Peek();
+                                phi.Value.Right[index].UseCount++;
                             }
                             else
                             {
@@ -695,7 +739,7 @@ namespace luadec.IR
                         var inst = b.Instructions[i];
                         foreach (var use in inst.GetUses(true))
                         {
-                            if (use.DefiningInstruction != null && use.DefiningInstruction is Assignment a && a.Left.Count() == 1 && use.UseCount == 1)
+                            if (use.DefiningInstruction != null && use.DefiningInstruction is Assignment a && a.Left.Count() == 1 && a.LocalAssignments == null && (use.UseCount == 1 || a.PropogateAlways))
                             {
                                 bool replaced = inst.ReplaceUses(use, a.Right);
                                 if (a.Block != null && replaced)
@@ -821,6 +865,16 @@ namespace luadec.IR
                         {
                             changed = true;
                             phiToRemove.Add(phi.Value.Left);
+                        }
+                    }
+                    foreach (var rem in phiToRemove)
+                    {
+                        foreach (var i in b.PhiFunctions[rem.OriginalIdentifier].Right)
+                        {
+                            if (i != null)
+                            {
+                                i.UseCount--;
+                            }
                         }
                     }
                     phiToRemove.ForEach(x => b.PhiFunctions.Remove(x.OriginalIdentifier));
@@ -1168,7 +1222,7 @@ namespace luadec.IR
                                         inc = true;
                                         break;
                                     }
-                                    domsucc.Successors.ForEach(s => bfsQueue.Enqueue(s));
+                                    domsucc.DominanceTreeSuccessors.ForEach(s => bfsQueue.Enqueue(s));
                                 }
                                 //}
                                 if (x.IfOrphaned)
@@ -1280,17 +1334,30 @@ namespace luadec.IR
                         {
                             if (t.Successors[0] == e)
                             {
-                                var newCond = new BinOp(n.Condition, new UnaryOp(tj.Condition, UnaryOp.OperationType.OpNot), BinOp.OperationType.OpAnd);
+                                //var newCond = new BinOp(new UnaryOp(n.Condition, UnaryOp.OperationType.OpNot), tj.Condition, BinOp.OperationType.OpOr);
+                                Expression newCond;
+                                if (n.Condition is BinOp b && b.IsCompare())
+                                {
+                                    newCond = new BinOp(((BinOp)n.Condition).NegateCondition(), tj.Condition, BinOp.OperationType.OpOr);
+                                }
+                                else
+                                {
+                                    newCond = new BinOp(new UnaryOp(n.Condition, UnaryOp.OperationType.OpNot), tj.Condition, BinOp.OperationType.OpOr);
+                                }
                                 n.Condition = newCond;
                                 if (t.Follow != null)
                                 {
                                     node.Follow = (node.Follow.ReversePostorderNumber > t.Follow.ReversePostorderNumber) ? node.Follow : t.Follow;
                                 }
-                                node.Successors[0] = t.Successors[1];
+                                node.Successors[1] = t.Successors[1];
                                 var i = t.Successors[1].Predecessors.IndexOf(t);
                                 t.Successors[1].Predecessors[i] = node;
-                                e.Predecessors.Remove(t);
+                                node.Successors[0] = e;
+                                i = t.Successors[0].Predecessors.IndexOf(t);
+                                //e.Predecessors[i] = node;
                                 BlockList.Remove(t);
+                                e.Predecessors.Remove(t);
+                                t.Successors[1].Predecessors.Remove(t);
                                 changed = true;
                             }
                             else if (t.Successors[1] == e)
@@ -1356,6 +1423,7 @@ namespace luadec.IR
             // Do a postorder traversal down the CFG and use the phi functions to create a map of renamings
             HashSet<CFG.BasicBlock> visited = new HashSet<CFG.BasicBlock>();
             HashSet<CFG.BasicBlock> processed = new HashSet<CFG.BasicBlock>();
+            var remapCache = new Dictionary<CFG.BasicBlock, Dictionary<Identifier, Identifier>>();
 
             // This is used to propogate replacements induced by a loop latch down a dominance heirarchy 
             void BackPropogate(CFG.BasicBlock b, Dictionary<Identifier, Identifier> inReplacements)
@@ -1388,6 +1456,9 @@ namespace luadec.IR
                 }
             }
 
+            var globalRenames = new Dictionary<Identifier, Identifier>();
+            var globalRenamesInv = new Dictionary<Identifier, Identifier>();
+
             Dictionary<Identifier, Identifier> Visit(CFG.BasicBlock b)
             {
                 visited.Add(b);
@@ -1395,9 +1466,20 @@ namespace luadec.IR
                 var replacements = new Dictionary<Identifier, Identifier>();
                 foreach (var succ in b.Successors)
                 {
+                    Dictionary<Identifier, Identifier> previsited = null;
                     if (!visited.Contains(succ))
                     {
-                        var previsited = Visit(succ);
+                        previsited = Visit(succ);
+                    }
+                    else
+                    {
+                        if (remapCache.ContainsKey(succ))
+                        {
+                            previsited = remapCache[succ];
+                        }
+                    }
+                    if (previsited != null)
+                    {
                         foreach (var rep in previsited)
                         {
                             if (!replacements.ContainsKey(rep.Key))
@@ -1407,12 +1489,17 @@ namespace luadec.IR
                         }
                     }
                 }
-                
+
 
                 // First rename and delete phi functions by renaming the arguments to the assignment
                 var phiuses = new HashSet<Identifier>();
                 foreach (var phi in b.PhiFunctions)
                 {
+                    // If the def is renamed by a later instruction, go ahead and rename it
+                    if (replacements.ContainsKey(phi.Value.Left))
+                    {
+                        phi.Value.Left = replacements[phi.Value.Left];
+                    }
                     var def = phi.Value.Left;
                     foreach (var use in phi.Value.Right)
                     {
@@ -1421,7 +1508,19 @@ namespace luadec.IR
                         {
                             if (replacements[use] != def)
                             {
-                                throw new Exception("Conflicting phi function renames live at the same time");
+                                //throw new Exception("Conflicting phi function renames live at the same time");
+                                /*if (!globalRenamesInv.ContainsKey(replacements[use]))
+                                {
+                                    globalRenames.Add(replacements[use], def);
+                                    globalRenamesInv.Add(def, replacements[use]);
+                                }
+                                else
+                                {
+                                    globalRenames[globalRenamesInv[replacements[use]]] = def;
+                                    globalRenamesInv.Add(def, globalRenamesInv[replacements[use]]);
+                                    globalRenamesInv.Remove(replacements[use]);
+                                }
+                                replacements[use] = def;*/
                             }
                         }
                         else
@@ -1462,20 +1561,42 @@ namespace luadec.IR
                 // Propogate the replacements to children if this is a latch (i.e. induces a loop) and the head was already processed
                 foreach (var succ in b.Successors)
                 {
-                    if (processed.Contains(succ))
+                    if (processed.Contains(succ) && succ.IsLoopHead)
                     {
                         BackPropogate(succ, replacements);
                     }
                 }
-                
 
+                remapCache.Add(b, replacements);
                 return replacements;
             }
 
             Visit(BeginBlock);
+
+            // Go through all blocks/instructions and do the remaining renames
+            foreach (var b in BlockList)
+            {
+                foreach (var i in b.Instructions)
+                {
+                    foreach (var use in i.GetUses(true))
+                    {
+                        if (globalRenames.ContainsKey(use))
+                        {
+                            i.RenameUses(use, globalRenames[use]);
+                        }
+                    }
+                    foreach (var use in i.GetDefines(true))
+                    {
+                        if (globalRenames.ContainsKey(use))
+                        {
+                            i.RenameDefines(use, globalRenames[use]);
+                        }
+                    }
+                }
+            }
         }
 
-        public void ConvertToAST()
+        public void ConvertToAST(bool lua51 = false)
         {
             // Traverse all the nodes in post-order and try to convert jumps to if statements
             var usedFollows = new HashSet<CFG.BasicBlock>();
@@ -1504,7 +1625,8 @@ namespace luadec.IR
                             if (loopInitializer.Instructions[i] is Assignment a && a.GetDefines(true).Contains(loopvar))
                             {
                                 nfor.Initial = a;
-                                loopInitializer.Instructions.RemoveAt(i);
+                                if (!lua51)
+                                    loopInitializer.Instructions.RemoveAt(i);
                                 break;
                             }
                         }
@@ -1599,7 +1721,14 @@ namespace luadec.IR
             for (int i = 0; i < Parameters.Count(); i++)
             {
                 renamed.Add(Parameters[i]);
-                Parameters[i].Name = $@"arg{i}";
+                if (ArgumentNames != null && ArgumentNames.Count() > i)
+                {
+                    Parameters[i].Name = ArgumentNames[i].Name;
+                }
+                else
+                {
+                    Parameters[i].Name = $@"arg{i}";
+                }
             }
 
             // Rename all the locals
@@ -1610,14 +1739,23 @@ namespace luadec.IR
                 {
                     if (i is Assignment a)
                     {
+                        int ll = 0;
                         foreach (var l in a.Left)
                         {
                             if (l is IdentifierReference ir && !ir.HasIndex && ir.Identifier.IType == Identifier.IdentifierType.Register && !renamed.Contains(ir.Identifier))
                             {
                                 renamed.Add(l.Identifier);
-                                ir.Identifier.Name = $@"local{localCounter}";
-                                localCounter++;
+                                if (a.LocalAssignments != null && ll < a.LocalAssignments.Count())
+                                {
+                                    ir.Identifier.Name = a.LocalAssignments[ll].Name;
+                                }
+                                else
+                                {
+                                    ir.Identifier.Name = $@"local{localCounter}";
+                                    localCounter++;
+                                }
                             }
+                            ll++;
                         }
                     }
                 }
@@ -1642,6 +1780,7 @@ namespace luadec.IR
             {
                 foreach (var inst in Instructions)
                 {
+                    str += $@"{inst.OpLocation:D3}";
                     for (int i = 0; i < IndentLevel; i++)
                     {
                         if (inst is Label && i == IndentLevel - 1)

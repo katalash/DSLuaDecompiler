@@ -250,6 +250,7 @@ namespace luadec.IR
             OpSub,
             OpMul,
             OpDiv,
+            OpMod,
             OpPow,
             OpEqual,
             OpNotEqual,
@@ -273,7 +274,7 @@ namespace luadec.IR
             Operation = op;
         }
 
-        public void NegateCondition()
+        public BinOp NegateCondition()
         {
             switch (Operation)
             {
@@ -300,6 +301,23 @@ namespace luadec.IR
                 default:
                     throw new Exception("Attempting to negate non-conditional binary operation");
             }
+            return this;
+        }
+
+        public bool IsCompare()
+        {
+            switch (Operation)
+            {
+                case OperationType.OpEqual:
+                case OperationType.OpNotEqual:
+                case OperationType.OpLessThan:
+                case OperationType.OpLessEqual:
+                case OperationType.OpGreaterThan:
+                case OperationType.OpGreaterEqual:
+                case OperationType.OpLoopCompare:
+                    return true;
+            }
+            return false;
         }
 
         public override HashSet<Identifier> GetUses(bool regonly)
@@ -351,6 +369,9 @@ namespace luadec.IR
                 case OperationType.OpDiv:
                     op = "/";
                     break;
+                case OperationType.OpMod:
+                    op = "%";
+                    break;
                 case OperationType.OpMul:
                     op = "*";
                     break;
@@ -398,6 +419,7 @@ namespace luadec.IR
         {
             OpNegate,
             OpNot,
+            OpLength,
         }
 
         public Expression Exp;
@@ -444,6 +466,9 @@ namespace luadec.IR
                     break;
                 case OperationType.OpNot:
                     op = "not ";
+                    break;
+                case OperationType.OpLength:
+                    op = "#";
                     break;
             }
             return $@"{op}{Exp}";

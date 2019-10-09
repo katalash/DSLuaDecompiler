@@ -18,6 +18,16 @@ namespace luadec.IR
         public List<IdentifierReference> Left;
         public Expression Right;
 
+        /// <summary>
+        /// If debug info exist, these are the local variables that are assigned if any (null if none are assigned and thus a "temp")
+        /// </summary>
+        public List<LuaFile.Local> LocalAssignments;
+        
+        /// <summary>
+        /// When this is set to true, the value defined by this is always expression/constant propogated, even if it's used more than once
+        /// </summary>
+        public bool PropogateAlways = false;
+
         public Assignment(Identifier l, Expression r)
         {
             Left = new List<IdentifierReference>();
@@ -121,7 +131,18 @@ namespace luadec.IR
                 {
                     Left[0].DotNotation = true;
                 }
-                ret = Left[0] + " = " + Right;
+                else
+                {
+                    for (int i = 0; i < Left.Count(); i++)
+                    {
+                        ret += Left[i].ToString();
+                        if (i != Left.Count() - 1)
+                        {
+                            ret += ", ";
+                        }
+                    }
+                    ret += " = " + Right;
+                }
             }
             else
             {

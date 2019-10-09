@@ -14,6 +14,9 @@ namespace luadec.IR
         public bool Conditional;
         public Expression Condition;
 
+        // Lua 5.1 and HKS has a post-jump assignment that needs to be put at the top of the successor block
+        public Assignment PostTakenAssignment = null;
+
         public Jump(Label dest)
         {
             Dest = dest;

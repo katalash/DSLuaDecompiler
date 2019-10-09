@@ -37,6 +37,7 @@ namespace luadec.IR
         public uint Regnum = 0;
         public IInstruction DefiningInstruction = null;
         public int UseCount = 0;
+        public int PhiUseCount = 0;
 
         public override string ToString()
         {

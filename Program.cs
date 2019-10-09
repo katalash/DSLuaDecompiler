@@ -18,7 +18,14 @@ namespace luadec
                 var lua = new LuaFile(br);
                 IR.Function main = new IR.Function();
                 //LuaDisassembler.DisassembleFunction(lua.MainFunction);
-                LuaDisassembler.GenerateIR(main, lua.MainFunction);
+                if (lua.Version == LuaFile.LuaVersion.Lua50)
+                {
+                    LuaDisassembler.GenerateIR50(main, lua.MainFunction);
+                }
+                else if (lua.Version == LuaFile.LuaVersion.Lua51HKS)
+                {
+                    LuaDisassembler.GenerateIRHKS(main, lua.MainFunction);
+                }
                 Console.OutputEncoding = Encoding.GetEncoding("shift_jis");
                 Console.WriteLine(main.ToString());
             }
