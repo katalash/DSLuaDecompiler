@@ -1304,6 +1304,7 @@ namespace luadec
             irfun.DetectLoops();
             irfun.DetectLoopConditionals();
             irfun.DetectTwoWayConditionals();
+            irfun.SimplifyIfElseFollowChain();
             irfun.EliminateDeadAssignments(true);
             irfun.PerformExpressionPropogation();
 
@@ -1321,7 +1322,8 @@ namespace luadec
                 if (i != 2 && i != 8 && i != 30)
                 //if (i == 16)
                 //if (i == 26)
-                //if (i == 61)
+                //if (i == 79)
+                if (i == 35)
                 {
                     GenerateIRHKS(irfun.LookupClosure((uint)i), fun.ChildFunctions[i]);
                 }

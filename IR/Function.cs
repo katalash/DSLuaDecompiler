@@ -1069,66 +1069,6 @@ namespace luadec.IR
             }
         }
 
-        /*public void DetectTwoWayConditionals()
-        {
-            var unresolved = new HashSet<CFG.BasicBlock>();
-            var order = PostorderTraversal(false);
-            foreach (var node in PostorderTraversal(false))
-            {
-                if (node.BlockID == 30)
-                {
-                    Console.WriteLine("boo");
-                }
-                if (node.Successors.Count() == 2 && node.Instructions.Last() is Jump jmp)
-                {
-                    int maxEdges = 0;
-                    CFG.BasicBlock maxNode = null;
-                    foreach (var d in node.DominanceTreeSuccessors)
-                    {
-                        if (d.Predecessors.Count() >= 2 && d.Predecessors.Count() > maxEdges)
-                        {
-                            maxEdges = d.Predecessors.Count();
-                            maxNode = d;
-                        }
-                    }
-                    if (maxNode != null)
-                    {
-                        if (maxNode.BlockID == 30)
-                        {
-                            Console.WriteLine("boo");
-                        }
-                        node.Follow = maxNode;
-                        bool keepMN = false;
-                        var unresolvedClone = new HashSet<CFG.BasicBlock>(unresolved);
-                        foreach (var x in unresolvedClone)
-                        {
-                            if (x != maxNode)
-                            {
-                                bool inc = (x.DominanceTreeSuccessors.Count() == 0);
-                                foreach (var domsucc in x.DominanceTreeSuccessors)
-                                {
-                                    if (domsucc.Successors.Contains(maxNode))
-                                    {
-                                        inc = true;
-                                    }
-                                }
-                                if (inc)
-                                {
-                                    x.Follow = maxNode;
-                                    unresolved.Remove(x);
-                                }
-                            }
-                        }
-                        
-                    }
-                    else
-                    {
-                        unresolved.Add(node);
-                    }
-                }
-            }
-        }*/
-
         public void DetectTwoWayConditionals()
         {
             var debugVisited = new HashSet<CFG.BasicBlock>();
@@ -1416,6 +1356,111 @@ namespace luadec.IR
         }
 
         /// <summary>
+        /// Sometimes, due to if edges always leading to returns, the follows selected aren't always the most optimal for clean lua generation,
+        /// even though they technically generate correct code. For example, you might get:
+        /// if a then
+        ///     blah
+        /// elseif b then
+        ///     blah
+        /// else
+        ///     if c then
+        ///         return
+        ///     elseif d then
+        ///         blah
+        ///     end
+        /// end
+        /// 
+        /// This can be simplified into a single if else chain. The problem is since "if c then" leads to a return, there's never an explicit jump
+        /// to the last block, or the true logical follow. It becomes "orphaned" and is adopted by "elseif d then" as the follow. This pass detects such
+        /// cases and simplifies them.
+        /// </summary>
+        public void SimplifyIfElseFollowChain()
+        {
+            bool IsIsolated(CFG.BasicBlock b, CFG.BasicBlock target)
+            {
+                var visited = new HashSet<CFG.BasicBlock>();
+                var queue = new Queue<CFG.BasicBlock>();
+
+                queue.Enqueue(b);
+                visited.Add(b);
+                while (queue.Count() > 0)
+                {
+                    var c = queue.Dequeue();
+                    if (c == target)
+                    {
+                        return false;
+                    }
+                    foreach (var succ in c.Successors)
+                    {
+                        if (!visited.Contains(succ))
+                        {
+                            queue.Enqueue(succ);
+                            visited.Add(succ);
+                        }
+                    }
+                }
+
+                // No follow found
+                return true;
+            }
+
+            // This relies on reverse postorder
+            NumberReversePostorder();
+
+            var processed = new HashSet<CFG.BasicBlock>();
+            foreach (var b in PostorderTraversal(true))
+            {
+                var chain = new List<CFG.BasicBlock>();
+                if (b.Follow != null)
+                {
+                    var iter = b;
+                    CFG.BasicBlock highestFollow = b.Follow;
+                    int highestFollowNumber = b.Follow.ReversePostorderNumber;
+                    chain.Add(b);
+                    while (!processed.Contains(iter) && iter.Successors.Count() == 2 && 
+                        iter.Follow == iter.Successors[1] && iter.Successors[1].Instructions.Count() == 1 && IsIsolated(iter.Successors[0], b.Follow)
+                        && b.Successors[1] != iter && iter.Follow.Predecessors.Count() == 1)
+                    {
+                        processed.Add(iter);
+                        iter = iter.Follow;
+                        chain.Add(iter);
+                        if (iter.Follow != null && iter.Follow.ReversePostorderNumber > highestFollowNumber)
+                        {
+                            highestFollowNumber = iter.Follow.ReversePostorderNumber;
+                            highestFollow = iter.Follow;
+                        }
+                    }
+                    if (highestFollow != null && chain.Last().Successors.Count() == 2)
+                    {
+                        foreach (var c in chain)
+                        {
+                            var oldf = c.Follow;
+                            var newf = chain.Last().Follow;
+
+                            // Update any matching follows inside the dominance tree of the true branch
+                            var toVisit = new Stack<CFG.BasicBlock>();
+                            toVisit.Push(c.Successors[0]);
+                            while (toVisit.Count() > 0)
+                            {
+                                var v = toVisit.Pop();
+                                if (v.Follow == oldf)
+                                {
+                                    v.Follow = newf;
+                                }
+                                foreach (var d in v.DominanceTreeSuccessors)
+                                {
+                                    toVisit.Push(d);
+                                }
+                            }
+                            c.Follow = newf;
+                        }
+                    }
+                }
+                processed.Add(b);
+            }
+        }
+
+        /// <summary>
         /// Naive method to convert out of SSA. Not guaranteed to produce correct code since no liveness/interferance analysis is done
         /// </summary>
         public void DropSSANaive()
@@ -1557,6 +1602,18 @@ namespace luadec.IR
                     }
                 }
                 processed.Add(b);
+
+                // If we are the first block, rename the function arguments
+                if (b == BeginBlock)
+                {
+                    for (int a = 0; a < Parameters.Count(); a++)
+                    {
+                        if (replacements.ContainsKey(Parameters[a]))
+                        {
+                            Parameters[a] = replacements[Parameters[a]];
+                        }
+                    }
+                }
 
                 // Propogate the replacements to children if this is a latch (i.e. induces a loop) and the head was already processed
                 foreach (var succ in b.Successors)
