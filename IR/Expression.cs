@@ -34,6 +34,7 @@ namespace luadec.IR
             ConstString,
             ConstBool,
             ConstTable,
+            ConstTableVarargs,
             ConstNil,
         }
 
@@ -77,6 +78,8 @@ namespace luadec.IR
                     return Boolean ? "true" : "false";
                 case ConstantType.ConstTable:
                     return "{}";
+                case ConstantType.ConstTableVarargs:
+                    return "{...}";
                 case ConstantType.ConstNil:
                     return "nil";
             }

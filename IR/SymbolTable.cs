@@ -76,6 +76,19 @@ namespace luadec.IR
             return ScopeStack.First()[global];
         }
 
+        public Identifier GetVarargs()
+        {
+            if (!ScopeStack.First().ContainsKey("$VARARGS"))
+            {
+                Identifier regi = new Identifier();
+                regi.IType = Identifier.IdentifierType.Varargs;
+                regi.VType = Identifier.ValueType.Unknown;
+                regi.Name = "$VARARGS";
+                ScopeStack.First().Add(regi.Name, regi);
+            }
+            return ScopeStack.First()["$VARARGS"];
+        }
+
         public  HashSet<Identifier> GetAllRegistersInScope()
         {
             var ret = new HashSet<Identifier>();

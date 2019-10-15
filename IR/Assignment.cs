@@ -28,6 +28,12 @@ namespace luadec.IR
         /// </summary>
         public bool PropogateAlways = false;
 
+        /// <summary>
+        /// This assignment represents an assignment to an indeterminant number of varargs
+        /// </summary>
+        public bool IsIndeterminantVararg = false;
+        public uint VarargAssignemntReg = 0;
+
         public Assignment(Identifier l, Expression r)
         {
             Left = new List<IdentifierReference>();

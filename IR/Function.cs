@@ -48,6 +48,11 @@ namespace luadec.IR
         /// </summary>
         private HashSet<Identifier> GlobalIdentifiers;
 
+        /// <summary>
+        /// All the renamed SSA variables
+        /// </summary>
+        private HashSet<Identifier> SSAVariables;
+
         private static int IndentLevel = 0;
 
         public static int DebugIDCounter = 0;
@@ -63,6 +68,7 @@ namespace luadec.IR
             Labels = new Dictionary<uint, Label>();
             BlockList = new List<CFG.BasicBlock>();
             GlobalIdentifiers = new HashSet<Identifier>();
+            SSAVariables = new HashSet<Identifier>();
             DebugID = DebugIDCounter;
             DebugIDCounter++;
         }
@@ -400,6 +406,30 @@ namespace luadec.IR
                 }
             }
 
+            // Forth pass: Merge blocks that have a single successor and that successor has a single predecessor
+            for (int b = 0; b < BlockList.Count(); b++)
+            {
+                if (BlockList[b].Successors.Count() == 1 && BlockList[b].Successors[0].Predecessors.Count() == 1)
+                {
+                    var curr = BlockList[b];
+                    var succ = BlockList[b].Successors[0];
+                    curr.Instructions.AddRange(succ.Instructions);
+                    curr.Successors = succ.Successors;
+                    foreach (var s in succ.Successors)
+                    {
+                        for (int p = 0; p < s.Predecessors.Count(); p++)
+                        {
+                            if (s.Predecessors[p] == succ)
+                            {
+                                s.Predecessors[p] = curr;
+                            }
+                        }
+                    }
+                    BlockList.Remove(succ);
+                    b = Math.Max(0, b - 2);
+                }
+            }
+
             // Dangling no successor blocks should go to the end block (implicit return)
             for (int b = 0; b < BlockList.Count(); b++)
             {
@@ -456,6 +486,21 @@ namespace luadec.IR
                     {
                         lastIndeterminantRet = a.Left[0].Identifier;
                     }
+                }
+            }
+        }
+
+        public void ResolveVarargListAssignment()
+        {
+            for (int i = 0; i < Instructions.Count() - 2; i++)
+            {
+                if (Instructions[i] is Assignment a1 && a1.Right is Constant c1 && c1.ConstType == Constant.ConstantType.ConstTable &&
+                    Instructions[i + 1] is Assignment a2 && a2.IsIndeterminantVararg && a1.VarargAssignemntReg == (a2.VarargAssignemntReg - 1) &&
+                    Instructions[i + 2] is Assignment a3 && a3.IsIndeterminantVararg && a3.VarargAssignemntReg == a1.VarargAssignemntReg)
+                {
+                    c1.ConstType = Constant.ConstantType.ConstTableVarargs;
+                    a1.LocalAssignments = a3.LocalAssignments;
+                    Instructions.RemoveRange(i + 1, 2);
                 }
             }
         }
@@ -546,6 +591,9 @@ namespace luadec.IR
         {
             foreach (var b in BlockList)
             {
+                b.KilledIdentifiers.Clear();
+                b.UpwardExposedIdentifiers.Clear();
+                b.LiveOut.Clear();
                 GlobalIdentifiers.UnionWith(b.ComputeKilledAndUpwardExposed());
             }
 
@@ -644,6 +692,7 @@ namespace luadec.IR
                 newName.OriginalIdentifier = orig;
                 Stacks[orig].Push(newName);
                 Counters[orig]++;
+                SSAVariables.Add(newName);
                 return newName;
             }
 
@@ -746,6 +795,7 @@ namespace luadec.IR
                                 {
                                     changed = true;
                                     a.Block.Instructions.Remove(a);
+                                    SSAVariables.Remove(use);
                                     if (b == a.Block)
                                     {
                                         i--;
@@ -1074,7 +1124,7 @@ namespace luadec.IR
             var debugVisited = new HashSet<CFG.BasicBlock>();
             HashSet<CFG.BasicBlock> Visit(CFG.BasicBlock b)
             {
-                if (b.BlockID == 29)
+                if (b.BlockID == 44)
                 {
                     //Console.WriteLine("Hi");
                 }
@@ -1147,7 +1197,7 @@ namespace luadec.IR
                         var unresolvedClone = new HashSet<CFG.BasicBlock>(unresolved);
                         foreach (var x in unresolvedClone)
                         {
-                            if (x != maxNode)
+                            if (x != maxNode && !x.Dominance.Contains(maxNode))
                             {
                                 bool inc = (x.DominanceTreeSuccessors.Count() == 0);
                                 // Do a BFS down the dominance heirarchy to search for a follow
@@ -1206,7 +1256,13 @@ namespace luadec.IR
                 return unresolved;
             }
 
-            Visit(BeginBlock);
+            // Unsure about this logic, but the idea is that an if chain at the end that only returns will be left unmatched and unadopted,
+            // and thus the follows need to be the end blocks
+            var unmatched = Visit(BeginBlock);
+            foreach (var u in unmatched)
+            {
+                u.Follow = EndBlock;
+            }
         }
 
         /// <summary>
@@ -1272,7 +1328,7 @@ namespace luadec.IR
                         var e = node.Successors[1];
                         if (t.Successors.Count() == 2 && t.Instructions.First() is Jump tj && t.Predecessors.Count() == 1)
                         {
-                            if (t.Successors[0] == e)
+                            if (t.Successors[0] == e && t.Successors[1] != e)
                             {
                                 //var newCond = new BinOp(new UnaryOp(n.Condition, UnaryOp.OperationType.OpNot), tj.Condition, BinOp.OperationType.OpOr);
                                 Expression newCond;
@@ -1290,6 +1346,7 @@ namespace luadec.IR
                                     node.Follow = (node.Follow.ReversePostorderNumber > t.Follow.ReversePostorderNumber) ? node.Follow : t.Follow;
                                 }
                                 node.Successors[1] = t.Successors[1];
+                                n.BBDest = node.Successors[1];
                                 var i = t.Successors[1].Predecessors.IndexOf(t);
                                 t.Successors[1].Predecessors[i] = node;
                                 node.Successors[0] = e;
@@ -1327,6 +1384,7 @@ namespace luadec.IR
                                     node.Follow = (node.Follow.ReversePostorderNumber > e.Follow.ReversePostorderNumber) ? node.Follow : e.Follow;
                                 }
                                 node.Successors[1] = e.Successors[1];
+                                n.BBDest = node.Successors[1];
                                 var i = e.Successors[1].Predecessors.IndexOf(e);
                                 e.Successors[1].Predecessors[i] = node;
                                 t.Predecessors.Remove(e);
@@ -1408,7 +1466,7 @@ namespace luadec.IR
             NumberReversePostorder();
 
             var processed = new HashSet<CFG.BasicBlock>();
-            foreach (var b in PostorderTraversal(true))
+            foreach (var b in PostorderTraversal(false))
             {
                 var chain = new List<CFG.BasicBlock>();
                 if (b.Follow != null)
@@ -1457,6 +1515,63 @@ namespace luadec.IR
                     }
                 }
                 processed.Add(b);
+            }
+        }
+
+        /// <summary>
+        /// Does global liveness analysis to verify no copies are needed coming out of SSA form
+        /// </summary>
+        public void VerifyLivenessNoInterference()
+        {
+            // Just computes liveout despite the name
+            ComputeGlobalLiveness(SSAVariables);
+
+            var globalLiveness = new Dictionary<Identifier, HashSet<Identifier>>();
+            // Initialise the disjoint sets
+            foreach (var id in SSAVariables)
+            {
+                globalLiveness.Add(id, new HashSet<Identifier>() { id });
+            }
+
+            // Do a super shitty unoptimal union find algorithm to merge all the global ranges using phi functions
+            // Rewrite this with a proper union-find if performance becomes an issue (lol)
+            foreach (var b in BlockList)
+            {
+                foreach (var phi in b.PhiFunctions.Values)
+                {
+                    foreach (var r in phi.Right)
+                    {
+                        if (globalLiveness[phi.Left] != globalLiveness[r])
+                        {
+                            globalLiveness[phi.Left].UnionWith(globalLiveness[r]);
+                            globalLiveness[r] = globalLiveness[phi.Left];
+                        }
+                    }
+                }
+            }
+
+            foreach (var b in BlockList)
+            {
+                var liveNow = new HashSet<Identifier>(b.LiveOut);
+                for (int i = b.Instructions.Count() - 1; i >= 0; i--)
+                {
+                    var defs = b.Instructions[i].GetDefines(true);
+                    foreach (var def in defs)
+                    {
+                        foreach (var live in liveNow)
+                        {
+                            if (live != def && live.OriginalIdentifier == def.OriginalIdentifier)
+                            {
+                                Console.WriteLine($@"Warning: SSA live range interference detected in function {DebugID}. Results are probably wrong.");
+                            }
+                        }
+                        liveNow.Remove(def);
+                    }
+                    foreach (var use in b.Instructions[i].GetUses(true))
+                    {
+                        liveNow.Add(use);
+                    }
+                }
             }
         }
 
@@ -1653,6 +1768,35 @@ namespace luadec.IR
             }
         }
 
+        /// <summary>
+        /// Drop SSA by simply dropping the subscripts. This requires no interfence in the live ranges of the definitions
+        /// </summary>
+        public void DropSSADropSubscripts()
+        {
+            foreach (var b in BlockList)
+            {
+                b.PhiFunctions.Clear();
+                foreach (var i in b.Instructions)
+                {
+                    foreach (var def in i.GetDefines(true))
+                    {
+                        if (def.OriginalIdentifier != null)
+                            i.RenameDefines(def, def.OriginalIdentifier);
+                    }
+                    foreach (var use in i.GetUses(true))
+                    {
+                        if (use.OriginalIdentifier != null)
+                            i.RenameUses(use, use.OriginalIdentifier);
+                    }
+                }
+            }
+            for (int a = 0; a < Parameters.Count(); a++)
+            {
+                if (Parameters[a].OriginalIdentifier != null)
+                    Parameters[a] = Parameters[a].OriginalIdentifier;
+            }
+        }
+
         public void ConvertToAST(bool lua51 = false)
         {
             // Traverse all the nodes in post-order and try to convert jumps to if statements
@@ -1707,17 +1851,21 @@ namespace luadec.IR
                 {
                     var ifStatement = new IfStatement();
                     ifStatement.Condition = jmp.Condition;
-                    ifStatement.True = node.Successors[0];
-                    ifStatement.True.MarkCodegened(DebugID);
-                    if (ifStatement.True.Instructions.Last() is Jump lj && !lj.Conditional)
+                    // Check for empty if block
+                    if (node.Successors[0] != node.Follow)
                     {
-                        if (ifStatement.True.IsBreakNode)
+                        ifStatement.True = node.Successors[0];
+                        ifStatement.True.MarkCodegened(DebugID);
+                        if (ifStatement.True.Instructions.Last() is Jump lj && !lj.Conditional)
                         {
-                            ifStatement.True.Instructions[ifStatement.True.Instructions.Count() - 1] = new Break();
-                        }
-                        else
-                        {
-                            ifStatement.True.Instructions.Remove(lj);
+                            if (ifStatement.True.IsBreakNode)
+                            {
+                                ifStatement.True.Instructions[ifStatement.True.Instructions.Count() - 1] = new Break();
+                            }
+                            else
+                            {
+                                ifStatement.True.Instructions.Remove(lj);
+                            }
                         }
                     }
                     if (node.Successors[1] != node.Follow)

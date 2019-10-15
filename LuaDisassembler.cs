@@ -947,6 +947,7 @@ namespace luadec
                     case LuaHKSOps.OpNewTable:
                         //instructions.Add(new IR.PlaceholderInstruction(($@"R({a}) := {{}} size = {b}, {c}")));
                         assn = new IR.Assignment(SymbolTable.GetRegister(a), new IR.Constant(IR.Constant.ConstantType.ConstTable));
+                        assn.VarargAssignemntReg = a;
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
@@ -1136,6 +1137,10 @@ namespace luadec
                         //instructions.Add(new IR.PlaceholderInstruction(($@"R({a})[{RK(fun, b)}] := R({c})")));
                         instructions.Add(new IR.Assignment(new IR.IdentifierReference(SymbolTable.GetRegister(a), RKIRHKS(fun, b, false)), RKIRHKS(fun, c, false)));
                         break;
+                    case LuaHKSOps.OpSetTableSBK:
+                        //instructions.Add(new IR.PlaceholderInstruction(($@"R({a})[{RK(fun, b)}] := R({c})")));
+                        instructions.Add(new IR.Assignment(new IR.IdentifierReference(SymbolTable.GetRegister(a), ToConstantIR(fun.ConstantsHKS[b])), RKIRHKS(fun, c, false)));
+                        break;
                     case LuaHKSOps.OpCallI:
                     case LuaHKSOps.OpCallIR1:
                     case LuaHKSOps.OpCall:
@@ -1218,10 +1223,25 @@ namespace luadec
                         instructions.Add(new IR.Jump(irfun.GetLabel(addr)));
                         break;
                     case LuaHKSOps.OpSetList:
-                        for (int j = 1; j <= b; j++)
+                        if (b == 0)
                         {
-                            instructions.Add(new IR.Assignment(new IR.IdentifierReference(SymbolTable.GetRegister(a), new IR.Constant((double)(c - 1) * 32 + j)),
-                                new IR.IdentifierReference(SymbolTable.GetRegister(a + (uint)j))));
+                            // Indeterminant assignment
+                            if (c == 1)
+                            {
+                                assn = new IR.Assignment(SymbolTable.GetRegister(a), Register(a + 1));
+                                assn.VarargAssignemntReg = a;
+                                assn.IsIndeterminantVararg = true;
+                                CheckLocal(assn, fun, pc);
+                                instructions.Add(assn);
+                            }
+                        }
+                        else
+                        {
+                            for (int j = 1; j <= b; j++)
+                            {
+                                instructions.Add(new IR.Assignment(new IR.IdentifierReference(SymbolTable.GetRegister(a), new IR.Constant((double)(c - 1) * 32 + j)),
+                                    new IR.IdentifierReference(SymbolTable.GetRegister(a + (uint)j))));
+                            }
                         }
                         break;
                     case LuaHKSOps.OpClosure:
@@ -1250,8 +1270,25 @@ namespace luadec
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
-                    //case LuaHKSOps.OpVarArg:
-                        instructions.Add(new IR.PlaceholderInstruction("VARARG"));
+                    case LuaHKSOps.OpVarArg:
+                        //instructions.Add(new IR.PlaceholderInstruction("VARARG"));
+                        var vargs = new List<IR.IdentifierReference>();
+                        for (int arg = (int)a; arg <= a + b - 1; arg++)
+                        {
+                            vargs.Add(new IR.IdentifierReference(SymbolTable.GetRegister((uint)arg)));
+                        }
+                        if (b != 0)
+                        {
+                            assn = new IR.Assignment(vargs, new IR.IdentifierReference(SymbolTable.GetVarargs()));
+                        }
+                        else
+                        {
+                            assn = new IR.Assignment(SymbolTable.GetRegister(a), new IR.IdentifierReference(SymbolTable.GetVarargs()));
+                            assn.IsIndeterminantVararg = true;
+                            assn.VarargAssignemntReg = a;
+                        }
+                        CheckLocal(assn, fun, pc);
+                        instructions.Add(assn);
                         break;
                     default:
                         switch (OpPropertiesHKS[opcode].OpMode)
@@ -1266,7 +1303,7 @@ namespace luadec
                                 instructions.Add(new IR.PlaceholderInstruction(($@"{OpPropertiesHKS[opcode].OpName} {a} {(sbx & 0x10000) >> 16} {sbx & 0xFFFF}")));
                                 break;
                         }
-                        throw new Exception($@"Unimplemented opcode {OpPropertiesHKS[opcode].OpName}");
+                        //throw new Exception($@"Unimplemented opcode {OpPropertiesHKS[opcode].OpName}");
                         if (OpPropertiesHKS[opcode].OpName == null)
                         {
                             Console.WriteLine(opcode);
@@ -1283,6 +1320,7 @@ namespace luadec
 
             // Simple post-ir and idiom recognition analysis passes
             irfun.ClearDataInstructions();
+            irfun.ResolveVarargListAssignment();
             irfun.EliminateRedundantAssignments();
             irfun.MergeConditionalJumps();
             irfun.MergeConditionalAssignments();
@@ -1307,9 +1345,10 @@ namespace luadec
             irfun.SimplifyIfElseFollowChain();
             irfun.EliminateDeadAssignments(true);
             irfun.PerformExpressionPropogation();
+            irfun.VerifyLivenessNoInterference();
 
             // Convert out of SSA and rename variables
-            irfun.DropSSANaive();
+            irfun.DropSSADropSubscripts();
             irfun.ArgumentNames = fun.LocalsAt(0);
             irfun.RenameVariables();
 
@@ -1319,11 +1358,12 @@ namespace luadec
             // Now generate IR for all the child closures
             for (int i = 0; i < fun.ChildFunctions.Length; i++)
             {
-                if (i != 2 && i != 8 && i != 30)
+                //if (i != 2 && i != 8 && i != 30)
                 //if (i == 16)
                 //if (i == 26)
                 //if (i == 79)
-                if (i == 35)
+                //if (i == 35)
+                //if (i == 101)
                 {
                     GenerateIRHKS(irfun.LookupClosure((uint)i), fun.ChildFunctions[i]);
                 }

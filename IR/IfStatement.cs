@@ -28,7 +28,10 @@ namespace luadec.IR
             {
                 ret = $@"if {Condition} then" + "\n";
             }
-            ret += True.PrintBlock(indentLevel + 1);
+            if (True != null)
+            {
+                ret += True.PrintBlock(indentLevel + 1);
+            }
             if (False != null)
             {
                 ret += "\n";

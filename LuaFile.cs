@@ -17,12 +17,20 @@ namespace luadec
 
         public LuaVersion Version;
 
-        public static string ReadLuaString(BinaryReaderEx br)
+        public static string ReadLuaString(BinaryReaderEx br, LuaVersion version)
         {
             ulong length = br.ReadUInt64();
             if (length > 0)
             {
-                var ret = br.ReadShiftJIS((int)length-1);
+                string ret;
+                if (version == LuaVersion.Lua50)
+                {
+                    ret = br.ReadShiftJIS((int)length - 1);
+                }
+                else
+                {
+                    ret = br.ReadUTF8((int)length - 1);
+                }
                 br.AssertByte(0); // Eat null terminator
                 return ret;
             }
@@ -92,7 +100,7 @@ namespace luadec
             public string StringValue;
             public double NumberValue;
 
-            public Constant(LuaFile file, BinaryReaderEx br)
+            public Constant(LuaFile file, BinaryReaderEx br, LuaVersion version)
             {
                 byte type = br.ReadByte();
                 if (type == 3)
@@ -102,7 +110,7 @@ namespace luadec
                 }
                 else if (type == 4)
                 {
-                    StringValue = LuaFile.ReadLuaString(br);
+                    StringValue = LuaFile.ReadLuaString(br, version);
                     Type = ConstantType.TypeString;
                 }
                 else
@@ -168,7 +176,7 @@ namespace luadec
                 }
                 else if (type == 4)
                 {
-                    StringValue = LuaFile.ReadLuaString(br);
+                    StringValue = LuaFile.ReadLuaString(br, LuaVersion.Lua51HKS);
                     Type = ConstantType.TypeString;
                 }
                 else
@@ -205,9 +213,9 @@ namespace luadec
             public int Start;
             public int End;
 
-            public Local(BinaryReaderEx br)
+            public Local(BinaryReaderEx br, LuaVersion version)
             {
-                Name = ReadLuaString(br);
+                Name = ReadLuaString(br, version);
                 Start = br.ReadInt32();
                 End = br.ReadInt32();
             }
@@ -217,9 +225,9 @@ namespace luadec
         {
             public string Name;
 
-            public Upvalue(BinaryReaderEx br)
+            public Upvalue(BinaryReaderEx br, LuaVersion version)
             {
-                Name = ReadLuaString(br);
+                Name = ReadLuaString(br, version);
             }
         }
 
@@ -248,7 +256,7 @@ namespace luadec
             {
                 if (version == LuaVersion.Lua50)
                 {
-                    Name = LuaFile.ReadLuaString(br);
+                    Name = LuaFile.ReadLuaString(br, version);
                     LineDefined = br.ReadInt32();
                     Nups = br.ReadByte();
                     NumParams = br.ReadByte();
@@ -261,7 +269,7 @@ namespace luadec
                     Constants = new Constant[constantsCount];
                     for (int i = 0; i < constantsCount; i++)
                     {
-                        Constants[i] = new Constant(file, br);
+                        Constants[i] = new Constant(file, br, version);
                     }
                     int funcCount = br.ReadInt32();
                     ChildFunctions = new Function[funcCount];
@@ -295,15 +303,15 @@ namespace luadec
                     UpValuesCount = br.ReadInt32();
                     br.ReadInt32(); // line begin
                     br.ReadInt32(); // line end
-                    Path = ReadLuaString(br);
-                    Name = ReadLuaString(br);
+                    Path = ReadLuaString(br, version);
+                    Name = ReadLuaString(br, version);
                     // Eat line numbers
                     br.ReadInt32s(bytecodeCount);
                     Locals = new Local[LocalVarsCount];
                     LocalMap = new Dictionary<int, List<Local>>();
                     for (int i = 0; i < LocalVarsCount; i++)
                     {
-                        Locals[i] = new Local(br);
+                        Locals[i] = new Local(br, version);
                         if (!Locals[i].Name.StartsWith("("))
                         {
                             if (!LocalMap.ContainsKey(Locals[i].Start))
@@ -316,7 +324,7 @@ namespace luadec
                     Upvalues = new Upvalue[UpValuesCount];
                     for (int i = 0; i < UpValuesCount; i++)
                     {
-                        Upvalues[i] = new Upvalue(br);
+                        Upvalues[i] = new Upvalue(br, version);
                     }
                     int funcCount = br.ReadInt32();
                     ChildFunctions = new Function[funcCount];

@@ -15,7 +15,8 @@ namespace luadec.IR
         {
             Register,
             Global,
-            Upvalue
+            Upvalue,
+            Varargs,
         }
 
         public enum ValueType
@@ -41,6 +42,10 @@ namespace luadec.IR
 
         public override string ToString()
         {
+            if (IType == IdentifierType.Varargs)
+            {
+                return "...";
+            }
             return Name;
         }
     }

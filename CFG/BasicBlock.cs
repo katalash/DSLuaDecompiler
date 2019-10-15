@@ -111,14 +111,19 @@ namespace luadec.CFG
         public HashSet<IR.Identifier> ComputeKilledAndUpwardExposed()
         {
             var globals = new HashSet<IR.Identifier>();
-            foreach (var inst in Instructions)
+            var instructions = new List<IR.IInstruction>(PhiFunctions.Values);
+            instructions.AddRange(Instructions);
+            foreach (var inst in instructions)
             {
-                foreach (var use in inst.GetUses(true))
+                if (!(inst is IR.PhiFunction))
                 {
-                    if (!KilledIdentifiers.Contains(use))
+                    foreach (var use in inst.GetUses(true))
                     {
-                        UpwardExposedIdentifiers.Add(use);
-                        globals.Add(use);
+                        if (!KilledIdentifiers.Contains(use))
+                        {
+                            UpwardExposedIdentifiers.Add(use);
+                            globals.Add(use);
+                        }
                     }
                 }
                 foreach(var def in inst.GetDefines(true))

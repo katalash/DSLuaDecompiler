@@ -17,6 +17,21 @@ namespace luadec.IR
             Right = right;
         }
 
+        public override HashSet<Identifier> GetDefines(bool regonly)
+        {
+            return new List<Identifier>() { Left }.ToHashSet();
+        }
+
+        public override HashSet<Identifier> GetUses(bool regonly)
+        {
+            var uses = new HashSet<Identifier>();
+            foreach (var id in Right)
+            {
+                uses.UnionWith(Right);
+            }
+            return uses;
+        }
+
         public override void RenameDefines(Identifier orig, Identifier newi)
         {
             if (Left == orig)
