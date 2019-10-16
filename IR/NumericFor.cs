@@ -24,6 +24,10 @@ namespace luadec.IR
         public override string WriteLua(int indentLevel)
         {
             string ret = "";
+            if (Initial is Assignment a)
+            {
+                a.IsLocalDeclaration = false;
+            }
             ret = $@"for {Initial}, {Limit}, {Increment} do" + "\n";
 
             ret += Body.PrintBlock(indentLevel + 1);

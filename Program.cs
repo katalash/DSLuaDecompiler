@@ -21,12 +21,13 @@ namespace luadec
                 if (lua.Version == LuaFile.LuaVersion.Lua50)
                 {
                     LuaDisassembler.GenerateIR50(main, lua.MainFunction);
+                    Console.OutputEncoding = Encoding.GetEncoding("shift_jis");
                 }
                 else if (lua.Version == LuaFile.LuaVersion.Lua51HKS)
                 {
                     LuaDisassembler.GenerateIRHKS(main, lua.MainFunction);
+                    Console.OutputEncoding = Encoding.UTF8;
                 }
-                Console.OutputEncoding = Encoding.GetEncoding("shift_jis");
                 Console.WriteLine(main.ToString());
             }
         }

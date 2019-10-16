@@ -34,7 +34,7 @@ namespace luadec.IR
             ConstString,
             ConstBool,
             ConstTable,
-            ConstTableVarargs,
+            ConstVarargs,
             ConstNil,
         }
 
@@ -78,8 +78,8 @@ namespace luadec.IR
                     return Boolean ? "true" : "false";
                 case ConstantType.ConstTable:
                     return "{}";
-                case ConstantType.ConstTableVarargs:
-                    return "{...}";
+                case ConstantType.ConstVarargs:
+                    return "...";
                 case ConstantType.ConstNil:
                     return "nil";
             }
@@ -241,6 +241,69 @@ namespace luadec.IR
                     ret += " .. ";
                 }
             }
+            return ret;
+        }
+    }
+
+    public class InitializerList : Expression
+    {
+        public List<Expression> Exprs;
+
+        public InitializerList(List<Expression> expr)
+        {
+            Exprs = expr;
+        }
+
+        public override HashSet<Identifier> GetUses(bool regonly)
+        {
+            var ret = new HashSet<Identifier>();
+            foreach (var arg in Exprs)
+            {
+                ret.UnionWith(arg.GetUses(regonly));
+            }
+            return ret;
+        }
+
+        public override void RenameUses(Identifier orig, Identifier newi)
+        {
+            foreach (var arg in Exprs)
+            {
+                arg.RenameUses(orig, newi);
+            }
+        }
+
+        public override bool ReplaceUses(Identifier orig, Expression sub)
+        {
+            bool replaced = false;
+            for (int i = 0; i < Exprs.Count(); i++)
+            {
+                if (ShouldReplace(orig, Exprs[i]))
+                {
+                    Exprs[i] = sub;
+                    replaced = true;
+                }
+                else
+                {
+                    replaced = replaced || Exprs[i].ReplaceUses(orig, sub);
+                }
+            }
+            return replaced;
+        }
+
+        public override string ToString()
+        {
+            string ret = "{";
+
+            // Pattern match special lua this call
+            for (int i = 0; i < Exprs.Count(); i++)
+            {
+                ret += Exprs[i].ToString();
+                if (i != Exprs.Count() - 1)
+                {
+                    ret += ", ";
+                }
+            }
+            ret += "}";
             return ret;
         }
     }

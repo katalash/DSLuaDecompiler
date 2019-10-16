@@ -32,7 +32,14 @@ namespace luadec.IR
         /// This assignment represents an assignment to an indeterminant number of varargs
         /// </summary>
         public bool IsIndeterminantVararg = false;
-        public uint VarargAssignemntReg = 0;
+        public uint VarargAssignmentReg = 0;
+
+        public uint NilAssignmentReg = 0;
+
+        /// <summary>
+        /// Is the first assignment of a local variable, and thus starts with "local"
+        /// </summary>
+        public bool IsLocalDeclaration = false;
 
         public Assignment(Identifier l, Expression r)
         {
@@ -131,6 +138,14 @@ namespace luadec.IR
         public override string ToString()
         {
             var ret = "";
+            if (IsLocalDeclaration)
+            {
+                ret = "local ";
+            }
+            if (Left.Count() == 1 && !Left[0].HasIndex && Left[0].Identifier.IType == Identifier.IdentifierType.Global && Right is Closure c)
+            {
+                return c.Function.PrettyPrint(Left[0].Identifier.Name);
+            }
             if (Left.Count() > 0)
             {
                 if (Left.Count() == 1 && Left[0].HasIndex && Right is Closure)

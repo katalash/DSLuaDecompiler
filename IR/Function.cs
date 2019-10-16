@@ -60,6 +60,8 @@ namespace luadec.IR
 
         public List<LuaFile.Local> ArgumentNames = null;
 
+        public bool IsVarargs = false;
+
         public Function()
         {
             Parameters = new List<Identifier>();
@@ -212,6 +214,38 @@ namespace luadec.IR
                             throw new Exception("Recognized jump pattern does not use a binary op conditional");
                         }
                     }
+                }
+            }
+        }
+
+        /// <summary>
+        /// HKS as an optimization seems to optimize the following:
+        ///     local a, b, c, d = false
+        /// as two instructions: LOADBOOL followed by LOADNIL. It seems that
+        /// LOADNIL can recognize when it's preceded by LOADBOOL and load a bool
+        /// instead of a nil into the register. This pass recognizes this idiom and
+        /// merges them back together. This only works when the bool is false as it's unknown
+        /// if it does this for true as well.
+        /// </summary>
+        public void MergeMultiBoolAssignment()
+        {
+            for (int i = 0; i < Instructions.Count() - 2; i++)
+            {
+                if (Instructions[i] is Assignment a1 && a1.Left.Count() > 0 && !a1.Left[0].HasIndex &&
+                    a1.Right is Constant c && c.ConstType == Constant.ConstantType.ConstBool && !c.Boolean &&
+                    Instructions[i + 1] is Assignment a2 && a2.Left.Count() > 0 && !a2.Left[0].HasIndex &&
+                    a2.Right is Constant c2 && c2.ConstType == Constant.ConstantType.ConstNil)
+                {
+                    a1.Left.AddRange(a2.Left);
+                    if (a1.LocalAssignments == null)
+                    {
+                        a1.LocalAssignments = a2.LocalAssignments;
+                    }
+                    else
+                    {
+                        a1.LocalAssignments.AddRange(a2.LocalAssignments);
+                    }
+                    Instructions.RemoveAt(i + 1);
                 }
             }
         }
@@ -409,10 +443,11 @@ namespace luadec.IR
             // Forth pass: Merge blocks that have a single successor and that successor has a single predecessor
             for (int b = 0; b < BlockList.Count(); b++)
             {
-                if (BlockList[b].Successors.Count() == 1 && BlockList[b].Successors[0].Predecessors.Count() == 1)
+                if (BlockList[b].Successors.Count() == 1 && BlockList[b].Successors[0].Predecessors.Count() == 1 && BlockList[b].Instructions.Last() is Jump)
                 {
                     var curr = BlockList[b];
                     var succ = BlockList[b].Successors[0];
+                    curr.Instructions.RemoveAt(curr.Instructions.Count() - 1);
                     curr.Instructions.AddRange(succ.Instructions);
                     curr.Successors = succ.Successors;
                     foreach (var s in succ.Successors)
@@ -494,11 +529,11 @@ namespace luadec.IR
         {
             for (int i = 0; i < Instructions.Count() - 2; i++)
             {
-                if (Instructions[i] is Assignment a1 && a1.Right is Constant c1 && c1.ConstType == Constant.ConstantType.ConstTable &&
-                    Instructions[i + 1] is Assignment a2 && a2.IsIndeterminantVararg && a1.VarargAssignemntReg == (a2.VarargAssignemntReg - 1) &&
-                    Instructions[i + 2] is Assignment a3 && a3.IsIndeterminantVararg && a3.VarargAssignemntReg == a1.VarargAssignemntReg)
+                if (Instructions[i] is Assignment a1 && a1.Right is InitializerList l1 && l1.Exprs.Count() == 0 &&
+                    Instructions[i + 1] is Assignment a2 && a2.IsIndeterminantVararg && a1.VarargAssignmentReg == (a2.VarargAssignmentReg - 1) &&
+                    Instructions[i + 2] is Assignment a3 && a3.IsIndeterminantVararg && a3.VarargAssignmentReg == a1.VarargAssignmentReg)
                 {
-                    c1.ConstType = Constant.ConstantType.ConstTableVarargs;
+                    l1.Exprs.Add(new IR.Constant(Constant.ConstantType.ConstVarargs));
                     a1.LocalAssignments = a3.LocalAssignments;
                     Instructions.RemoveRange(i + 1, 2);
                 }
@@ -808,6 +843,42 @@ namespace luadec.IR
             } while (changed);
         }
 
+        /// <summary>
+        /// Detects list initializers as a series of statements that serially add data to a newly initialized list
+        /// </summary>
+        public void DetectListInitializers()
+        {
+            foreach (var b in BlockList)
+            {
+                for (int i = 0; i < b.Instructions.Count(); i++)
+                {
+                    if (b.Instructions[i] is Assignment a && a.Left.Count() == 1 && !a.Left[0].HasIndex && a.Right is InitializerList il && il.Exprs.Count() == 0)
+                    {
+                        // Eat up any statements that follow that match the initializer list pattern
+                        int initIndex = 1;
+                        while (i + 1 < b.Instructions.Count())
+                        {
+                            if (b.Instructions[i + 1] is Assignment a2 && a2.Left.Count() == 1 && a2.Left[0].Identifier == a.Left[0].Identifier && a2.Left[0].HasIndex &&
+                                a2.Left[0].TableIndex is Constant c && c.Number == (double)initIndex)
+                            {
+                                il.Exprs.Add(a2.Right);
+                                if (a2.LocalAssignments != null)
+                                {
+                                    a.LocalAssignments = a2.LocalAssignments;
+                                }
+                                b.Instructions.RemoveAt(i + 1);
+                                initIndex++;
+                            }
+                            else
+                            {
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         public List<CFG.BasicBlock> PostorderTraversal(bool reverse)
         {
             var ret = new List<CFG.BasicBlock>();
@@ -936,7 +1007,7 @@ namespace luadec.IR
                         var defs = inst.GetDefines(true);
                         if (defs.Count() == 1 && usageCounts[defs.First()] == 0)
                         {
-                            if (inst is Assignment a && a.Right is FunctionCall)
+                            if (inst is Assignment a && a.Right is FunctionCall && !phiOnly)
                             {
                                 a.Left.Clear();
                             }
@@ -1775,6 +1846,10 @@ namespace luadec.IR
         {
             foreach (var b in BlockList)
             {
+                foreach (var phi in b.PhiFunctions)
+                {
+                    b.PhiMerged.Add(phi.Value.Left.OriginalIdentifier);
+                }
                 b.PhiFunctions.Clear();
                 foreach (var i in b.Instructions)
                 {
@@ -1795,6 +1870,165 @@ namespace luadec.IR
                 if (Parameters[a].OriginalIdentifier != null)
                     Parameters[a] = Parameters[a].OriginalIdentifier;
             }
+
+            int counter = 0;
+            Identifier NewName(Identifier orig)
+            {
+                var newName = new Identifier();
+                newName.Name = orig.Name + $@"_{counter}";
+                counter++;
+                newName.IType = Identifier.IdentifierType.Register;
+                newName.OriginalIdentifier = orig;
+                return newName;
+            }
+
+            // If we have debug information, we can split up variables based on if a definition is associated with the start
+            // of a local variable. If so, everything dominated by the containing block is renamed to that definition
+            void visit(CFG.BasicBlock b, Dictionary<Identifier, Identifier> replacements)
+            {
+                var newreplacements = new Dictionary<Identifier, Identifier>(replacements);
+
+                bool changed = true;
+                while (changed)
+                {
+                    changed = false;
+                    foreach (var phi in b.PhiMerged.ToList())
+                    {
+                        if (newreplacements.ContainsKey(phi))
+                        {
+                            b.PhiMerged.Remove(phi);
+                            b.PhiMerged.Add(newreplacements[phi]);
+                            changed = true;
+                        }
+                    }
+                }
+                // Walk down all the instructions, replacing things that need to be replaced and renaming as needed
+                foreach (var instruction in b.Instructions)
+                {
+                    changed = true;
+                    bool reassigned = false;
+                    while (changed)
+                    {
+                        changed = false;
+                        foreach (var use in instruction.GetUses(true))
+                        {
+                            if (newreplacements.ContainsKey(use))
+                            {
+                                instruction.RenameUses(use, newreplacements[use]);
+                                changed = true;
+                            }
+                        }
+                        foreach (var def in instruction.GetDefines(true))
+                        {
+                            if (instruction is Assignment a && a.LocalAssignments != null && !reassigned)
+                            {
+                                var newname = NewName(def);
+                                instruction.RenameDefines(def, newname);
+                                if (newreplacements.ContainsKey(def))
+                                {
+                                    newreplacements[def] = newname;
+                                }
+                                else
+                                {
+                                    newreplacements.Add(def, newname);
+                                }
+                                changed = true;
+                                reassigned = true;
+                            }
+                            else if (newreplacements.ContainsKey(def))
+                            {
+                                instruction.RenameDefines(def, newreplacements[def]);
+                                changed = true;
+                            }
+                        }
+                    }
+                }
+
+                // Propogate to children in the dominance heirarchy
+                foreach (var succ in b.DominanceTreeSuccessors)
+                {
+                    visit(succ, newreplacements);
+                }
+            }
+            visit(BeginBlock, new Dictionary<Identifier, Identifier>());
+        }
+
+        /// <summary>
+        /// Detects and annotates declarations of local variables. These are the first definitions of variables
+        /// in a dominance heirarchy.
+        /// </summary>
+        public void AnnotateLocalDeclarations()
+        {
+            // This is kinda both a pre and post-order traversal of the dominance heirarchy. In the pre traversal,
+            // first local definitions are detected, marked, and propogated down the graph so that they aren't marked
+            // again. In the postorder traversal, these marked definitions are backpropogated up the dominance heirarchy.
+            // If a node gets multiple marked nodes for the same variable from its children in the dominance heirarchy,
+            // a new local assignment must be inserted right before the node splits.
+            Dictionary<Identifier, List<Assignment>> visit(CFG.BasicBlock b, HashSet<Identifier> declared)
+            {
+                var newdeclared = new HashSet<Identifier>(declared);
+                var declaredAssignments = new Dictionary<Identifier, List<Assignment>>();
+
+                // Go through the graph and mark declared nodes
+                foreach (var inst in b.Instructions)
+                {
+                    if (inst is Assignment a && a.Left.Count() > 0)
+                    {
+                        foreach (var def in a.GetDefines(true))
+                        {
+                            if (!newdeclared.Contains(def))
+                            {
+                                newdeclared.Add(def);
+                                a.IsLocalDeclaration = true;
+                                declaredAssignments.Add(def, new List<Assignment>() { a });
+                            }
+                        }
+                    }
+                }
+
+                // Visit and merge the children in the dominance heirarchy
+                var inherited = new Dictionary<Identifier, List<Assignment>>();
+                var phiinduced = new HashSet<Identifier>();
+                foreach (var succ in b.DominanceTreeSuccessors)
+                {
+                    var cdeclared = visit(succ, newdeclared);
+                    foreach (var entry in cdeclared)
+                    {
+                        if (!inherited.ContainsKey(entry.Key))
+                        {
+                            inherited.Add(entry.Key, new List<Assignment>(entry.Value));
+                        }
+                        else
+                        {
+                            inherited[entry.Key].AddRange(entry.Value);
+                        }
+                    }
+                    phiinduced.UnionWith(succ.PhiMerged);
+                }
+                foreach (var entry in inherited)
+                {
+                    if (entry.Value.Count() > 1 && phiinduced.Contains(entry.Key))
+                    {
+                        // Multiple incoming declarations that all have the same use need to be merged
+                        var assn = new Assignment(entry.Key, null);
+                        assn.IsLocalDeclaration = true;
+                        b.Instructions.Insert(b.Instructions.Count() - 2, assn);
+                        declaredAssignments.Add(entry.Key, new List<Assignment>() { assn });
+                        foreach (var e in entry.Value)
+                        {
+                            e.IsLocalDeclaration = false;
+                        }
+                    }
+                    else
+                    {
+                        declaredAssignments.Add(entry.Key, entry.Value);
+                    }
+                }
+
+                return declaredAssignments;
+            }
+
+            visit(BeginBlock, Parameters.ToHashSet());
         }
 
         public void ConvertToAST(bool lua51 = false)
@@ -1826,7 +2060,7 @@ namespace luadec.IR
                             if (loopInitializer.Instructions[i] is Assignment a && a.GetDefines(true).Contains(loopvar))
                             {
                                 nfor.Initial = a;
-                                if (!lua51)
+                                //if (!lua51)
                                     loopInitializer.Instructions.RemoveAt(i);
                                 break;
                             }
@@ -1839,7 +2073,14 @@ namespace luadec.IR
                             usedFollows.Add(node.LoopFollow);
                             node.LoopFollow.MarkCodegened(DebugID);
                         }
-                        loopInitializer.Instructions[loopInitializer.Instructions.Count() - 1] = nfor;
+                        if (loopInitializer.Instructions[loopInitializer.Instructions.Count() - 1] is Jump)
+                        {
+                            loopInitializer.Instructions[loopInitializer.Instructions.Count() - 1] = nfor;
+                        }
+                        else
+                        {
+                            loopInitializer.Instructions.Add(nfor);
+                        }
                         node.MarkCodegened(DebugID);
                         // The head might be the follow of an if statement, so do this to not codegen it
                         usedFollows.Add(node);
@@ -1967,20 +2208,43 @@ namespace luadec.IR
             }
         }
 
-        public override string ToString()
+        public string PrettyPrint(string funname = null)
         {
-            string str = $@"function {DebugID} (";
-            //string str = $@"function (";
-            for (int i = 0; i < Parameters.Count(); i++)
+            string str = "";
+            if (DebugID != 0)
             {
-                str += Parameters[i].ToString();
-                if (i != Parameters.Count() - 1)
+                if (funname == null)
                 {
-                    str += ", ";
+                    //string str = $@"function {DebugID} (";
+                    str = $@"function (";
                 }
+                else
+                {
+                    //str = $@"function {DebugID} {funname}(";
+                    str = $@"function {funname}(";
+                }
+                for (int i = 0; i < Parameters.Count(); i++)
+                {
+                    str += Parameters[i].ToString();
+                    if (i != Parameters.Count() - 1)
+                    {
+                        str += ", ";
+                    }
+                }
+                if (IsVarargs)
+                {
+                    if (Parameters.Count() > 0)
+                    {
+                        str += ", ...";
+                    }
+                    else
+                    {
+                        str += "...";
+                    }
+                }
+                str += ")\n";
+                IndentLevel += 1;
             }
-            str += ")\n";
-            IndentLevel += 1;
             if (!IsControlFlowGraph)
             {
                 foreach (var inst in Instructions)
@@ -2047,6 +2311,11 @@ namespace luadec.IR
             }
             str += "end";
             return str;
+        }
+
+        public override string ToString()
+        {
+            return PrettyPrint();
         }
     }
 }

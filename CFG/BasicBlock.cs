@@ -19,6 +19,8 @@ namespace luadec.CFG
         public List<IR.IInstruction> Instructions;
         public Dictionary<IR.Identifier, IR.PhiFunction> PhiFunctions;
 
+        public HashSet<IR.Identifier> PhiMerged = new HashSet<IR.Identifier>();
+
         /// <summary>
         /// Set of basic blocks that dominate this function
         /// </summary>
