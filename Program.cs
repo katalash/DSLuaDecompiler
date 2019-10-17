@@ -12,7 +12,37 @@ namespace luadec
     {
         static void Main(string[] args)
         {
-            using (FileStream stream = File.OpenRead(args[0]))
+            Encoding outEncoding = Encoding.UTF8;
+            // Super bad arg parser until I decide to use a better libary
+            bool writeFile = true;
+            string outfilename = null;
+            string infilename = null;
+            int arg = 0;
+            try
+            {
+                if (args[arg] == "-d")
+                {
+                    writeFile = false;
+                    arg++;
+                }
+                else if (args[arg] == "-o")
+                {
+                    outfilename = args[arg + 1];
+                    arg += 2;
+                }
+                infilename = args[arg];
+                if (outfilename == null)
+                {
+                    outfilename = Path.GetFileNameWithoutExtension(infilename) + ".dec.lua";
+                }
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine("Usage: DSLuaDecompiler.exe [options] inputfile.lua\n-o outputfile.lua\n-d Print output in console");
+            }
+
+            Console.OutputEncoding = outEncoding;
+            using (FileStream stream = File.OpenRead(infilename))
             {
                 BinaryReaderEx br = new BinaryReaderEx(false, stream);
                 var lua = new LuaFile(br);
@@ -21,14 +51,22 @@ namespace luadec
                 if (lua.Version == LuaFile.LuaVersion.Lua50)
                 {
                     LuaDisassembler.GenerateIR50(main, lua.MainFunction);
-                    Console.OutputEncoding = Encoding.GetEncoding("shift_jis");
+                    outEncoding = Encoding.GetEncoding("shift_jis");
                 }
                 else if (lua.Version == LuaFile.LuaVersion.Lua51HKS)
                 {
                     LuaDisassembler.GenerateIRHKS(main, lua.MainFunction);
-                    Console.OutputEncoding = Encoding.UTF8;
+                    outEncoding = Encoding.UTF8;
                 }
-                Console.WriteLine(main.ToString());
+
+                if (writeFile)
+                {
+                    File.WriteAllText(outfilename, main.ToString(), outEncoding);
+                }
+                else
+                {
+                    Console.WriteLine(main.ToString());
+                }
             }
         }
     }

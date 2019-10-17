@@ -2031,6 +2031,21 @@ namespace luadec.IR
             visit(BeginBlock, Parameters.ToHashSet());
         }
 
+        /// <summary>
+        /// Inserts parentheses in all the expressions if they are needed (i.e. the result of an operation is used by an operation
+        /// with lower precedence: a + b * c + d would become (a + b) * (c + d) for certain expression trees for example
+        /// </summary>
+        public void Parenthesize()
+        {
+            foreach (var b in BlockList)
+            {
+                foreach (var i in b.Instructions)
+                {
+                    i.Parenthesize();
+                }
+            }
+        }
+
         public void ConvertToAST(bool lua51 = false)
         {
             // Traverse all the nodes in post-order and try to convert jumps to if statements
@@ -2305,11 +2320,14 @@ namespace luadec.IR
                 }
             }
             IndentLevel -= 1;
-            for (int i = 0; i < IndentLevel; i++)
+            if (DebugID != 0)
             {
-                str += "    ";
+                for (int i = 0; i < IndentLevel; i++)
+                {
+                    str += "    ";
+                }
+                str += "end\n";
             }
-            str += "end";
             return str;
         }
 

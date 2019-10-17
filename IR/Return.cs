@@ -23,6 +23,11 @@ namespace luadec.IR
             ReturnExpressions.Add(expr);
         }
 
+        public override void Parenthesize()
+        {
+            ReturnExpressions.ForEach(x => x.Parenthesize());
+        }
+
         public override HashSet<Identifier> GetUses(bool regonly)
         {
             var uses = new HashSet<Identifier>();

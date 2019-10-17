@@ -21,6 +21,8 @@ namespace luadec.IR
         /// </summary>
         public CFG.BasicBlock Block = null;
 
+        public virtual void Parenthesize() { }
+
         /// <summary>
         /// Gets all the identifiers that are defined by this instruction
         /// </summary>

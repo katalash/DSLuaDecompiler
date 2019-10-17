@@ -34,6 +34,14 @@ namespace luadec.IR
             }
         }
 
+        public override void Parenthesize()
+        {
+            if (Conditional)
+            {
+                Condition.Parenthesize();
+            }
+        }
+
         public override HashSet<Identifier> GetUses(bool regonly)
         {
             if (Conditional)

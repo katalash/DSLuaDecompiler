@@ -51,7 +51,10 @@ namespace luadec.IR
                     ret += False.PrintBlock(indentLevel + 1);
                 }
             }
-            ret += "\n";
+            if (!IsElseIf)
+            {
+                ret += "\n";
+            }
             if (!IsElseIf)
             {
                 for (int i = 0; i < indentLevel; i++)

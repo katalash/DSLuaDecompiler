@@ -24,6 +24,8 @@ namespace luadec.IR
         }
 
         public virtual bool ReplaceUses(Identifier orig, Expression sub) { return false; }
+
+        public virtual void Parenthesize() { return; }
     }
 
     public class Constant : Expression
@@ -121,6 +123,14 @@ namespace luadec.IR
             TableIndex = index;
         }
 
+        public override void Parenthesize()
+        {
+            if (HasIndex)
+            {
+                TableIndex.Parenthesize();
+            }
+        }
+
         public override HashSet<Identifier> GetUses(bool regonly)
         {
             var ret = new HashSet<Identifier>();
@@ -183,13 +193,36 @@ namespace luadec.IR
         }
     }
 
-    public class Concat : Expression
+    public interface IOperator
+    {
+        int GetPrecedence();
+        void SetHasParentheses(bool paren);
+    }
+
+    public class Concat : Expression, IOperator
     {
         public List<Expression> Exprs;
+        private bool HasParentheses = false;
 
         public Concat(List<Expression> expr)
         {
             Exprs = expr;
+        }
+
+        public int GetPrecedence()
+        {
+            return 4;
+        }
+
+        public override void Parenthesize()
+        {
+            foreach (var expr in Exprs)
+            {
+                if (expr is IOperator op && op.GetPrecedence() > GetPrecedence())
+                {
+                    op.SetHasParentheses(true);
+                }
+            }
         }
 
         public override HashSet<Identifier> GetUses(bool regonly)
@@ -228,11 +261,20 @@ namespace luadec.IR
             return replaced;
         }
 
+        public void SetHasParentheses(bool paren)
+        {
+            HasParentheses = paren;
+        }
+
         public override string ToString()
         {
             string ret = "";
 
             // Pattern match special lua this call
+            if (HasParentheses)
+            {
+                ret += "(";
+            }
             for (int i = 0; i < Exprs.Count(); i++)
             {
                 ret += Exprs[i].ToString();
@@ -240,6 +282,10 @@ namespace luadec.IR
                 {
                     ret += " .. ";
                 }
+            }
+            if (HasParentheses)
+            {
+                ret += ")";
             }
             return ret;
         }
@@ -252,6 +298,11 @@ namespace luadec.IR
         public InitializerList(List<Expression> expr)
         {
             Exprs = expr;
+        }
+
+        public override void Parenthesize()
+        {
+            Exprs.ForEach(x => x.Parenthesize());
         }
 
         public override HashSet<Identifier> GetUses(bool regonly)
@@ -308,7 +359,7 @@ namespace luadec.IR
         }
     }
 
-    public class BinOp : Expression
+    public class BinOp : Expression, IOperator
     {
         public enum OperationType
         {
@@ -332,6 +383,8 @@ namespace luadec.IR
         public Expression Left;
         public Expression Right;
         public OperationType Operation;
+
+        private bool HasParentheses = false;
 
         public BinOp(Expression left, Expression right, OperationType op)
         {
@@ -368,6 +421,53 @@ namespace luadec.IR
                     throw new Exception("Attempting to negate non-conditional binary operation");
             }
             return this;
+        }
+
+        /// <summary>
+        /// The lower the number the higher the precedence
+        /// </summary>
+        /// <returns></returns>
+        public int GetPrecedence()
+        {
+            switch (Operation)
+            {
+                case OperationType.OpPow:
+                    return 0;
+                case OperationType.OpMul:
+                case OperationType.OpDiv:
+                case OperationType.OpMod:
+                    return 2;
+                case OperationType.OpAdd:
+                case OperationType.OpSub:
+                    return 3;
+                case OperationType.OpEqual:
+                case OperationType.OpNotEqual:
+                case OperationType.OpLessThan:
+                case OperationType.OpLessEqual:
+                case OperationType.OpGreaterThan:
+                case OperationType.OpGreaterEqual:
+                case OperationType.OpLoopCompare:
+                    return 4;
+                case OperationType.OpAnd:
+                    return 5;
+                case OperationType.OpOr:
+                    return 6;
+                default:
+                    return 99999;
+            }
+        }
+
+        public override void Parenthesize()
+        {
+            // If left has a lower precedence than this op, then add parantheses to evaluate it first
+            if (Left is IOperator op1 && op1.GetPrecedence() > GetPrecedence())
+            {
+                op1.SetHasParentheses(true);
+            }
+            if (Right is IOperator op2 && op2.GetPrecedence() > GetPrecedence())
+            {
+                op2.SetHasParentheses(true);
+            }
         }
 
         public bool IsCompare()
@@ -475,11 +575,26 @@ namespace luadec.IR
                     op = ">?=";
                     break;
             }
-            return $@"{Left} {op} {Right}";
+            string ret = "";
+            if (HasParentheses)
+            {
+                ret += "(";
+            }
+            ret += $@"{Left} {op} {Right}";
+            if (HasParentheses)
+            {
+                ret += ")";
+            }
+            return ret;
+        }
+
+        public void SetHasParentheses(bool paren)
+        {
+            HasParentheses = paren;
         }
     }
 
-    public class UnaryOp : Expression
+    public class UnaryOp : Expression, IOperator
     {
         public enum OperationType
         {
@@ -490,6 +605,8 @@ namespace luadec.IR
 
         public Expression Exp;
         public OperationType Operation;
+
+        private bool HasParentheses = false;
 
         public UnaryOp(Expression exp, OperationType op)
         {
@@ -537,7 +654,35 @@ namespace luadec.IR
                     op = "#";
                     break;
             }
-            return $@"{op}{Exp}";
+            string ret = "";
+            if (HasParentheses)
+            {
+                ret += "(";
+            }
+            ret += $@"{op}{Exp}";
+            if (HasParentheses)
+            {
+                ret += ")";
+            }
+            return ret;
+        }
+
+        public int GetPrecedence()
+        {
+            return 1;
+        }
+        public override void Parenthesize()
+        {
+            // If left has a lower precedence than this op, then add parantheses to evaluate it first
+            if (Exp is IOperator op1 && op1.GetPrecedence() > GetPrecedence())
+            {
+                op1.SetHasParentheses(true);
+            }
+        }
+
+        public void SetHasParentheses(bool paren)
+        {
+            HasParentheses = paren;
         }
     }
 
@@ -555,6 +700,12 @@ namespace luadec.IR
         {
             Function = fun;
             Args = args;
+        }
+
+        public override void Parenthesize()
+        {
+            Function.Parenthesize();
+            Args.ForEach(x => x.Parenthesize());
         }
 
         public override HashSet<Identifier> GetUses(bool regonly)

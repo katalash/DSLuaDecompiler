@@ -61,6 +61,15 @@ namespace luadec.IR
             Right = r;
         }
 
+        public override void Parenthesize()
+        {
+            Left.ForEach(x => x.Parenthesize());
+            if (Right != null)
+            {
+                Right.Parenthesize();
+            }
+        }
+
         public override HashSet<Identifier> GetDefines(bool regonly)
         {
             var defines = new HashSet<Identifier>();
@@ -142,7 +151,7 @@ namespace luadec.IR
             {
                 ret = "local ";
             }
-            if (Left.Count() == 1 && !Left[0].HasIndex && Left[0].Identifier.IType == Identifier.IdentifierType.Global && Right is Closure c)
+            if (Left.Count() == 1 && !Left[0].HasIndex && !Left[0].DotNotation && Left[0].Identifier.IType == Identifier.IdentifierType.Global && Right is Closure c)
             {
                 return c.Function.PrettyPrint(Left[0].Identifier.Name);
             }
@@ -151,6 +160,7 @@ namespace luadec.IR
                 if (Left.Count() == 1 && Left[0].HasIndex && Right is Closure)
                 {
                     Left[0].DotNotation = true;
+                    ret = Left[0] + " = " + Right;
                 }
                 else
                 {
