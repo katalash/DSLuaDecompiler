@@ -40,6 +40,8 @@ namespace luadec.IR
         public int UseCount = 0;
         public int PhiUseCount = 0;
 
+        public bool UpvalueResolved = false;
+
         public override string ToString()
         {
             if (IType == IdentifierType.Varargs)

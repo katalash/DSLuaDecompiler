@@ -209,6 +209,13 @@ namespace luadec.IR
                             jmp1.Dest = jmp2.Dest;
                             instanceCounts++;
                         }
+                        else if ((jmp1.Condition is UnaryOp op2 && op2.Operation == UnaryOp.OperationType.OpNot) || jmp1.Condition is IdentifierReference)
+                        {
+                            jmp1.Dest.UsageCount--;
+                            Instructions.RemoveRange(i + 1, jmp1.Dest.UsageCount <= 0 ? 2 : 1);
+                            jmp1.Dest = jmp2.Dest;
+                            instanceCounts++;
+                        }
                         else
                         {
                             throw new Exception("Recognized jump pattern does not use a binary op conditional");
@@ -1907,12 +1914,13 @@ namespace luadec.IR
                 {
                     changed = true;
                     bool reassigned = false;
+                    Identifier newdef = null;
                     while (changed)
                     {
                         changed = false;
                         foreach (var use in instruction.GetUses(true))
                         {
-                            if (newreplacements.ContainsKey(use))
+                            if (newreplacements.ContainsKey(use) && newreplacements[use] != newdef)
                             {
                                 instruction.RenameUses(use, newreplacements[use]);
                                 changed = true;
@@ -1927,10 +1935,12 @@ namespace luadec.IR
                                 if (newreplacements.ContainsKey(def))
                                 {
                                     newreplacements[def] = newname;
+                                    newdef = newname;
                                 }
                                 else
                                 {
                                     newreplacements.Add(def, newname);
+                                    newdef = newname;
                                 }
                                 changed = true;
                                 reassigned = true;

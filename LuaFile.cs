@@ -263,8 +263,29 @@ namespace luadec
                     IsVarArg = br.ReadByte();
                     MaxStackSize = br.ReadByte();
                     SizeLineInfo = br.ReadInt32();
+                    // Eat line numbers
+                    br.ReadInt32s(SizeLineInfo);
                     LocalVarsCount = br.ReadInt32();
+                    Locals = new Local[LocalVarsCount];
+                    LocalMap = new Dictionary<int, List<Local>>();
+                    for (int i = 0; i < LocalVarsCount; i++)
+                    {
+                        Locals[i] = new Local(br, version);
+                        if (!Locals[i].Name.StartsWith("("))
+                        {
+                            if (!LocalMap.ContainsKey(Locals[i].Start))
+                            {
+                                LocalMap[Locals[i].Start] = new List<Local>();
+                            }
+                            LocalMap[Locals[i].Start].Add(Locals[i]);
+                        }
+                    }
                     UpValuesCount = br.ReadInt32();
+                    Upvalues = new Upvalue[UpValuesCount];
+                    for (int i = 0; i < UpValuesCount; i++)
+                    {
+                        Upvalues[i] = new Upvalue(br, version);
+                    }
                     int constantsCount = br.ReadInt32();
                     Constants = new Constant[constantsCount];
                     for (int i = 0; i < constantsCount; i++)
@@ -342,6 +363,15 @@ namespace luadec
                     return LocalMap[i];
                 }
                 return null;
+            }
+
+            public override string ToString()
+            {
+                if (Name != null && Name != "")
+                {
+                    return Name;
+                }
+                return base.ToString();
             }
         }
 

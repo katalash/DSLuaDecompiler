@@ -468,6 +468,9 @@ namespace luadec.IR
             {
                 op2.SetHasParentheses(true);
             }
+
+            Left.Parenthesize();
+            Right.Parenthesize();
         }
 
         public bool IsCompare()
@@ -678,6 +681,7 @@ namespace luadec.IR
             {
                 op1.SetHasParentheses(true);
             }
+            Exp.Parenthesize();
         }
 
         public void SetHasParentheses(bool paren)
