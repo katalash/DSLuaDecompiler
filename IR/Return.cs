@@ -64,6 +64,16 @@ namespace luadec.IR
             return replace;
         }
 
+        public override List<Expression> GetExpressions()
+        {
+            var ret = new List<Expression>();
+            foreach (var r in ReturnExpressions)
+            {
+                ret.AddRange(r.GetExpressions());
+            }
+            return ret;
+        }
+
         public override string ToString()
         {
             string ret = "return ";

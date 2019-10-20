@@ -2233,6 +2233,52 @@ namespace luadec.IR
             }
         }
 
+        public void AnnotateEnvActFunctions()
+        {
+            var EnvJapaneseMap = new Dictionary<string, string>();
+            var EnvIDMap = new Dictionary<int, string>();
+            var nameIdentifierMap = new Dictionary<string, Identifier>();
+            foreach (var env in Annotations.ESDFunctions.ESDEnvs)
+            {
+                EnvJapaneseMap.Add(env.JapaneseName, env.EnglishEnum);
+                EnvIDMap.Add(env.ID, env.EnglishEnum);
+                var id = new Identifier();
+                id.Name = env.EnglishEnum;
+                id.IType = Identifier.IdentifierType.Global;
+                nameIdentifierMap.Add(env.EnglishEnum, id);
+            }
+
+            foreach (var b in BlockList)
+            {
+                foreach (var i in b.Instructions)
+                {
+                    foreach (var e in i.GetExpressions())
+                    {
+                        if (e is FunctionCall f && f.Function is IdentifierReference ir && ir.Identifier.Name == "env")
+                        {
+                            if (f.Args.Count() > 0)
+                            {
+                                if (f.Args[0] is Constant c1 && c1.ConstType == Constant.ConstantType.ConstString)
+                                {
+                                    if (EnvJapaneseMap.ContainsKey(c1.String))
+                                    {
+                                        f.Args[0] = new IdentifierReference(nameIdentifierMap[EnvJapaneseMap[c1.String]]);
+                                    }
+                                }
+                                else if (f.Args[0] is Constant c2 && c2.ConstType == Constant.ConstantType.ConstNumber)
+                                {
+                                    if (EnvIDMap.ContainsKey((int)c2.Number))
+                                    {
+                                        f.Args[0] = new IdentifierReference(nameIdentifierMap[EnvIDMap[(int)c2.Number]]);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         public string PrettyPrint(string funname = null)
         {
             string str = "";

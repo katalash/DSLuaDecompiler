@@ -223,7 +223,7 @@ namespace luadec
             new OpProperties("GETTABLE_N"),
             new OpProperties("GETTABLE"),
             new OpProperties("LOADBOOL", OpMode.IABC),
-            new OpProperties("TFORLOOP"),
+            new OpProperties("TFORLOOP", OpMode.IABC),
             new OpProperties("SETFIELD", OpMode.IABC),
             new OpProperties("SETTABLE_S", OpMode.IABC),
             new OpProperties("SETTABLE_S_BK", OpMode.IABC),
@@ -980,6 +980,7 @@ namespace luadec
                 }*/
                 //int sbx = (instruction & 0x1FFFF00) >> 8;
                 List<IR.Expression> args = null;
+                List<IR.IdentifierReference> rets = null;
                 List<IR.IInstruction> instructions = new List<IR.IInstruction>();
                 IR.Assignment assn;
                 switch ((LuaHKSOps)opcode)
@@ -1250,7 +1251,7 @@ namespace luadec
                     case LuaHKSOps.OpCallIR1:
                     case LuaHKSOps.OpCall:
                         args = new List<IR.Expression>();
-                        var rets = new List<IR.IdentifierReference>();
+                        rets = new List<IR.IdentifierReference>();
                         for (int arg = (int)a + 1; arg < a + b; arg++)
                         {
                             args.Add(new IR.IdentifierReference(SymbolTable.GetRegister((uint)arg)));
@@ -1314,6 +1315,31 @@ namespace luadec
                         pta.PropogateAlways = true;
                         jmp.PostTakenAssignment = pta;
                         instructions.Add(jmp);
+                        break;
+                    case LuaHKSOps.OpTForLoop:
+                        args = new List<IR.Expression>();
+                        rets = new List<IR.IdentifierReference>();
+                        args.Add(new IR.IdentifierReference(SymbolTable.GetRegister((uint)a + 1)));
+                        args.Add(new IR.IdentifierReference(SymbolTable.GetRegister((uint)a + 2)));
+                        if (c == 0)
+                        {
+                            rets.Add(new IR.IdentifierReference(SymbolTable.GetRegister((uint)a + 3)));
+                        }
+                        else
+                        {
+                            for (int r = (int)a + 3; r <= a + c + 2; r++)
+                            {
+                                rets.Add(new IR.IdentifierReference(SymbolTable.GetRegister((uint)r)));
+                            }
+                        }
+                        //instructions.Add(new IR.PlaceholderInstruction(($@"R({a}) := R({a})({args})")));
+                        var fcall = new IR.FunctionCall(new IR.IdentifierReference(SymbolTable.GetRegister(a)), args);
+                        fcall.IsIndeterminantReturnCount = (c == 0);
+                        assn = new IR.Assignment(rets, fcall);
+                        CheckLocal(assn, fun, pc);
+                        instructions.Add(assn);
+                        instructions.Add(new IR.Jump(irfun.GetLabel((uint)((i / 4) + 2)), new IR.BinOp(Register((uint)a + 3), new IR.Constant(IR.Constant.ConstantType.ConstNil), IR.BinOp.OperationType.OpEqual)));
+                        instructions.Add(new IR.Assignment(SymbolTable.GetRegister(a + 2), new IR.IdentifierReference(SymbolTable.GetRegister(a + 3))));
                         break;
                     case LuaHKSOps.OpForPrep:
                         addr = (uint)((i / 4) + 2 + ((sbx << 16) >> 16));
@@ -1463,6 +1489,7 @@ namespace luadec
             irfun.ArgumentNames = fun.LocalsAt(0);
             irfun.RenameVariables();
             irfun.Parenthesize();
+            irfun.AnnotateEnvActFunctions();
 
             // Convert to AST
             irfun.ConvertToAST(true);
@@ -1475,7 +1502,7 @@ namespace luadec
                 //if (i == 26)
                 //if (i == 79)
                 //if (i == 35)
-                //if (i == 8)
+                //if (i != 0)
                 {
                     GenerateIRHKS(irfun.LookupClosure((uint)i), fun.ChildFunctions[i]);
                 }

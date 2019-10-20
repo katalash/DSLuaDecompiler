@@ -43,6 +43,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Annotations\ESDFunctions.cs" />
     <Compile Include="CFG\AbstractGraph.cs" />
     <Compile Include="CFG\BasicBlock.cs" />
     <Compile Include="CFG\LoopType.cs" />

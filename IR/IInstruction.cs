@@ -41,6 +41,11 @@ namespace luadec.IR
             return new HashSet<Identifier>();
         }
 
+        public virtual List<Expression> GetExpressions()
+        {
+            return new List<Expression>();
+        }
+
         public virtual void RenameDefines(Identifier orig, Identifier newi) { }
 
         public virtual void RenameUses(Identifier orig, Identifier newi) { }

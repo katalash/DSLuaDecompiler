@@ -76,6 +76,16 @@ namespace luadec.IR
             return false;
         }
 
+        public override List<Expression> GetExpressions()
+        {
+            var ret = new List<Expression>();
+            if (Conditional)
+            {
+                ret = Condition.GetExpressions();
+            }
+            return ret;
+        }
+
         public override string ToString()
         {
             string ret = "";

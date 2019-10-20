@@ -26,6 +26,11 @@ namespace luadec.IR
         public virtual bool ReplaceUses(Identifier orig, Expression sub) { return false; }
 
         public virtual void Parenthesize() { return; }
+
+        public virtual List<Expression> GetExpressions()
+        {
+            return new List<Expression>() { this };
+        }
     }
 
     public class Constant : Expression
@@ -178,6 +183,16 @@ namespace luadec.IR
             return changed;
         }
 
+        public override List<Expression> GetExpressions()
+        {
+            var ret = new List<Expression>() { this };
+            if (HasIndex)
+            {
+                ret.AddRange(TableIndex.GetExpressions());
+            }
+            return ret;
+        }
+
         public override string ToString()
         {
             string ret = Identifier.ToString();
@@ -261,6 +276,16 @@ namespace luadec.IR
             return replaced;
         }
 
+        public override List<Expression> GetExpressions()
+        {
+            var ret = new List<Expression>() { this };
+            foreach(var exp in Exprs)
+            {
+                ret.AddRange(exp.GetExpressions());
+            }
+            return ret;
+        }
+
         public void SetHasParentheses(bool paren)
         {
             HasParentheses = paren;
@@ -339,6 +364,16 @@ namespace luadec.IR
                 }
             }
             return replaced;
+        }
+
+        public override List<Expression> GetExpressions()
+        {
+            var ret = new List<Expression>() { this };
+            foreach (var exp in Exprs)
+            {
+                ret.AddRange(exp.GetExpressions());
+            }
+            return ret;
         }
 
         public override string ToString()
@@ -527,6 +562,14 @@ namespace luadec.IR
             return replaced;
         }
 
+        public override List<Expression> GetExpressions()
+        {
+            var ret = new List<Expression>() { this };
+            ret.AddRange(Left.GetExpressions());
+            ret.AddRange(Right.GetExpressions());
+            return ret;
+        }
+
         public override string ToString()
         {
             string op = "";
@@ -640,6 +683,13 @@ namespace luadec.IR
             {
                 return Exp.ReplaceUses(orig, sub);
             }
+        }
+
+        public override List<Expression> GetExpressions()
+        {
+            var ret = new List<Expression>() { this };
+            ret.AddRange(Exp.GetExpressions());
+            return ret;
         }
 
         public override string ToString()
@@ -757,6 +807,17 @@ namespace luadec.IR
                 }
             }
             return replaced;
+        }
+
+        public override List<Expression> GetExpressions()
+        {
+            var ret = new List<Expression>() { this };
+            foreach (var exp in Args)
+            {
+                ret.AddRange(exp.GetExpressions());
+            }
+            ret.AddRange(Function.GetExpressions());
+            return ret;
         }
 
         public override string ToString()

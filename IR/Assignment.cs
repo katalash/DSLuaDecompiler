@@ -144,6 +144,17 @@ namespace luadec.IR
             return replaced;
         }
 
+        public override List<Expression> GetExpressions()
+        {
+            var ret = new List<Expression>();
+            foreach (var left in Left)
+            {
+                ret.AddRange(left.GetExpressions());
+            }
+            ret.AddRange(Right.GetExpressions());
+            return ret;
+        }
+
         public override string ToString()
         {
             var ret = "";
