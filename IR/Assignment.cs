@@ -41,6 +41,11 @@ namespace luadec.IR
         /// </summary>
         public bool IsLocalDeclaration = false;
 
+        /// <summary>
+        /// If true, the assignment uses "in" instead of "="
+        /// </summary>
+        public bool IsGenericForAssignment = false;
+
         public Assignment(Identifier l, Expression r)
         {
             Left = new List<IdentifierReference>();
@@ -158,6 +163,7 @@ namespace luadec.IR
         public override string ToString()
         {
             var ret = "";
+            var assignmentOp = IsGenericForAssignment ? " in " : " = ";
             if (IsLocalDeclaration)
             {
                 ret = "local ";
@@ -171,7 +177,7 @@ namespace luadec.IR
                 if (Left.Count() == 1 && Left[0].HasIndex && Right is Closure)
                 {
                     Left[0].DotNotation = true;
-                    ret = Left[0] + " = " + Right;
+                    ret = Left[0] + assignmentOp + Right;
                 }
                 else
                 {
@@ -183,7 +189,7 @@ namespace luadec.IR
                             ret += ", ";
                         }
                     }
-                    ret += " = " + Right;
+                    ret += assignmentOp + Right;
                 }
             }
             else

@@ -611,6 +611,15 @@ namespace luadec
                         //instructions.Add(new IR.PlaceholderInstruction(($@"Gbl[{fun.Constants[bx].ToString()}] := R({a})")));
                         instructions.Add(new IR.Assignment(SymbolTable.GetGlobal(fun.Constants[bx].ToString()), new IR.IdentifierReference(SymbolTable.GetRegister(a))));
                         break;
+                    case Lua502Ops.OpSetUpVal:
+                        var up2 = SymbolTable.GetUpvalue(b);
+                        if (fun.Upvalues.Count() > 0 && !up2.UpvalueResolved)
+                        {
+                            up2.Name = fun.Upvalues[b].Name;
+                            up2.UpvalueResolved = true;
+                        }
+                        instructions.Add(new IR.Assignment(up2, new IR.IdentifierReference(SymbolTable.GetRegister(a))));
+                        break;
                     case Lua502Ops.OpNewTable:
                         //instructions.Add(new IR.PlaceholderInstruction(($@"R({a}) := {{}} size = {b}, {c}")));
                         assn = new IR.Assignment(SymbolTable.GetRegister(a), new IR.InitializerList(new List<IR.Expression>()));
@@ -824,7 +833,7 @@ namespace luadec
                                 instructions.Add(new IR.PlaceholderInstruction(($@"{OpProperties502[opcode].OpName} {instruction >> 24} {(instruction >> 6) & 0x3FFFF}")));
                                 break;
                         }
-                        //throw new Exception($@"Unimplemented opcode {OpProperties502[opcode].OpName}");
+                        throw new Exception($@"Unimplemented opcode {OpProperties502[opcode].OpName}");
                         break;
                 }
                 foreach (var inst in instructions)
@@ -1492,7 +1501,7 @@ namespace luadec
             irfun.AnnotateEnvActFunctions();
 
             // Convert to AST
-            irfun.ConvertToAST(true);
+            //irfun.ConvertToAST(true);
 
             // Now generate IR for all the child closures
             for (int i = 0; i < fun.ChildFunctions.Length; i++)
@@ -1501,7 +1510,7 @@ namespace luadec
                 //if (i == 16)
                 //if (i == 26)
                 //if (i == 79)
-                //if (i == 35)
+                if (i == 11)
                 //if (i != 0)
                 {
                     GenerateIRHKS(irfun.LookupClosure((uint)i), fun.ChildFunctions[i]);

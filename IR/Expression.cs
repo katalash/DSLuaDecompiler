@@ -20,7 +20,7 @@ namespace luadec.IR
 
         public static bool ShouldReplace(Identifier orig, Expression cand)
         {
-            return (cand is IdentifierReference ident && !ident.HasIndex && ident.Identifier == orig);
+            return (cand is IdentifierReference ident && ident.TableIndices.Count == 0 && ident.Identifier == orig);
         }
 
         public virtual bool ReplaceUses(Identifier orig, Expression sub) { return false; }
@@ -112,9 +112,11 @@ namespace luadec.IR
     public class IdentifierReference : Expression
     {
         public Identifier Identifier;
-        public bool HasIndex = false;
-        public Expression TableIndex = null;
+        // Each entry represents a new level of indirection for multidimensional arrays
+        public List<Expression> TableIndices = new List<Expression>();
         public bool DotNotation = false;
+
+        public bool HasIndex { get => TableIndices.Count != 0; }
 
         public IdentifierReference(Identifier id)
         {
@@ -124,15 +126,14 @@ namespace luadec.IR
         public IdentifierReference(Identifier id, Expression index)
         {
             Identifier = id;
-            HasIndex = true;
-            TableIndex = index;
+            TableIndices = new List<Expression>() { index };
         }
 
         public override void Parenthesize()
         {
-            if (HasIndex)
+            foreach (var idx in TableIndices)
             {
-                TableIndex.Parenthesize();
+                idx.Parenthesize();
             }
         }
 
@@ -143,9 +144,9 @@ namespace luadec.IR
             {
                 ret.Add(Identifier);
             }
-            if (HasIndex)
+            foreach (var idx in TableIndices)
             {
-                ret.UnionWith(TableIndex.GetUses(regonly));
+                ret.UnionWith(idx.GetUses(regonly));
             }
             return ret;
         }
@@ -157,27 +158,39 @@ namespace luadec.IR
                 Identifier = newi;
                 Identifier.UseCount++;
             }
-            if (HasIndex)
+            foreach (var idx in TableIndices)
             {
-                TableIndex.RenameUses(orig, newi);
+                idx.RenameUses(orig, newi);
             }
         }
 
         public override bool ReplaceUses(Identifier orig, Expression sub)
         {
             bool changed = false;
-            if (HasIndex && ShouldReplace(orig, TableIndex))
+            for (int i = 0; i < TableIndices.Count; i++)
             {
-                TableIndex = sub;
-                changed = true;
+                if (ShouldReplace(orig, TableIndices[i]))
+                {
+                    TableIndices[i] = sub;
+                    changed = true;
+                }
+                else
+                {
+                    changed = TableIndices[i].ReplaceUses(orig, sub);
+                }
             }
-            else if (HasIndex)
-            {
-                changed = TableIndex.ReplaceUses(orig, sub);
-            }
-            if (orig == Identifier && sub is IdentifierReference ir && !ir.HasIndex)
+            if (orig == Identifier && sub is IdentifierReference ir && ir.TableIndices.Count == 0)
             {
                 Identifier = ir.Identifier;
+                changed = true;
+            }
+            else if (orig == Identifier && sub is IdentifierReference ir2 && ir2.TableIndices.Count > 0)
+            {
+                Identifier = ir2.Identifier;
+                var newl = new List<Expression>();
+                newl.AddRange(ir2.TableIndices);
+                newl.AddRange(TableIndices);
+                TableIndices = newl;
                 changed = true;
             }
             return changed;
@@ -186,9 +199,9 @@ namespace luadec.IR
         public override List<Expression> GetExpressions()
         {
             var ret = new List<Expression>() { this };
-            if (HasIndex)
+            foreach (var idx in TableIndices)
             {
-                ret.AddRange(TableIndex.GetExpressions());
+                ret.AddRange(idx.GetExpressions());
             }
             return ret;
         }
@@ -196,12 +209,15 @@ namespace luadec.IR
         public override string ToString()
         {
             string ret = Identifier.ToString();
-            if (HasIndex)
+            foreach (var idx in TableIndices)
             {
-                ret += $@"[{TableIndex.ToString()}]";
-                if (DotNotation && TableIndex is Constant c && c.ConstType == Constant.ConstantType.ConstString)
+                if (DotNotation && idx is Constant c && c.ConstType == Constant.ConstantType.ConstString)
                 {
                     ret = Identifier.ToString() + "." + c.String;
+                }
+                else
+                {
+                    ret += $@"[{idx.ToString()}]";
                 }
             }
             return ret;
@@ -826,10 +842,10 @@ namespace luadec.IR
 
             // Pattern match special lua this call
             int beginarg = 0;
-            if (Function is IdentifierReference ir && ir.HasIndex &&
-                ir.TableIndex is Constant c && c.ConstType == Constant.ConstantType.ConstString)
+            if (Function is IdentifierReference ir && ir.TableIndices.Count == 1 &&
+                ir.TableIndices[0] is Constant c && c.ConstType == Constant.ConstantType.ConstString)
             {
-                if (Args.Count() >= 1 && Args[0] is IdentifierReference thisir && !thisir.HasIndex && thisir.Identifier == ir.Identifier)
+                if (Args.Count() >= 1 && Args[0] is IdentifierReference thisir && thisir.TableIndices.Count == 0 && thisir.Identifier == ir.Identifier)
                 {
                     ret += $@"{ir.Identifier.ToString()}:{c.String}(";
                     beginarg = 1;

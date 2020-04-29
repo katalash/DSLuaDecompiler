@@ -455,6 +455,10 @@ namespace luadec.IR
                     var curr = BlockList[b];
                     var succ = BlockList[b].Successors[0];
                     curr.Instructions.RemoveAt(curr.Instructions.Count() - 1);
+                    foreach (var inst in succ.Instructions)
+                    {
+                        inst.Block = curr;
+                    }
                     curr.Instructions.AddRange(succ.Instructions);
                     curr.Successors = succ.Successors;
                     foreach (var s in succ.Successors)
@@ -716,6 +720,8 @@ namespace luadec.IR
                 }
             }
 
+
+
             // Prepare for renaming
             var Counters = new Dictionary<Identifier, int>();
             var Stacks = new Dictionary<Identifier, Stack<Identifier>>();
@@ -751,6 +757,7 @@ namespace luadec.IR
                 {
                     foreach (var use in inst.GetUses(true))
                     {
+                        if (Stacks[use].Count != 0)
                         inst.RenameUses(use, Stacks[use].Peek());
                     }
                     foreach (var def in inst.GetDefines(true))
@@ -758,7 +765,7 @@ namespace luadec.IR
                         inst.RenameDefines(def, NewName(def));
                     }
                 }
-
+                
                 // Rename successor phi functions
                 foreach (var succ in b.Successors)
                 {
@@ -782,7 +789,7 @@ namespace luadec.IR
                         }
                     }
                 }
-
+                
                 // Rename successors in the dominator tree
                 foreach (var succ in b.DominanceTreeSuccessors)
                 {
@@ -792,7 +799,7 @@ namespace luadec.IR
                     }
                 }
 
-                // Pop off anything we pushed
+                //  Pop off anything we pushed
                 foreach (var phi in b.PhiFunctions)
                 {
                     Stacks[phi.Value.Left.OriginalIdentifier].Pop();
@@ -866,7 +873,7 @@ namespace luadec.IR
                         while (i + 1 < b.Instructions.Count())
                         {
                             if (b.Instructions[i + 1] is Assignment a2 && a2.Left.Count() == 1 && a2.Left[0].Identifier == a.Left[0].Identifier && a2.Left[0].HasIndex &&
-                                a2.Left[0].TableIndex is Constant c && c.Number == (double)initIndex)
+                                a2.Left[0].TableIndices[0] is Constant c && c.Number == (double)initIndex)
                             {
                                 il.Exprs.Add(a2.Right);
                                 if (a2.LocalAssignments != null)
@@ -938,6 +945,9 @@ namespace luadec.IR
                     usageCounts.Add(arg, 0);
                 }
 
+                // Used for phi function cycle detection
+                var singleUses = new Dictionary<Identifier, PhiFunction>();
+
                 // Do a reverse-postorder traversal to register all the definitions and uses
                 foreach (var b in PostorderTraversal(true))
                 {
@@ -953,6 +963,24 @@ namespace luadec.IR
                                     usageCounts.Add(use, 0);
                                 }
                                 usageCounts[use]++;
+                                if (usageCounts[use] == 1)
+                                {
+                                    if (singleUses.ContainsKey(use))
+                                    {
+                                        singleUses.Remove(use);
+                                    }
+                                    else
+                                    {
+                                        singleUses.Add(use, phi.Value);
+                                    }
+                                }
+                                else
+                                {
+                                    if (singleUses.ContainsKey(use))
+                                    {
+                                        singleUses.Remove(use);
+                                    }
+                                }
                             }
                         }
                         if (!usageCounts.ContainsKey(phi.Value.Left))
@@ -993,6 +1021,17 @@ namespace luadec.IR
                         {
                             changed = true;
                             phiToRemove.Add(phi.Value.Left);
+                        }
+
+                        // If this phi function has a single use, which is also a phi function, and that phi function has
+                        // a single use, which is this phi function, then we have a useless phi function dependency cycle
+                        // that can be broken and removed
+                        if (singleUses.ContainsKey(phi.Value.Left) && singleUses.ContainsKey(singleUses[phi.Value.Left].Left) &&
+                                singleUses[singleUses[phi.Value.Left].Left] == phi.Value)
+                        {
+                            changed = true;
+                            phiToRemove.Add(phi.Value.Left);
+                            singleUses[phi.Value.Left].RenameUses(phi.Value.Left, null);
                         }
                     }
                     foreach (var rem in phiToRemove)
@@ -1035,6 +1074,9 @@ namespace luadec.IR
 
         public void DetectLoops()
         {
+            // on line ` head.LoopFollow = head.Successors.First(x => !loopNodes.Contains(x));` 
+            // System.InvalidOperationException: 'Sequence contains no matching element'
+
             // Build an abstract graph to analyze with
             var blockIDMap = new Dictionary<CFG.BasicBlock, int>();
             var abstractNodes = new List<CFG.AbstractGraph.Node>();
@@ -1079,7 +1121,24 @@ namespace luadec.IR
                         var latch = interval.Key.Predecessors.Where(x => interval.Value.Contains(x)).Max();
                         head.LoopLatch = latch;
                         var loopNodes = new HashSet<CFG.AbstractGraph.Node>();
-                        foreach (var l in interval.Value.Where(x => x.ReversePostorderNumber > interval.Key.ReversePostorderNumber && x.ReversePostorderNumber <= latch.ReversePostorderNumber))
+
+                        // Analyze the loop to determine the beginning of the range of postordered nodes that represent the loop
+                        int beginNum = -1;
+                        foreach (var succ in head.Successors)
+                        {
+                            if (succ.ReversePostorderNumber > beginNum && succ.ReversePostorderNumber <= latch.ReversePostorderNumber)
+                            {
+                                beginNum = succ.ReversePostorderNumber;
+                            }
+                        }
+                        if (beginNum == -1)
+                        {
+                            throw new Exception("Bad loop analysis");
+                        }
+
+                        loopNodes.Add(head);
+                        head.InLoop = true;
+                        foreach (var l in interval.Value.Where(x => x.ReversePostorderNumber >= beginNum && x.ReversePostorderNumber <= latch.ReversePostorderNumber))
                         {
                             loopNodes.Add(l);
                             l.InLoop = true;
@@ -1373,6 +1432,11 @@ namespace luadec.IR
                     bool isContinue = false;
                     foreach (var succ in b.DominanceTreeSuccessors)
                     {
+                        if (succ.IsLoopLatch)
+                        {
+                            continue;
+                        }
+
                         // Mark breaks
                         if (succ.Successors.Contains(lhead.LoopFollow))
                         {
@@ -2071,6 +2135,8 @@ namespace luadec.IR
                 if (node.LoopFollow != null && node.LoopFollow != node && node.Predecessors.Count() >= 2 && node.LoopType == CFG.LoopType.LoopPretested)
                 {
                     var loopInitializer = node.Predecessors.First(x => x != node.LoopLatch);
+
+                    // Match a numeric for
                     if (node.Instructions.Last() is Jump loopJump && loopJump.Condition is BinOp loopCondition && loopCondition.Operation == BinOp.OperationType.OpLoopCompare)
                     {
                         var nfor = new NumericFor();
@@ -2110,6 +2176,112 @@ namespace luadec.IR
                         // The head might be the follow of an if statement, so do this to not codegen it
                         usedFollows.Add(node);
                     }
+
+                    // Match a generic for
+                    else if (node.Instructions.Last() is Jump loopJump2 && loopJump2.Condition is BinOp loopCondition2 &&
+                        loopInitializer.Instructions.Count >= 2 && loopInitializer.Instructions[loopInitializer.Instructions.Count-2] is Assignment la &&
+                        la.Left[0] is IdentifierReference f && node.Instructions[0] is Assignment ba && ba.Right is FunctionCall fc &&
+                        fc.Function is IdentifierReference fci && fci.Identifier == f.Identifier)
+                    {
+                        var gfor = new GenericFor();
+                        // Search the predecessor block for the initial assignment which contains the right expression
+                        Expression right = new Expression();
+                        for (int i = loopInitializer.Instructions.Count() - 1; i >= 0; i--)
+                        {
+                            if (loopInitializer.Instructions[i] is Assignment a)
+                            {
+                                right = a.Right;
+                                loopInitializer.Instructions.RemoveAt(i);
+                                break;
+                            }
+                        }
+
+                        // Loop head has the loop variables
+                        if (node.Instructions.First() is Assignment a2)
+                        {
+                            gfor.Iterator = new Assignment(a2.Left, right);
+                            node.Instructions.RemoveAt(0);
+                        }
+                        else
+                        {
+                            throw new Exception("Unkown for pattern");
+                        }
+
+                        // Body contains more loop bytecode that can be removed
+                        var body = node.Successors[0];
+                        if (body.Instructions[0] is Assignment a3)
+                        {
+                            body.Instructions.RemoveAt(0);
+                        }
+
+                        gfor.Body = body;
+                        gfor.Body.MarkCodegened(DebugID);
+                        if (!usedFollows.Contains(node.LoopFollow))
+                        {
+                            gfor.Follow = node.LoopFollow;
+                            usedFollows.Add(node.LoopFollow);
+                            node.LoopFollow.MarkCodegened(DebugID);
+                        }
+                        if (loopInitializer.Instructions[loopInitializer.Instructions.Count() - 1] is Jump)
+                        {
+                            loopInitializer.Instructions[loopInitializer.Instructions.Count() - 1] = gfor;
+                        }
+                        else
+                        {
+                            loopInitializer.Instructions.Add(gfor);
+                        }
+                        node.MarkCodegened(DebugID);
+                        // The head might be the follow of an if statement, so do this to not codegen it
+                        usedFollows.Add(node);
+                    }
+
+                    // Match a while
+                    else if (node.Instructions.Last() is Jump loopJump3 && loopJump3.Condition is BinOp loopCondition3)
+                    {
+                        var whiles = new While();
+
+                        // Loop head has condition
+                        whiles.Condition = loopCondition3;
+                        node.Instructions.RemoveAt(node.Instructions.Count - 1);
+
+                        whiles.Body = node.Successors[0];
+                        whiles.Body.MarkCodegened(DebugID);
+                        if (!usedFollows.Contains(node.LoopFollow))
+                        {
+                            whiles.Follow = node.LoopFollow;
+                            usedFollows.Add(node.LoopFollow);
+                            node.LoopFollow.MarkCodegened(DebugID);
+                        }
+                        // If there's a goto to this loop head, replace it with the while. Otherwise replace the last instruction of this node
+                        if (loopInitializer.Successors.Count == 1)
+                        {
+                            if (loopInitializer.Instructions[loopInitializer.Instructions.Count() - 1] is Jump)
+                            {
+                                loopInitializer.Instructions[loopInitializer.Instructions.Count() - 1] = whiles;
+                            }
+                            else
+                            {
+                                loopInitializer.Instructions.Add(whiles);
+                            }
+                        }
+                        else
+                        {
+                            node.Instructions.Add(whiles);
+                        }
+
+                        // Remove gotos in latch
+                        foreach (var pred in node.Predecessors)
+                        {
+                            if (pred.IsLoopLatch && pred.Instructions.Last() is Jump lj && !lj.Conditional)
+                            {
+                                pred.Instructions.RemoveAt(pred.Instructions.Count - 1);
+                            }
+                        }
+
+                        node.MarkCodegened(DebugID);
+                        // The head might be the follow of an if statement, so do this to not codegen it
+                        usedFollows.Add(node);
+                    }
                 }
 
                 // Pattern match for an if statement
@@ -2128,15 +2300,25 @@ namespace luadec.IR
                             {
                                 ifStatement.True.Instructions[ifStatement.True.Instructions.Count() - 1] = new Break();
                             }
-                            else
+                            else if (ifStatement.True.IsContinueNode)
+                            {
+                                ifStatement.True.Instructions[ifStatement.True.Instructions.Count() - 1] = new Continue();
+                            }
+                            else if (!ifStatement.True.Successors[0].IsLoopHead)
                             {
                                 ifStatement.True.Instructions.Remove(lj);
                             }
                         }
+                        //if (ifStatement.True.Instructions.Last() is Jump && ifStatement.True.IsContinueNode)
+                        if (node.IsContinueNode)// && node.Successors[0].IsLoopHead)
+                        {
+                            var bb = new CFG.BasicBlock();
+                            bb.Instructions = new List<IInstruction>() { new Continue() };
+                            ifStatement.True = bb;
+                        }
                     }
                     if (node.Successors[1] != node.Follow)
                     {
-
                         ifStatement.False = node.Successors[1];
                         ifStatement.False.MarkCodegened(DebugID);
                         if (ifStatement.False.Instructions.Last() is Jump fj && !fj.Conditional)
@@ -2145,12 +2327,17 @@ namespace luadec.IR
                             {
                                 ifStatement.False.Instructions[ifStatement.False.Instructions.Count() - 1] = new Break();
                             }
-                            else
+                            else if (!ifStatement.False.Successors[0].IsLoopHead)
                             {
                                 ifStatement.False.Instructions.Remove(fj);
                             }
                         }
-
+                        if (node.IsContinueNode && node.Successors[1].IsLoopHead)
+                        {
+                            var bb = new CFG.BasicBlock();
+                            bb.Instructions = new List<IInstruction>() { new Continue() };
+                            ifStatement.False = bb;
+                        }
                     }
                     if (!usedFollows.Contains(node.Follow))
                     {
@@ -2372,6 +2559,18 @@ namespace luadec.IR
                             str += "    ";
                         }
                         str += inst.ToString() + "\n";
+                    }
+
+                    // Insert an implicit goto for fallthrough blocks if the destination isn't actually the next block
+                    var lastinst = b.Instructions.Last();
+                    if ((lastinst is Jump j && j.Conditional && b.Successors[0].BlockID != (b.BlockID + 1)) ||
+                        (!(lastinst is Jump) && !(lastinst is Return) && b.Successors[0].BlockID != (b.BlockID + 1)))
+                    {
+                        for (int i = 0; i < IndentLevel; i++)
+                        {
+                            str += "    ";
+                        }
+                        str += "(goto " + b.Successors[0].ToString() + ")" + "\n";
                     }
                 }
             }
