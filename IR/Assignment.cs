@@ -189,7 +189,10 @@ namespace luadec.IR
                             ret += ", ";
                         }
                     }
-                    ret += assignmentOp + Right;
+                    if (Right != null)
+                    {
+                        ret += assignmentOp + Right;
+                    }
                 }
             }
             else

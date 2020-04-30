@@ -158,7 +158,7 @@ namespace luadec
 
             public OpProperties (string name)
             {
-
+                OpName = name;
             }
 
             public OpProperties(string name, OpMode mode)
@@ -231,7 +231,7 @@ namespace luadec
             new OpProperties("SETTABLE_N_BK"),
             new OpProperties("SETTABLE", OpMode.IABC),
             new OpProperties("SETTABLE_BK"),
-            new OpProperties("TAILCALL_I"),
+            new OpProperties("TAILCALL_I", OpMode.IABC),
             new OpProperties("TAILCALL_C"),
             new OpProperties("TAILCALL_M"),
             new OpProperties("LOADK", OpMode.IABx),
@@ -916,7 +916,10 @@ namespace luadec
             // Now generate IR for all the child closures
             for (int i = 0; i < fun.ChildFunctions.Length; i++)
             {
-                GenerateIR50(irfun.LookupClosure((uint)i), fun.ChildFunctions[i]);
+                //if (i == 49)
+                {
+                    GenerateIR50(irfun.LookupClosure((uint)i), fun.ChildFunctions[i]);
+                }
             }
             SymbolTable.EndScope();
         }
@@ -1123,6 +1126,12 @@ namespace luadec
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
+                    case LuaHKSOps.OpPowBk:
+                        //instructions.Add(new IR.PlaceholderInstruction(($@"R({a}) := {RK(fun, b)} * {RK(fun, c)}")));
+                        assn = new IR.Assignment(SymbolTable.GetRegister(a), new IR.BinOp(ToConstantIR(fun.ConstantsHKS[b]), Register((uint)c), IR.BinOp.OperationType.OpPow));
+                        CheckLocal(assn, fun, pc);
+                        instructions.Add(assn);
+                        break;
                     case LuaHKSOps.OpUnm:
                         //instructions.Add(new IR.PlaceholderInstruction(($@"R({a}) := -R({b})")));
                         assn = new IR.Assignment(SymbolTable.GetRegister(a),
@@ -1251,6 +1260,15 @@ namespace luadec
                     case LuaHKSOps.OpSetTable:
                         //instructions.Add(new IR.PlaceholderInstruction(($@"R({a})[{RK(fun, b)}] := R({c})")));
                         instructions.Add(new IR.Assignment(new IR.IdentifierReference(SymbolTable.GetRegister(a), RKIRHKS(fun, b, false)), RKIRHKS(fun, c, false)));
+                        break;
+                    case LuaHKSOps.OpTailCallI:
+                        args = new List<IR.Expression>();
+                        for (int arg = (int)a + 1; arg < a + b; arg++)
+                        {
+                            args.Add(new IR.IdentifierReference(SymbolTable.GetRegister((uint)arg)));
+                        }
+                        //instructions.Add(new IR.PlaceholderInstruction(($@"R({a}) := R({a})({args})")));
+                        instructions.Add(new IR.Return(new IR.FunctionCall(new IR.IdentifierReference(SymbolTable.GetRegister(a)), args)));
                         break;
                     case LuaHKSOps.OpSetTableSBK:
                         //instructions.Add(new IR.PlaceholderInstruction(($@"R({a})[{RK(fun, b)}] := R({c})")));
@@ -1481,6 +1499,7 @@ namespace luadec
             irfun.EliminateDeadAssignments(true);
             irfun.PerformExpressionPropogation();
             irfun.DetectListInitializers();
+            irfun.PerformExpressionPropogation();
 
             // CFG passes
             irfun.StructureCompoundConditionals();
@@ -1501,7 +1520,7 @@ namespace luadec
             irfun.AnnotateEnvActFunctions();
 
             // Convert to AST
-            //irfun.ConvertToAST(true);
+            irfun.ConvertToAST(true);
 
             // Now generate IR for all the child closures
             for (int i = 0; i < fun.ChildFunctions.Length; i++)
@@ -1510,8 +1529,8 @@ namespace luadec
                 //if (i == 16)
                 //if (i == 26)
                 //if (i == 79)
-                if (i == 11)
-                //if (i != 0)
+                //if (i == 11)
+                if (i != 0)
                 {
                     GenerateIRHKS(irfun.LookupClosure((uint)i), fun.ChildFunctions[i]);
                 }

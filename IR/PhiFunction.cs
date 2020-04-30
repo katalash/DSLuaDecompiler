@@ -46,8 +46,15 @@ namespace luadec.IR
             {
                 if (Right[i] == orig)
                 {
+                    if (orig != null)
+                    {
+                        orig.UseCount--;
+                    }
                     Right[i] = newi;
-                    newi.UseCount++;
+                    if (newi != null)
+                    {
+                        newi.UseCount++;
+                    }
                 }
             }
         }

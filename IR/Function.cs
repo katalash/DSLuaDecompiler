@@ -377,6 +377,14 @@ namespace luadec.IR
                     BlockList.Add(currentBlock);
                     if (i + 1 < Instructions.Count() && Instructions[i + 1] is Label l)
                     {
+                        if (l == jmp2.Dest)
+                        {
+                            // Empty if statement. Generate a dummy block so the true block and else block are different
+                            var newblock2 = new CFG.BasicBlock();
+                            currentBlock.Instructions.Add(new Jump(l));
+                            currentBlock = newblock2;
+                            BlockList.Add(currentBlock);
+                        }
                         labelBasicBlockMap.Add(l, currentBlock);
                         i++;
                     }
@@ -880,6 +888,7 @@ namespace luadec.IR
                                 {
                                     a.LocalAssignments = a2.LocalAssignments;
                                 }
+                                a2.Left[0].Identifier.UseCount--;
                                 b.Instructions.RemoveAt(i + 1);
                                 initIndex++;
                             }
@@ -1464,6 +1473,10 @@ namespace luadec.IR
                 NumberReversePostorder();
                 foreach (var node in PostorderTraversal(false))
                 {
+                    if (node.Instructions.Count > 0 && node.Instructions.Last() is Jump c && c.Conditional && c.Condition is BinOp bo && bo.Operation == BinOp.OperationType.OpLoopCompare)
+                    {
+                        continue;
+                    }
                     if (node.Successors.Count() == 2 && node.Instructions.Last() is Jump n)
                     {
                         var t = node.Successors[0];
@@ -1535,6 +1548,7 @@ namespace luadec.IR
                             }
                             else if (e.Successors[1] == t)
                             {
+                                // TODO: not correct
                                 var newCond = new BinOp(n.Condition, ej.Condition, BinOp.OperationType.OpOr);
                                 n.Condition = newCond;
                                 if (e.Follow != null)
@@ -2086,7 +2100,7 @@ namespace luadec.IR
                         // Multiple incoming declarations that all have the same use need to be merged
                         var assn = new Assignment(entry.Key, null);
                         assn.IsLocalDeclaration = true;
-                        b.Instructions.Insert(b.Instructions.Count() - 2, assn);
+                        b.Instructions.Insert(b.Instructions.Count() - 1, assn);
                         declaredAssignments.Add(entry.Key, new List<Assignment>() { assn });
                         foreach (var e in entry.Value)
                         {
