@@ -38,6 +38,7 @@ namespace luadec.IR
         public enum ConstantType
         {
             ConstNumber,
+            ConstInteger,
             ConstString,
             ConstBool,
             ConstTable,
@@ -47,6 +48,7 @@ namespace luadec.IR
 
         public ConstantType ConstType;
         public double Number;
+        public ulong Integer;
         public string String;
         public bool Boolean;
 
@@ -54,6 +56,12 @@ namespace luadec.IR
         {
             ConstType = ConstantType.ConstNumber;
             Number = num;
+        }
+
+        public Constant(ulong inum)
+        {
+            ConstType = ConstantType.ConstInteger;
+            Integer = inum;
         }
 
         public Constant(string str)
@@ -79,6 +87,8 @@ namespace luadec.IR
             {
                 case ConstantType.ConstNumber:
                     return Number.ToString();
+                case ConstantType.ConstInteger:
+                    return Integer.ToString();
                 case ConstantType.ConstString:
                     return "\"" + String + "\"";
                 case ConstantType.ConstBool:

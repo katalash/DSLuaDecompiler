@@ -616,6 +616,10 @@ namespace luadec
             {
                 return new IR.Constant(con.StringValue);
             }
+            else if (con.Type == LuaFile.Constant.ConstantType.TypeInt)
+            {
+                return new IR.Constant(con.IntValue);
+            }
             return new IR.Constant(IR.Constant.ConstantType.ConstNil);
         }
 
