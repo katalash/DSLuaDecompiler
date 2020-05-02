@@ -290,7 +290,7 @@ namespace luadec.IR
                     }
                     var newassn = new Assignment(assignee, jmp.Condition);
                     Instructions[i] = newassn;
-                    Instructions.RemoveRange(i + 1, 5);
+                    Instructions.RemoveRange(i + 1, 4); // Don't remove the final label as it can be a jump destination sometimes
                 }
             }
         }
@@ -1260,7 +1260,10 @@ namespace luadec.IR
                     var b = node.OriginalBlock;
                     b.LoopLatch = node.LoopLatch.OriginalBlock;
                     b.LoopLatch.IsLoopLatch = true;
-                    b.LoopFollow = node.LoopFollow.OriginalBlock;
+                    if (b.LoopType != CFG.LoopType.LoopEndless)
+                    {
+                        b.LoopFollow = node.LoopFollow.OriginalBlock;
+                    }
                 }
             }
         }
@@ -2521,7 +2524,7 @@ namespace luadec.IR
             {
                 foreach (var inst in Instructions)
                 {
-                    str += $@"{inst.OpLocation:D3}";
+                    str += $@"{inst.OpLocation:D3} ";
                     for (int i = 0; i < IndentLevel; i++)
                     {
                         if (inst is Label && i == IndentLevel - 1)
@@ -2576,9 +2579,9 @@ namespace luadec.IR
                     }
 
                     // Insert an implicit goto for fallthrough blocks if the destination isn't actually the next block
-                    var lastinst = b.Instructions.Last();
-                    if ((lastinst is Jump j && j.Conditional && b.Successors[0].BlockID != (b.BlockID + 1)) ||
-                        (!(lastinst is Jump) && !(lastinst is Return) && b.Successors[0].BlockID != (b.BlockID + 1)))
+                    var lastinst = (b.Instructions.Count > 0) ? b.Instructions.Last() : null;
+                    if (lastinst != null && ((lastinst is Jump j && j.Conditional && b.Successors[0].BlockID != (b.BlockID + 1)) ||
+                        (!(lastinst is Jump) && !(lastinst is Return) && b.Successors[0].BlockID != (b.BlockID + 1))))
                     {
                         for (int i = 0; i < IndentLevel; i++)
                         {

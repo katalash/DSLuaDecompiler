@@ -418,6 +418,7 @@ namespace luadec.IR
             OpSub,
             OpMul,
             OpDiv,
+            OpFloorDiv,
             OpMod,
             OpPow,
             OpEqual,
@@ -428,6 +429,11 @@ namespace luadec.IR
             OpGreaterEqual,
             OpAnd,
             OpOr,
+            OpBAnd,
+            OpBOr,
+            OpBXOr,
+            OpShiftRight,
+            OpShiftLeft,
             OpLoopCompare,
         }
 
@@ -486,11 +492,21 @@ namespace luadec.IR
                     return 0;
                 case OperationType.OpMul:
                 case OperationType.OpDiv:
+                case OperationType.OpFloorDiv:
                 case OperationType.OpMod:
                     return 2;
                 case OperationType.OpAdd:
                 case OperationType.OpSub:
                     return 3;
+                case OperationType.OpShiftRight:
+                case OperationType.OpShiftLeft:
+                    return 4;
+                case OperationType.OpBAnd:
+                    return 5;
+                case OperationType.OpBXOr:
+                    return 6;
+                case OperationType.OpBOr:
+                    return 7;
                 case OperationType.OpEqual:
                 case OperationType.OpNotEqual:
                 case OperationType.OpLessThan:
@@ -498,11 +514,11 @@ namespace luadec.IR
                 case OperationType.OpGreaterThan:
                 case OperationType.OpGreaterEqual:
                 case OperationType.OpLoopCompare:
-                    return 4;
+                    return 8;
                 case OperationType.OpAnd:
-                    return 5;
+                    return 9;
                 case OperationType.OpOr:
-                    return 6;
+                    return 10;
                 default:
                     return 99999;
             }
@@ -597,6 +613,9 @@ namespace luadec.IR
                 case OperationType.OpDiv:
                     op = "/";
                     break;
+                case OperationType.OpFloorDiv:
+                    op = "//";
+                    break;
                 case OperationType.OpMod:
                     op = "%";
                     break;
@@ -633,6 +652,21 @@ namespace luadec.IR
                 case OperationType.OpOr:
                     op = "or";
                     break;
+                case OperationType.OpBAnd:
+                    op = "&";
+                    break;
+                case OperationType.OpBOr:
+                    op = "|";
+                    break;
+                case OperationType.OpBXOr:
+                    op = "~";
+                    break;
+                case OperationType.OpShiftRight:
+                    op = ">>";
+                    break;
+                case OperationType.OpShiftLeft:
+                    op = "<<";
+                    break;
                 case OperationType.OpLoopCompare:
                     op = ">?=";
                     break;
@@ -662,6 +696,7 @@ namespace luadec.IR
         {
             OpNegate,
             OpNot,
+            OpBNot,
             OpLength,
         }
 
@@ -718,6 +753,9 @@ namespace luadec.IR
                     break;
                 case OperationType.OpNot:
                     op = "not ";
+                    break;
+                case OperationType.OpBNot:
+                    op = "~";
                     break;
                 case OperationType.OpLength:
                     op = "#";

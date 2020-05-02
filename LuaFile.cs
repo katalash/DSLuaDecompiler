@@ -13,13 +13,26 @@ namespace luadec
         {
             Lua50,
             Lua51HKS,
+            Lua53Smash,
         }
 
         public LuaVersion Version;
 
-        public static string ReadLuaString(BinaryReaderEx br, LuaVersion version)
+        public static string ReadLuaString(BinaryReaderEx br, LuaVersion version, bool sizeminusone=true)
         {
-            ulong length = br.ReadUInt64();
+            ulong length;
+            if (version == LuaVersion.Lua53Smash)
+            {
+                length = br.ReadByte();
+                if (!sizeminusone)
+                {
+                    length++;
+                }
+            }
+            else
+            {
+                length = br.ReadUInt64();
+            }
             if (length > 0)
             {
                 string ret;
@@ -31,7 +44,10 @@ namespace luadec
                 {
                     ret = br.ReadUTF8((int)length - 1);
                 }
-                br.AssertByte(0); // Eat null terminator
+                if (version != LuaVersion.Lua53Smash)
+                {
+                    br.AssertByte(0); // Eat null terminator
+                }
                 return ret;
             }
             return null;
@@ -50,6 +66,7 @@ namespace luadec
             byte BSize;
             byte CSize;
             byte LuaNumberSize;
+            byte FloatSize;
 
             public Header(BinaryReaderEx br)
             {
@@ -64,7 +81,19 @@ namespace luadec
                     byte format = br.AssertByte(0x0E); // HKS
                     LuaVersion = LuaVersion.Lua51HKS;
                 }
-                Endianess = br.ReadByte();
+                else if (Version == 0x53)
+                {
+                    LuaVersion = LuaVersion.Lua53Smash;
+                    br.ReadBytes(7); //unk
+                }
+                if (LuaVersion == LuaVersion.Lua53Smash)
+                {
+                    Endianess = 0;
+                }
+                else
+                {
+                    Endianess = br.ReadByte();
+                }
                 IntSize = br.ReadByte();
                 LongSize = br.ReadByte();
                 InstructionSize = br.ReadByte();
@@ -76,9 +105,18 @@ namespace luadec
                     CSize = br.ReadByte();
                 }
                 LuaNumberSize = br.ReadByte();
+                if (LuaVersion == LuaVersion.Lua53Smash)
+                {
+                    FloatSize = br.ReadByte();
+                }
                 if (LuaVersion == LuaVersion.Lua50)
                 {
                     br.ReadDouble(); // test number
+                }
+                else if (LuaVersion == LuaVersion.Lua53Smash)
+                {
+                    br.ReadUInt64(); // test int
+                    br.ReadSingle(); // test number
                 }
                 else
                 {
@@ -91,27 +129,48 @@ namespace luadec
         {
             public enum ConstantType
             {
+                TypeBoolean,
                 TypeString,
                 TypeNumber,
+                TypeInt,
                 TypeNil
             }
 
             public ConstantType Type;
+            public bool BoolValue;
             public string StringValue;
             public double NumberValue;
+            public ulong IntValue;
 
             public Constant(LuaFile file, BinaryReaderEx br, LuaVersion version)
             {
                 byte type = br.ReadByte();
+                if (type == 1)
+                {
+                    Type = ConstantType.TypeBoolean;
+                    BoolValue = br.ReadBoolean();
+                }
                 if (type == 3)
                 {
-                    NumberValue = br.ReadDouble();
+                    if (version == LuaVersion.Lua50)
+                    {
+                        NumberValue = br.ReadDouble();
+                    }
+                    else
+                    {
+                        NumberValue = br.ReadSingle();
+                    }
                     Type = ConstantType.TypeNumber;
                 }
                 else if (type == 4)
                 {
                     StringValue = LuaFile.ReadLuaString(br, version);
                     Type = ConstantType.TypeString;
+                }
+                else if (type == 0x13)
+                {
+                    IntValue = br.ReadUInt64();
+                    Type = ConstantType.TypeInt;
                 }
                 else
                 {
@@ -215,17 +274,32 @@ namespace luadec
 
             public Local(BinaryReaderEx br, LuaVersion version)
             {
-                Name = ReadLuaString(br, version);
+                Name = ReadLuaString(br, version, false);
                 Start = br.ReadInt32();
                 End = br.ReadInt32();
             }
         }
 
+        /// <summary>
+        /// Lua 5.3 upvalue definition
+        /// </summary>
         public class Upvalue
+        {
+            public bool InStack;
+            public byte ID;
+
+            public Upvalue(BinaryReaderEx br)
+            {
+                InStack = br.ReadBoolean();
+                ID = br.ReadByte();
+            }
+        }
+
+        public class UpvalueName
         {
             public string Name;
 
-            public Upvalue(BinaryReaderEx br, LuaVersion version)
+            public UpvalueName(BinaryReaderEx br, LuaVersion version)
             {
                 Name = ReadLuaString(br, version);
             }
@@ -249,12 +323,75 @@ namespace luadec
             public Local[] Locals;
             public Dictionary<int, List<Local>> LocalMap;
             public Upvalue[] Upvalues;
+            public UpvalueName[] UpvalueNames;
             public Function[] ChildFunctions;
             public byte[] Bytecode;
 
+            private void ReadLua53Smash(LuaFile file, BinaryReaderEx br)
+            {
+                Name = LuaFile.ReadLuaString(br, LuaVersion.Lua53Smash, false);
+                LineDefined = br.ReadInt32();
+                br.ReadInt32(); // last line
+                NumParams = br.ReadByte();
+                IsVarArg = br.ReadByte();
+                MaxStackSize = br.ReadByte();
+                int bytecodeCount = br.ReadInt32();
+                Bytecode = br.ReadBytes(bytecodeCount * 4);
+                int constantsCount = br.ReadInt32();
+                Constants = new Constant[constantsCount];
+                for (int i = 0; i < constantsCount; i++)
+                {
+                    Constants[i] = new Constant(file, br, LuaVersion.Lua53Smash);
+                }
+                int upvalct = br.ReadInt32();
+                Upvalues = new Upvalue[upvalct];
+                for (int i = 0; i < upvalct; i++)
+                {
+                    Upvalues[i] = new Upvalue(br);
+                }
+                int funcCount = br.ReadInt32();
+                ChildFunctions = new Function[funcCount];
+                for (int i = 0; i < funcCount; i++)
+                {
+                    ChildFunctions[i] = new Function(file, LuaVersion.Lua53Smash, br);
+                }
+
+                SizeLineInfo = br.ReadInt32();
+                // Eat line numbers
+                br.ReadInt32s(SizeLineInfo);
+
+                LocalVarsCount = br.ReadInt32();
+                Locals = new Local[LocalVarsCount];
+                LocalMap = new Dictionary<int, List<Local>>();
+                for (int i = 0; i < LocalVarsCount; i++)
+                {
+                    Locals[i] = new Local(br, LuaVersion.Lua53Smash);
+                    if (!Locals[i].Name.StartsWith("("))
+                    {
+                        if (!LocalMap.ContainsKey(Locals[i].Start))
+                        {
+                            LocalMap[Locals[i].Start] = new List<Local>();
+                        }
+                        LocalMap[Locals[i].Start].Add(Locals[i]);
+                    }
+                }
+
+                //br.ReadUInt32(); // upval names
+                UpValuesCount = br.ReadInt32();
+                UpvalueNames = new UpvalueName[UpValuesCount];
+                for (int i = 0; i < UpValuesCount; i++)
+                {
+                    UpvalueNames[i] = new UpvalueName(br, LuaVersion.Lua53Smash);
+                }
+            }
+
             public Function(LuaFile file, LuaVersion version, BinaryReaderEx br)
             {
-                if (version == LuaVersion.Lua50)
+                if (version == LuaVersion.Lua53Smash)
+                {
+                    ReadLua53Smash(file, br);
+                }
+                else if (version == LuaVersion.Lua50)
                 {
                     Name = LuaFile.ReadLuaString(br, version);
                     LineDefined = br.ReadInt32();
@@ -281,10 +418,10 @@ namespace luadec
                         }
                     }
                     UpValuesCount = br.ReadInt32();
-                    Upvalues = new Upvalue[UpValuesCount];
+                    UpvalueNames = new UpvalueName[UpValuesCount];
                     for (int i = 0; i < UpValuesCount; i++)
                     {
-                        Upvalues[i] = new Upvalue(br, version);
+                        UpvalueNames[i] = new UpvalueName(br, version);
                     }
                     int constantsCount = br.ReadInt32();
                     Constants = new Constant[constantsCount];
@@ -342,10 +479,10 @@ namespace luadec
                             LocalMap[Locals[i].Start].Add(Locals[i]);
                         }
                     }
-                    Upvalues = new Upvalue[UpValuesCount];
+                    UpvalueNames = new UpvalueName[UpValuesCount];
                     for (int i = 0; i < UpValuesCount; i++)
                     {
-                        Upvalues[i] = new Upvalue(br, version);
+                        UpvalueNames[i] = new UpvalueName(br, version);
                     }
                     int funcCount = br.ReadInt32();
                     ChildFunctions = new Function[funcCount];

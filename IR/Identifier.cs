@@ -31,6 +31,7 @@ namespace luadec.IR
 
         public IdentifierType IType;
         public ValueType VType;
+        public bool StackUpvalue = false; // For lua 5.3
         public string Name;
         public Identifier OriginalIdentifier = null;
 
