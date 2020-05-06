@@ -1085,7 +1085,7 @@ namespace luadec
                         break;
                     case Lua53Ops.OpLoadNil:
                         var nassn = new List<IR.IdentifierReference>();
-                        for (int arg = (int)a; arg <= b; arg++)
+                        for (int arg = (int)a; arg <= a + b; arg++)
                         {
                             nassn.Add(new IR.IdentifierReference(SymbolTable.GetRegister((uint)arg)));
                         }
@@ -1262,13 +1262,14 @@ namespace luadec
                     case Lua53Ops.OpTest:
                         if (c == 0)
                         {
-                            instructions.Add(new IR.Jump(irfun.GetLabel((uint)((i / 4) + 2)), RKIR53(fun, b)));
+                            //instructions.Add(new IR.Jump(irfun.GetLabel((uint)((i / 4) + 2)), new IR.BinOp(Register((uint)a), new IR.Constant(IR.Constant.ConstantType.ConstNil), IR.BinOp.OperationType.OpNotEqual)));
+                            instructions.Add(new IR.Jump(irfun.GetLabel((uint)((i / 4) + 2)), Register((uint)a)));
                         }
                         else
                         {
-                            instructions.Add(new IR.Jump(irfun.GetLabel((uint)((i / 4) + 2)), new IR.UnaryOp(RKIR53(fun, b), IR.UnaryOp.OperationType.OpNot)));
+                            //instructions.Add(new IR.Jump(irfun.GetLabel((uint)((i / 4) + 2)), new IR.BinOp(Register((uint)a), new IR.Constant(IR.Constant.ConstantType.ConstNil), IR.BinOp.OperationType.OpEqual)));
+                            instructions.Add(new IR.Jump(irfun.GetLabel((uint)((i / 4) + 2)), new IR.UnaryOp(Register((uint)a), IR.UnaryOp.OperationType.OpNot)));
                         }
-                        instructions.Add(new IR.Assignment(SymbolTable.GetRegister(a), new IR.IdentifierReference(SymbolTable.GetRegister(b))));
                         break;
                     case Lua53Ops.OpSetTable:
                         instructions.Add(new IR.Assignment(new IR.IdentifierReference(SymbolTable.GetRegister(a), RKIR53(fun, b)), RKIR53(fun, c)));
@@ -1443,7 +1444,7 @@ namespace luadec
             // Now generate IR for all the child closures
             for (int i = 0; i < fun.ChildFunctions.Length; i++)
             {
-                //if (i == 49)
+                if (i == 17)
                 {
                     GenerateIR53(irfun.LookupClosure((uint)i), fun.ChildFunctions[i]);
                 }
@@ -2007,7 +2008,7 @@ namespace luadec
             irfun.ApplyLabels();
 
             // Simple post-ir and idiom recognition analysis passes
-            irfun.ClearDataInstructions();
+            /*irfun.ClearDataInstructions();
             irfun.ResolveVarargListAssignment();
             irfun.MergeMultiBoolAssignment();
             irfun.EliminateRedundantAssignments();
@@ -2036,7 +2037,7 @@ namespace luadec
             irfun.SimplifyIfElseFollowChain();
             irfun.EliminateDeadAssignments(true);
             irfun.PerformExpressionPropogation();
-            irfun.VerifyLivenessNoInterference();
+            //irfun.VerifyLivenessNoInterference();
 
             // Convert out of SSA and rename variables
             irfun.DropSSADropSubscripts();
@@ -2044,10 +2045,10 @@ namespace luadec
             irfun.ArgumentNames = fun.LocalsAt(0);
             irfun.RenameVariables();
             irfun.Parenthesize();
-            irfun.AnnotateEnvActFunctions();
+            //irfun.AnnotateEnvActFunctions();
 
             // Convert to AST
-            irfun.ConvertToAST(true);
+            irfun.ConvertToAST(true);*/
 
             // Now generate IR for all the child closures
             for (int i = 0; i < fun.ChildFunctions.Length; i++)
@@ -2056,8 +2057,8 @@ namespace luadec
                 //if (i == 16)
                 //if (i == 26)
                 //if (i == 79)
-                //if (i == 11)
-                if (i != 0)
+                //if (i == 0)
+                //if (i != 0)
                 {
                     GenerateIRHKS(irfun.LookupClosure((uint)i), fun.ChildFunctions[i]);
                 }

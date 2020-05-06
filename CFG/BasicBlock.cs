@@ -57,6 +57,7 @@ namespace luadec.CFG
         public bool IfOrphaned = false;
 
         // Code gen
+        public bool IsInfiniteLoop = false;
         private bool IsCodegened = false;
 
         /// <summary>
@@ -160,12 +161,14 @@ namespace luadec.CFG
             return $@"basicblock_{BlockID}";
         }
 
-        public string PrintBlock(int indentLevel)
+        public string PrintBlock(int indentLevel, bool infloopprint=false)
         {
             string ret = "";
             //ret += $@"basicblock_{BlockID}:";
             //ret += "\n";
-            for (int j = 0; j < Instructions.Count(); j++)
+            int count = (IsInfiniteLoop && !infloopprint) ? 1 : Instructions.Count();
+            int begin = (IsInfiniteLoop && infloopprint) ? 1 : 0;
+            for (int j = begin; j < count; j++)
             {
                 var inst = Instructions[j];
                 for (int i = 0; i < indentLevel; i++)

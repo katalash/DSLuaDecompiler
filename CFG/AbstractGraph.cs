@@ -14,10 +14,16 @@ namespace luadec.CFG
         public Node BeginNode = null;
         public List<Node> Nodes = new List<Node>();
         public Dictionary<Node, HashSet<Node>> Intervals = null;
+
+        public Dictionary<Node, Node> LoopHeads = new Dictionary<Node, Node>();
+        public Dictionary<Node, List<Node>> LoopLatches = new Dictionary<Node, List<Node>>();
+        public Dictionary<Node, Node> LoopFollows = new Dictionary<Node, Node>();
+        public Dictionary<Node, LoopType> LoopTypes = new Dictionary<Node, LoopType>();
+
         public class Node : IComparable<Node>
         {
-            public HashSet<Node> Successors = new HashSet<Node>();
-            public HashSet<Node> Predecessors = new HashSet<Node>();
+            public List<Node> Successors = new List<Node>();
+            public List<Node> Predecessors = new List<Node>();
 
             /// <summary>
             /// Child in the successor graph. Only set if this is an interval graph head
@@ -44,22 +50,17 @@ namespace luadec.CFG
             /// </summary>
             public bool InLoop = false;
 
-            /// <summary>
-            /// If this is an interval head, this is the latch of it
-            /// </summary>
-            public Node LoopLatch = null;
+            public bool IsHead = false;
 
             /// <summary>
-            /// The follow of the node
+            /// Node is the terminal node (where returns jump to)
             /// </summary>
-            public Node LoopFollow = null;
+            public bool IsTerminal = false;
 
             /// <summary>
             /// The node that's the predecessor to the loop follow
             /// </summary>
-            public Node FollowLeader = null;
-
-            public LoopType LoopType = LoopType.LoopNone;
+            //public Node FollowLeader = null;
 
             /// <summary>
             /// Number in this graph based on the reverse postorder traversal number
@@ -85,7 +86,7 @@ namespace luadec.CFG
             void Visit(Node b)
             {
                 visited.Add(b);
-                foreach (var succ in b.Successors)
+                foreach (var succ in b.Successors.OrderByDescending(n => n.OriginalBlock.BlockID))
                 {
                     if (!visited.Contains(succ))
                     {
@@ -182,7 +183,15 @@ namespace luadec.CFG
                 }
                 var h1 = header[entry];
                 var hnode = h1.IntervalGraphChild;
-                hnode.Successors.UnionWith(entry.Successors.Select(n => header[n]).Where(h => h != h1).Select(n => n.IntervalGraphChild));
+                //hnode.Successors.UnionWith(entry.Successors.Select(n => header[n]).Where(h => h != h1).Select(n => n.IntervalGraphChild));
+                var nodestoadd = entry.Successors.Select(n => header[n]).Where(h => h != h1).Select(n => n.IntervalGraphChild);
+                foreach (var n in nodestoadd)
+                {
+                    if (!hnode.Successors.Contains(n))
+                    {
+                        hnode.Successors.Add(n);
+                    }
+                }
             }
             foreach (var entry in cfg.Nodes)
             {
