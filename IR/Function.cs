@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using System.Linq;
 
 namespace luadec.IR
 {
@@ -681,7 +680,7 @@ namespace luadec.IR
 
         public void ConvertToSSA(HashSet<Identifier> allRegisters)
         {
-            allRegisters.UnionWith(Parameters.ToHashSet());
+            allRegisters.UnionWith(new HashSet<Identifier>(Parameters));
             ComputeDominance();
             ComputeDominanceFrontier();
             ComputeGlobalLiveness(allRegisters);
@@ -2099,7 +2098,7 @@ namespace luadec.IR
                 return declaredAssignments;
             }
 
-            visit(BeginBlock, Parameters.ToHashSet());
+            visit(BeginBlock, new HashSet<Identifier>(Parameters));
         }
 
         /// <summary>

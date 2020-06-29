@@ -14,7 +14,7 @@ namespace luadec.Utilities
     public class BinaryReaderEx
     {
         private static readonly Encoding ASCII = Encoding.ASCII;
-        private static readonly Encoding ShiftJIS = Encoding.GetEncoding("shift-jis");
+        private static readonly Encoding ShiftJIS = Encoding.UTF8;
         private static readonly Encoding UTF8 = Encoding.UTF8;
         private static readonly Encoding UTF16 = Encoding.Unicode;
         private static readonly Encoding UTF16BE = Encoding.BigEndianUnicode;
