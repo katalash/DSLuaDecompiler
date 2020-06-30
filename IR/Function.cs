@@ -1236,6 +1236,8 @@ namespace luadec.IR
                     b.IsLoopHead = true;
                     b.LoopLatch = latch.Key.OriginalBlock;
                     b.LoopType = headGraph.LoopTypes[head];
+                    if(headGraph.LoopFollows[head] == null)
+                        continue;
                     b.LoopFollow = headGraph.LoopFollows[head].OriginalBlock;
                     latch.Key.OriginalBlock.IsLoopLatch = true;
                 }
@@ -2364,7 +2366,7 @@ namespace luadec.IR
                         var loopInitializer = node.Predecessors.First(x => x != node.LoopLatch);
                         if (loopInitializer.Successors.Count == 1)
                         {
-                            if (loopInitializer.Instructions[loopInitializer.Instructions.Count() - 1] is Jump)
+                            if (loopInitializer.Instructions.Count() > 0 && loopInitializer.Instructions[loopInitializer.Instructions.Count() - 1] is Jump)
                             {
                                 loopInitializer.Instructions[loopInitializer.Instructions.Count() - 1] = whiles;
                             }
