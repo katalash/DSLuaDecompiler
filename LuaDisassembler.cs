@@ -1444,7 +1444,7 @@ namespace luadec
             // Now generate IR for all the child closures
             for (int i = 0; i < fun.ChildFunctions.Length; i++)
             {
-                if (i == 17)
+                //if (i == 17)
                 {
                     GenerateIR53(irfun.LookupClosure((uint)i), fun.ChildFunctions[i]);
                 }

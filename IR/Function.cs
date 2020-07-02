@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using System.Linq;
 
 namespace luadec.IR
 {
@@ -681,7 +680,7 @@ namespace luadec.IR
 
         public void ConvertToSSA(HashSet<Identifier> allRegisters)
         {
-            allRegisters.UnionWith(Parameters.ToHashSet());
+            allRegisters.UnionWith(new HashSet<Identifier>(Parameters));
             ComputeDominance();
             ComputeDominanceFrontier();
             ComputeGlobalLiveness(allRegisters);
@@ -1237,6 +1236,8 @@ namespace luadec.IR
                     b.IsLoopHead = true;
                     b.LoopLatch = latch.Key.OriginalBlock;
                     b.LoopType = headGraph.LoopTypes[head];
+                    if(headGraph.LoopFollows[head] == null)
+                        continue;
                     b.LoopFollow = headGraph.LoopFollows[head].OriginalBlock;
                     latch.Key.OriginalBlock.IsLoopLatch = true;
                 }
@@ -2099,7 +2100,7 @@ namespace luadec.IR
                 return declaredAssignments;
             }
 
-            visit(BeginBlock, Parameters.ToHashSet());
+            visit(BeginBlock, new HashSet<Identifier>(Parameters));
         }
 
         /// <summary>
@@ -2365,7 +2366,7 @@ namespace luadec.IR
                         var loopInitializer = node.Predecessors.First(x => x != node.LoopLatch);
                         if (loopInitializer.Successors.Count == 1)
                         {
-                            if (loopInitializer.Instructions[loopInitializer.Instructions.Count() - 1] is Jump)
+                            if (loopInitializer.Instructions.Count() > 0 && loopInitializer.Instructions[loopInitializer.Instructions.Count() - 1] is Jump)
                             {
                                 loopInitializer.Instructions[loopInitializer.Instructions.Count() - 1] = whiles;
                             }

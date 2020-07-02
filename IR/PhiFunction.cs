@@ -19,7 +19,7 @@ namespace luadec.IR
 
         public override HashSet<Identifier> GetDefines(bool regonly)
         {
-            return new List<Identifier>() { Left }.ToHashSet();
+            return new HashSet<Identifier>(new List<Identifier>() { Left });
         }
 
         public override HashSet<Identifier> GetUses(bool regonly)

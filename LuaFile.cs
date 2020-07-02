@@ -162,7 +162,7 @@ namespace luadec
                     }
                     Type = ConstantType.TypeNumber;
                 }
-                else if (type == 4)
+                else if (type == 4 || type == 0x14)
                 {
                     StringValue = LuaFile.ReadLuaString(br, version);
                     Type = ConstantType.TypeString;
@@ -329,7 +329,7 @@ namespace luadec
 
             private void ReadLua53Smash(LuaFile file, BinaryReaderEx br)
             {
-                Name = LuaFile.ReadLuaString(br, LuaVersion.Lua53Smash, false);
+                Name = LuaFile.ReadLuaString(br, LuaVersion.Lua53Smash);
                 LineDefined = br.ReadInt32();
                 br.ReadInt32(); // last line
                 NumParams = br.ReadByte();
@@ -523,6 +523,11 @@ namespace luadec
             {
                 br.BigEndian = true;
                 br.Position = 0xee; // lel
+            }
+            else if (Version == LuaVersion.Lua53Smash)
+            {
+                // read "upval size"
+                br.ReadByte();
             }
             MainFunction = new Function(this, Version, br);
         }
