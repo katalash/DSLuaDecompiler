@@ -61,6 +61,16 @@ namespace luadec.IR
 
         public bool IsVarargs = false;
 
+        /// <summary>
+        /// Number of upvalues this function uses
+        /// </summary>
+        public int UpvalCount = 0;
+
+        /// <summary>
+        /// Upvalue binding symbold from parent closure
+        /// </summary>
+        public List<Identifier> UpvalueBindings = new List<Identifier>();
+
         public Function()
         {
             Parameters = new List<Identifier>();
@@ -830,6 +840,39 @@ namespace luadec.IR
             RenameBlock(BeginBlock);
         }
 
+        // Detect the upvalue bindings for the child closures for Lua 5.0
+        public void RegisterClosureUpvalues50()
+        {
+            foreach (var b in BlockList)
+            {
+                for (int i = 0; i < b.Instructions.Count(); i++)
+                {
+                    // Recognize a closure instruction
+                    if (b.Instructions[i] is Assignment a && a.Right is Closure c)
+                    {
+                        // Fetch the closure bindings from the following instructions
+                        for (int j = 0; j < c.Function.UpvalCount; j++)
+                        {
+                            if (b.Instructions[i + 1] is Assignment ca && 
+                                ca.Left.Count == 1 && 
+                                ca.Left[0].Identifier.Regnum == 0 &&
+                                ca.Right is IdentifierReference ir &&
+                                ir.Identifier.IType == Identifier.IdentifierType.Register)
+                            {
+                                c.Function.UpvalueBindings.Add(ir.Identifier);
+                                ir.Identifier.IsClosureBound = true;
+                                b.Instructions.RemoveAt(i + 1);
+                            }
+                            else
+                            {
+                                throw new Exception("Unrecognized upvalue binding pattern following closure");
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // Given the IR is in SSA form, this does expression propogation/substitution
         public void PerformExpressionPropogation()
         {
@@ -844,7 +887,11 @@ namespace luadec.IR
                         var inst = b.Instructions[i];
                         foreach (var use in inst.GetUses(true))
                         {
-                            if (use.DefiningInstruction != null && use.DefiningInstruction is Assignment a && a.Left.Count() == 1 && a.LocalAssignments == null && (use.UseCount == 1 || a.PropogateAlways))
+                            if (use.DefiningInstruction != null &&
+                                use.DefiningInstruction is Assignment a &&
+                                a.Left.Count() == 1 && a.LocalAssignments == null &&
+                                (use.UseCount == 1 || a.PropogateAlways) &&
+                                !a.Left[0].Identifier.IsClosureBound)
                             {
                                 bool replaced = inst.ReplaceUses(use, a.Right);
                                 if (a.Block != null && replaced)
@@ -2528,7 +2575,7 @@ namespace luadec.IR
                                 }
                                 else
                                 {
-                                    ir.Identifier.Name = $@"local{localCounter}";
+                                    ir.Identifier.Name = $@"f{DebugID}_local{localCounter}";
                                     localCounter++;
                                 }
                             }

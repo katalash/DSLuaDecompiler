@@ -113,8 +113,37 @@ namespace luadec.IR
             Function = fun;
         }
 
+        public override HashSet<Identifier> GetUses(bool regonly)
+        {
+            return Function.UpvalueBindings.ToHashSet();
+        }
+
+        public override void RenameUses(Identifier orig, Identifier newi)
+        {
+            for (int i = 0; i < Function.UpvalueBindings.Count; i++)
+            {
+                if (Function.UpvalueBindings[i] == orig)
+                {
+                    Function.UpvalueBindings[i] = newi;
+                    newi.IsClosureBound = true;
+                }
+            }
+        }
+
         public override string ToString()
         {
+            /*string ret = "[";
+
+            // Debug closure bindings
+            for (int i = 0; i < UpvalueBindings.Count(); i++)
+            {
+                ret += UpvalueBindings[i].ToString();
+                if (i != UpvalueBindings.Count() - 1)
+                {
+                    ret += ", ";
+                }
+            }
+            ret += "] -> ";*/
             return Function.ToString();
         }
     }
@@ -150,7 +179,7 @@ namespace luadec.IR
         public override HashSet<Identifier> GetUses(bool regonly)
         {
             var ret = new HashSet<Identifier>();
-            if (!regonly || Identifier.IType == Identifier.IdentifierType.Register)
+            if ((!regonly || Identifier.IType == Identifier.IdentifierType.Register) && !Identifier.IsClosureBound)
             {
                 ret.Add(Identifier);
             }
@@ -163,7 +192,7 @@ namespace luadec.IR
 
         public override void RenameUses(Identifier orig, Identifier newi)
         {
-            if (Identifier == orig)
+            if (Identifier == orig && !Identifier.IsClosureBound)
             {
                 Identifier = newi;
                 Identifier.UseCount++;

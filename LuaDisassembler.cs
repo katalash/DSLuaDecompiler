@@ -645,7 +645,10 @@ namespace luadec
             // First register closures for all the children
             for (int i = 0; i < fun.ChildFunctions.Length; i++)
             {
-                irfun.AddClosure(new IR.Function());
+                var cfun = new IR.Function();
+                // Upval count needs to be set for child functions for analysis to be correct
+                cfun.UpvalCount = fun.ChildFunctions[i].Nups;
+                irfun.AddClosure(cfun);
             }
 
             SymbolTable.BeginScope();
@@ -710,6 +713,14 @@ namespace luadec
                             up.Name = fun.UpvalueNames[b].Name;
                             up.UpvalueResolved = true;
                         }
+                        else
+                        {
+                            if (b > irfun.UpvalueBindings.Count)
+                            {
+                                throw new Exception("Reference to unbound upvalue");
+                            }
+                            up = irfun.UpvalueBindings[(int)b];
+                        }
                         assn = new IR.Assignment(SymbolTable.GetRegister(a), new IR.IdentifierReference(up));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
@@ -736,6 +747,14 @@ namespace luadec
                         {
                             up2.Name = fun.UpvalueNames[b].Name;
                             up2.UpvalueResolved = true;
+                        }
+                        else
+                        {
+                            if (b > irfun.UpvalueBindings.Count)
+                            {
+                                throw new Exception("Reference to unbound upvalue");
+                            }
+                            up2 = irfun.UpvalueBindings[(int)b];
                         }
                         instructions.Add(new IR.Assignment(up2, new IR.IdentifierReference(SymbolTable.GetRegister(a))));
                         break;
@@ -952,7 +971,7 @@ namespace luadec
                                 instructions.Add(new IR.PlaceholderInstruction(($@"{OpProperties50[opcode].OpName} {instruction >> 24} {(instruction >> 6) & 0x3FFFF}")));
                                 break;
                         }
-                        throw new Exception($@"Unimplemented opcode {OpProperties50[opcode].OpName}");
+                        //throw new Exception($@"Unimplemented opcode {OpProperties50[opcode].OpName}");
                         break;
                 }
                 foreach (var inst in instructions)
@@ -976,6 +995,9 @@ namespace luadec
             irfun.ConstructControlFlowGraph();
             irfun.ResolveIndeterminantArguments(SymbolTable);
             irfun.ConvertToSSA(SymbolTable.GetAllRegistersInScope());
+
+            // Upval registration
+            irfun.RegisterClosureUpvalues50();
 
             // Data flow passes
             irfun.EliminateDeadAssignments(true);

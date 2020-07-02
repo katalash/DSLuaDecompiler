@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "DSLuaDecompiler": {
+      "commandName": "Project",
+      "commandLineArgs": "-d E:\\bloodborne\\CUSA00999-app\\dvdroot_ps4\\script\\m26_00_00_00-luabnd-dcx\\script\\ai\\out\\bin\\551000_battle.lua"
+    }
+  }
+}

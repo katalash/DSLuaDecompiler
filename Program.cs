@@ -12,6 +12,7 @@ namespace luadec
     {
         static void Main(string[] args)
         {
+            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
             Encoding outEncoding = Encoding.UTF8;
             // Super bad arg parser until I decide to use a better libary
             bool writeFile = true;
