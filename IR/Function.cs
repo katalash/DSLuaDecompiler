@@ -67,6 +67,16 @@ namespace luadec.IR
         public int UpvalCount = 0;
 
         /// <summary>
+        /// For each upvalue in Lua 5.3, the register in the parent its bound to
+        /// </summary>
+        public List<int> UpvalueRegisterBinding = new List<int>();
+
+        /// <summary>
+        /// For each upvalue in Lua 5.3, if the upvalue exists on the stack
+        /// </summary>
+        public List<bool> UpvalueIsStackBinding = new List<bool>();
+
+        /// <summary>
         /// Upvalue binding symbold from parent closure
         /// </summary>
         public List<Identifier> UpvalueBindings = new List<Identifier>();
@@ -755,6 +765,7 @@ namespace luadec.IR
                 newName.Name = orig.Name + $@"_{Counters[orig]}";
                 newName.IType = Identifier.IdentifierType.Register;
                 newName.OriginalIdentifier = orig;
+                newName.IsClosureBound = orig.IsClosureBound;
                 Stacks[orig].Push(newName);
                 Counters[orig]++;
                 SSAVariables.Add(newName);
@@ -774,8 +785,14 @@ namespace luadec.IR
                 {
                     foreach (var use in inst.GetUses(true))
                     {
+                        if (use.IsClosureBound)
+                        {
+                            continue;
+                        }
                         if (Stacks[use].Count != 0)
-                        inst.RenameUses(use, Stacks[use].Peek());
+                        {
+                            inst.RenameUses(use, Stacks[use].Peek());
+                        }
                     }
                     foreach (var def in inst.GetDefines(true))
                     {
@@ -873,6 +890,49 @@ namespace luadec.IR
             }
         }
 
+        // Detect upvalue bindings for child closures in Lua 5.3
+        public void RegisterClosureUpvalues53(HashSet<Identifier> allRegisters)
+        {
+            foreach (var f in Closures)
+            {
+                for (int i = 0; i < f.UpvalCount; i++)
+                {
+                    if (f.UpvalueIsStackBinding[i])
+                    {
+                        var reg = allRegisters.First((x => x.Regnum == f.UpvalueRegisterBinding[i]));
+                        f.UpvalueBindings.Add(reg);
+                    }
+                    else
+                    {
+                        f.UpvalueBindings.Add(UpvalueBindings[f.UpvalueRegisterBinding[i]]);
+                    }
+                }
+            }
+
+            /*foreach (var b in BlockList)
+            {
+                for (int i = 0; i < b.Instructions.Count(); i++)
+                {
+                    // Recognize a closure instruction
+                    if (b.Instructions[i] is Assignment a && a.Right is Closure c)
+                    {
+                        for (int j = 0; j < c.Function.UpvalCount; j++)
+                        {
+                            if (c.Function.UpvalueIsStackBinding[i])
+                            {
+                                
+                            }
+                            else
+                            {
+                                // Otherwise inherit the upvalue
+                                c.Function.UpvalueBindings.Add(UpvalueBindings[f.UpvalueRegisterBinding[i]]);
+                            }
+                        }
+                    }
+                }
+            }*/
+        }
+
         // Given the IR is in SSA form, this does expression propogation/substitution
         public void PerformExpressionPropogation()
         {
@@ -905,6 +965,29 @@ namespace luadec.IR
                                     }
                                 }
                             }
+                        }
+                    }
+                }
+
+                // Lua might generate the following (decompiled) code when doing a this call on a global variable:
+                //     REG0 = someGlobal
+                //     REG0:someFunction(blah...)
+                // This rewrites such statements to
+                //     someGlobal:someFunction(blah...)
+                foreach (var b in BlockList)
+                {
+                    for (int i = 0; i < b.Instructions.Count(); i++)
+                    {
+                        var inst = b.Instructions[i];
+                        if (inst is Assignment a && a.Right is FunctionCall fc && fc.Args.Count > 0 &&
+                            fc.Args[0] is IdentifierReference ir && !ir.HasIndex && ir.Identifier.UseCount == 2 &&
+                            i > 0 && b.Instructions[i - 1] is Assignment a2 && a2.Left.Count == 1 &&
+                            !a2.Left[0].HasIndex && a2.Left[0].Identifier == ir.Identifier)
+                        {
+                            a.ReplaceUses(a2.Left[0].Identifier, a2.Right);
+                            b.Instructions.RemoveAt(i - 1);
+                            i--;
+                            changed = true;
                         }
                     }
                 }
@@ -2253,7 +2336,7 @@ namespace luadec.IR
                         }
 
                         // Body contains more loop bytecode that can be removed
-                        var body = node.Successors[0];
+                        var body = (node.Successors[0].ReversePostorderNumber < node.Successors[1].ReversePostorderNumber) ? node.Successors[0] : node.Successors[1];
                         if (body.Instructions[0] is Assignment a3)
                         {
                             body.Instructions.RemoveAt(0);
@@ -2281,7 +2364,7 @@ namespace luadec.IR
                     }
 
                     // Match a while
-                    else if (node.Instructions.Last() is Jump loopJump4 && loopJump4.Condition is BinOp loopCondition4)
+                    else if (node.Instructions.First() is Jump loopJump4 && loopJump4.Condition is Expression loopCondition4)
                     {
                         var whiles = new While();
 
@@ -2289,7 +2372,58 @@ namespace luadec.IR
                         whiles.Condition = loopCondition4;
                         node.Instructions.RemoveAt(node.Instructions.Count - 1);
 
+                        //whiles.Body = (node.Successors[0].ReversePostorderNumber > node.Successors[1].ReversePostorderNumber) ? node.Successors[0] : node.Successors[1];
                         whiles.Body = node.Successors[0];
+                        whiles.Body.MarkCodegened(DebugID);
+                        if (!usedFollows.Contains(node.LoopFollow))
+                        {
+                            whiles.Follow = node.LoopFollow;
+                            usedFollows.Add(node.LoopFollow);
+                            node.LoopFollow.MarkCodegened(DebugID);
+                        }
+                        // If there's a goto to this loop head, replace it with the while. Otherwise replace the last instruction of this node
+                        if (loopInitializer.Successors.Count == 1)
+                        {
+                            if (loopInitializer.Instructions[loopInitializer.Instructions.Count() - 1] is Jump)
+                            {
+                                loopInitializer.Instructions[loopInitializer.Instructions.Count() - 1] = whiles;
+                            }
+                            else
+                            {
+                                loopInitializer.Instructions.Add(whiles);
+                            }
+                        }
+                        else
+                        {
+                            node.Instructions.Add(whiles);
+                        }
+
+                        // Remove gotos in latch
+                        foreach (var pred in node.Predecessors)
+                        {
+                            if (pred.IsLoopLatch && pred.Instructions.Last() is Jump lj && !lj.Conditional)
+                            {
+                                pred.Instructions.RemoveAt(pred.Instructions.Count - 1);
+                            }
+                        }
+
+                        node.MarkCodegened(DebugID);
+                        // The head might be the follow of an if statement, so do this to not codegen it
+                        usedFollows.Add(node);
+                    }
+
+                    // Match a repeat while (single block)
+                    else if (node.Instructions.Last() is Jump loopJump5 && loopJump5.Condition is Expression loopCondition5 && node.LoopLatch == node)
+                    {
+                        var whiles = new While();
+                        whiles.IsPostTested = true;
+
+                        // Loop head has condition
+                        whiles.Condition = loopCondition5;
+                        node.Instructions.RemoveAt(node.Instructions.Count - 1);
+
+                        //whiles.Body = (node.Successors[0].ReversePostorderNumber > node.Successors[1].ReversePostorderNumber) ? node.Successors[0] : node.Successors[1];
+                        whiles.Body = node.Successors[1];
                         whiles.Body.MarkCodegened(DebugID);
                         if (!usedFollows.Contains(node.LoopFollow))
                         {
@@ -2529,7 +2663,7 @@ namespace luadec.IR
             {
                 if (b != BeginBlock && !b.Codegened())
                 {
-                    Console.WriteLine($@"Warning: block_{b.BlockID} in function {DebugID} was not used in code generation");
+                    Console.WriteLine($@"Warning: block_{b.BlockID} in function {DebugID} was not used in code generation. THIS IS LIKELY A DECOMPILER BUG!");
                 }
             }
 

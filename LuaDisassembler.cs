@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using luadec.IR;
 using luadec.Utilities;
 
 namespace luadec
@@ -1050,12 +1051,30 @@ namespace luadec
             return up;
         }
 
-        public static void GenerateIR53(IR.Function irfun, LuaFile.Function fun)
+        public static void GenerateIR53(IR.Function irfun, LuaFile.Function fun, bool isRootFunction)
         {
             // First register closures for all the children
             for (int i = 0; i < fun.ChildFunctions.Length; i++)
             {
-                irfun.AddClosure(new IR.Function());
+                var cfun = new IR.Function();
+                // Upval count needs to be set for child functions for analysis to be correct
+                cfun.UpvalCount = fun.ChildFunctions[i].Upvalues.Length;
+                foreach (var uv in fun.ChildFunctions[i].Upvalues)
+                {
+                    cfun.UpvalueRegisterBinding.Add(uv.ID);
+                    cfun.UpvalueIsStackBinding.Add(uv.InStack);
+                }
+                irfun.AddClosure(cfun);
+            }
+
+            if (isRootFunction)
+            {
+                // Create the global table as the first upvalue
+                Identifier globalTable = new Identifier();
+                globalTable.IType = Identifier.IdentifierType.GlobalTable;
+                globalTable.VType = Identifier.ValueType.Table;
+                globalTable.IsClosureBound = true;
+                irfun.UpvalueBindings.Add(globalTable);
             }
 
             SymbolTable.BeginScope();
@@ -1117,12 +1136,22 @@ namespace luadec
                         break;
                     case Lua53Ops.OpGetUpVal:
                         var up = Upvalue53(fun, b);
+                        if (b > irfun.UpvalueBindings.Count)
+                        {
+                            throw new Exception("Reference to unbound upvalue");
+                        }
+                        up = irfun.UpvalueBindings[(int)b];
                         assn = new IR.Assignment(SymbolTable.GetRegister(a), new IR.IdentifierReference(up));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
                     case Lua53Ops.OpGetTabUp:
                         var up4 = Upvalue53(fun, b);
+                        if (b > irfun.UpvalueBindings.Count)
+                        {
+                            throw new Exception("Reference to unbound upvalue");
+                        }
+                        up4 = irfun.UpvalueBindings[(int)b];
                         var rkir = RKIR53(fun, c);
                         if (up4.StackUpvalue && rkir is IR.Constant c1 && c1.ConstType == IR.Constant.ConstantType.ConstString)
                         {
@@ -1142,6 +1171,11 @@ namespace luadec
                         break;
                     case Lua53Ops.OpSetTabUp:
                         var up3 = Upvalue53(fun, a);
+                        if (a > irfun.UpvalueBindings.Count)
+                        {
+                            throw new Exception("Reference to unbound upvalue");
+                        }
+                        up3 = irfun.UpvalueBindings[(int)a];
                         var rkir2 = RKIR53(fun, b);
                         if (up3.StackUpvalue && rkir2 is IR.Constant c2 && c2.ConstType == IR.Constant.ConstantType.ConstString)
                         {
@@ -1154,6 +1188,11 @@ namespace luadec
                         break;
                     case Lua53Ops.OpSetUpVal:
                         var up2 = Upvalue53(fun, b);
+                        if (fun.UpvalueNames.Count() > 0 && !up2.UpvalueResolved)
+                        {
+                            up2.Name = fun.UpvalueNames[b].Name;
+                            up2.UpvalueResolved = true;
+                        }
                         instructions.Add(new IR.Assignment(up2, new IR.IdentifierReference(SymbolTable.GetRegister(a))));
                         break;
                     case Lua53Ops.OpNewTable:
@@ -1435,10 +1474,15 @@ namespace luadec
             irfun.ConstructControlFlowGraph();
             irfun.ResolveIndeterminantArguments(SymbolTable);
             irfun.CompleteLua51Loops();
+
+            // Upval resolution
+            irfun.RegisterClosureUpvalues53(SymbolTable.GetAllRegistersInScope());
+
             irfun.ConvertToSSA(SymbolTable.GetAllRegistersInScope());
 
             // Data flow passes
             irfun.EliminateDeadAssignments(true);
+            irfun.PerformThisCallPropogation();
             irfun.PerformExpressionPropogation();
             irfun.DetectListInitializers();
             irfun.PerformExpressionPropogation();
@@ -1466,9 +1510,9 @@ namespace luadec
             // Now generate IR for all the child closures
             for (int i = 0; i < fun.ChildFunctions.Length; i++)
             {
-                //if (i == 17)
+                //if (i == 8)
                 {
-                    GenerateIR53(irfun.LookupClosure((uint)i), fun.ChildFunctions[i]);
+                    GenerateIR53(irfun.LookupClosure((uint)i), fun.ChildFunctions[i], false);
                 }
             }
             SymbolTable.EndScope();

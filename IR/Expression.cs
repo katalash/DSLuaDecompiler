@@ -247,12 +247,19 @@ namespace luadec.IR
 
         public override string ToString()
         {
-            string ret = Identifier.ToString();
+            // Detect a Lua 5.3 global variable and don't display it as a table reference
+            bool isGlobal = (Identifier.IType == Identifier.IdentifierType.GlobalTable);
+            string ret = isGlobal ? "" : Identifier.ToString();
             foreach (var idx in TableIndices)
             {
-                if (DotNotation && idx is Constant c && c.ConstType == Constant.ConstantType.ConstString)
+                if (isGlobal && idx is Constant g && g.ConstType == Constant.ConstantType.ConstString)
                 {
-                    ret = Identifier.ToString() + "." + c.String;
+                    ret += g.String;
+                    isGlobal = false;
+                }
+                else if (/*DotNotation && */idx is Constant c && c.ConstType == Constant.ConstantType.ConstString)
+                {
+                    ret += "." + c.String;
                 }
                 else
                 {
@@ -920,7 +927,8 @@ namespace luadec.IR
             // Pattern match special lua this call
             int beginarg = 0;
             if (Function is IdentifierReference ir && ir.TableIndices.Count == 1 &&
-                ir.TableIndices[0] is Constant c && c.ConstType == Constant.ConstantType.ConstString)
+                ir.TableIndices[0] is Constant c && c.ConstType == Constant.ConstantType.ConstString &&
+                ir.Identifier.IType != Identifier.IdentifierType.GlobalTable)
             {
                 if (Args.Count() >= 1 && Args[0] is IdentifierReference thisir && thisir.TableIndices.Count == 0 && thisir.Identifier == ir.Identifier)
                 {
@@ -931,6 +939,16 @@ namespace luadec.IR
                 {
                     ret += $@"{ir.Identifier.ToString()}.{c.String}(";
                 }
+            }
+            else if (Function is IdentifierReference ir2 && ir2.TableIndices.Count == 2 &&
+                ir2.Identifier.IType == Identifier.IdentifierType.GlobalTable &&
+                ir2.TableIndices[1] is Constant c2 && c2.ConstType == Constant.ConstantType.ConstString &&
+                ir2.TableIndices[0] is Constant c3 && c3.ConstType == Constant.ConstantType.ConstString &&
+                Args.Count() >= 1 && Args[0] is IdentifierReference thisir && thisir.TableIndices.Count == 1 && thisir.Identifier == ir2.Identifier &&
+                ir2.TableIndices[0] is Constant c4 && c4.ConstType == Constant.ConstantType.ConstString && c3.String == c4.String)
+            {
+                ret += $@"{c3.String}:{c2.String}(";
+                beginarg = 1;
             }
             else
             {

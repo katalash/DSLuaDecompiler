@@ -15,6 +15,7 @@ namespace luadec.IR
         {
             Register,
             Global,
+            GlobalTable,
             Upvalue,
             Varargs,
         }

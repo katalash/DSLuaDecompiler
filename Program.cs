@@ -61,7 +61,7 @@ namespace luadec
                 }
                 else if (lua.Version == LuaFile.LuaVersion.Lua53Smash)
                 {
-                    LuaDisassembler.GenerateIR53(main, lua.MainFunction);
+                    LuaDisassembler.GenerateIR53(main, lua.MainFunction, true);
                     outEncoding = Encoding.UTF8;
                 }
 
