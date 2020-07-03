@@ -1482,7 +1482,6 @@ namespace luadec
 
             // Data flow passes
             irfun.EliminateDeadAssignments(true);
-            irfun.PerformThisCallPropogation();
             irfun.PerformExpressionPropogation();
             irfun.DetectListInitializers();
             irfun.PerformExpressionPropogation();
