@@ -1450,7 +1450,7 @@ namespace luadec
                                 instructions.Add(new IR.PlaceholderInstruction(($@"{OpProperties53[opcode].OpName} {instruction >> 24}")));
                                 break;
                         }
-                        throw new Exception($@"Unimplemented opcode {OpProperties50[opcode].OpName}");
+                        throw new Exception($@"Unimplemented opcode {OpProperties53[opcode].OpName}");
                         break;
                 }
                 foreach (var inst in instructions)
