@@ -1810,7 +1810,7 @@ namespace luadec.IR
                 {
                     foreach (var r in phi.Right)
                     {
-                        if (globalLiveness[phi.Left] != globalLiveness[r])
+                        if (phi.Left != null && globalLiveness[phi.Left] != globalLiveness[r])
                         {
                             globalLiveness[phi.Left].UnionWith(globalLiveness[r]);
                             globalLiveness[r] = globalLiveness[phi.Left];
@@ -2306,7 +2306,7 @@ namespace luadec.IR
                     }
 
                     // Match a generic for with a predecessor initializer
-                    else if (node.Instructions.Last() is Jump loopJump2 && loopJump2.Condition is BinOp loopCondition2 &&
+                    else if (node.Instructions.Count > 0 && node.Instructions.Last() is Jump loopJump2 && loopJump2.Condition is BinOp loopCondition2 &&
                         loopInitializer.Instructions.Count >= 2 && loopInitializer.Instructions[loopInitializer.Instructions.Count - 2] is Assignment la &&
                         la.Left[0] is IdentifierReference f && node.Instructions[0] is Assignment ba && ba.Right is FunctionCall fc &&
                         fc.Function is IdentifierReference fci && fci.Identifier == f.Identifier)
@@ -2384,7 +2384,7 @@ namespace luadec.IR
                         // If there's a goto to this loop head, replace it with the while. Otherwise replace the last instruction of this node
                         if (loopInitializer.Successors.Count == 1)
                         {
-                            if (loopInitializer.Instructions[loopInitializer.Instructions.Count() - 1] is Jump)
+                            if (loopInitializer.Instructions.Count() > 0 && loopInitializer.Instructions[loopInitializer.Instructions.Count() - 1] is Jump)
                             {
                                 loopInitializer.Instructions[loopInitializer.Instructions.Count() - 1] = whiles;
                             }
@@ -2489,7 +2489,7 @@ namespace luadec.IR
                         var loopInitializer = node.Predecessors.First(x => x != node.LoopLatch);
                         if (loopInitializer.Successors.Count == 1)
                         {
-                            if (loopInitializer.Instructions[loopInitializer.Instructions.Count() - 1] is Jump)
+                            if (loopInitializer.Instructions.Count > 0 && loopInitializer.Instructions[loopInitializer.Instructions.Count() - 1] is Jump)
                             {
                                 loopInitializer.Instructions[loopInitializer.Instructions.Count() - 1] = whiles;
                             }
@@ -2585,7 +2585,7 @@ namespace luadec.IR
                 }
 
                 // Pattern match for an if statement
-                if (node.Follow != null && node.Instructions.Last() is Jump jmp)
+                if (node.Follow != null && node.Instructions.Count > 0 && node.Instructions.Last() is Jump jmp)
                 {
                     var ifStatement = new IfStatement();
                     ifStatement.Condition = jmp.Condition;
