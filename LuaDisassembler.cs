@@ -1434,6 +1434,12 @@ namespace luadec
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
+                    case Lua53Ops.OpForPrep:
+                        // The VM technically does a subtract, but we don't actually emit it since it simplifies things to map better to the high level Lua
+                        //instructions.Add(new IR.Assignment(new IR.IdentifierReference(SymbolTable.GetRegister(a)), new IR.BinOp(new IR.IdentifierReference(SymbolTable.GetRegister(a)),
+                        //    new IR.IdentifierReference(SymbolTable.GetRegister(a + 2)), IR.BinOp.OperationType.OpSub)));
+                        instructions.Add(new IR.Jump(irfun.GetLabel((uint)((i / 4) + 1 + sbx))));
+                        break;
                     default:
                         switch (OpProperties53[opcode].OpMode)
                         {
