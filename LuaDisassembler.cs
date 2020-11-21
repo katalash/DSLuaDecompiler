@@ -2099,7 +2099,7 @@ namespace luadec
             irfun.ApplyLabels();
 
             // Simple post-ir and idiom recognition analysis passes
-            /*irfun.ClearDataInstructions();
+            irfun.ClearDataInstructions();
             irfun.ResolveVarargListAssignment();
             irfun.MergeMultiBoolAssignment();
             irfun.EliminateRedundantAssignments();
@@ -2108,7 +2108,7 @@ namespace luadec
             //irfun.PeepholeOptimize();
             irfun.CheckControlFlowIntegrity();
 
-            // Control flow graph construction and SSA conversion
+             // Control flow graph construction and SSA conversion
             irfun.ConstructControlFlowGraph();
             irfun.ResolveIndeterminantArguments(SymbolTable);
             irfun.CompleteLua51Loops();
@@ -2119,7 +2119,6 @@ namespace luadec
             irfun.PerformExpressionPropogation();
             irfun.DetectListInitializers();
             irfun.PerformExpressionPropogation();
-
             // CFG passes
             irfun.StructureCompoundConditionals();
             irfun.DetectLoops();
@@ -2136,11 +2135,10 @@ namespace luadec
             irfun.ArgumentNames = fun.LocalsAt(0);
             irfun.RenameVariables();
             irfun.Parenthesize();
-            //irfun.AnnotateEnvActFunctions();
+            irfun.AnnotateEnvActFunctions();
 
             // Convert to AST
-            irfun.ConvertToAST(true);*/
-
+            irfun.ConvertToAST(true);
             // Now generate IR for all the child closures
             for (int i = 0; i < fun.ChildFunctions.Length; i++)
             {
