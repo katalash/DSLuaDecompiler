@@ -1529,10 +1529,19 @@ namespace luadec
 
         public static void GenerateIRHKS(IR.Function irfun, LuaFile.Function fun)
         {
+            Identifier debugCounter = new Identifier();
+            debugCounter.IType = Identifier.IdentifierType.GlobalTable;
+            debugCounter.VType = Identifier.ValueType.Number;
+            debugCounter.IsClosureBound = true;
+            irfun.UpvalueBindings.Add(debugCounter);
+            
             // First register closures for all the children
             for (int i = 0; i < fun.ChildFunctions.Length; i++)
             {
-                irfun.AddClosure(new IR.Function());
+                var cfun = new IR.Function();
+                // Upval count needs to be set for child functions for analysis to be correct
+                cfun.UpvalCount = fun.ChildFunctions[i].Nups;
+                irfun.AddClosure(cfun);
             }
 
             SymbolTable.BeginScope();
@@ -1633,6 +1642,23 @@ namespace luadec
                             up.UpvalueResolved = true;
                         }
                         instructions.Add(new IR.Assignment(SymbolTable.GetRegister(a), new IR.IdentifierReference(up)));
+                        break;
+                    case LuaHKSOps.OpSetUpVal:
+                        var up2 = SymbolTable.GetUpvalue((uint)b);
+                        if (fun.UpvalueNames.Count() > 0 && !up2.UpvalueResolved)
+                        {
+                            up2.Name = fun.UpvalueNames[b].Name;
+                            up2.UpvalueResolved = true;
+                        }
+                        else
+                        {
+                            if (b > irfun.UpvalueBindings.Count || irfun.UpvalueBindings.Count == 0)
+                            {
+                                throw new Exception("Reference to unbound upvalue: "  + up2 );
+                            }
+                            up2 = irfun.UpvalueBindings[(int)b];
+                        }
+                        instructions.Add(new IR.Assignment(up2, new IR.IdentifierReference(SymbolTable.GetRegister(a))));
                         break;
                     case LuaHKSOps.OpGetGlobalMem:
                     case LuaHKSOps.OpGetGlobal:
@@ -2073,7 +2099,7 @@ namespace luadec
             irfun.ApplyLabels();
 
             // Simple post-ir and idiom recognition analysis passes
-            /*irfun.ClearDataInstructions();
+            irfun.ClearDataInstructions();
             irfun.ResolveVarargListAssignment();
             irfun.MergeMultiBoolAssignment();
             irfun.EliminateRedundantAssignments();
@@ -2082,7 +2108,7 @@ namespace luadec
             //irfun.PeepholeOptimize();
             irfun.CheckControlFlowIntegrity();
 
-            // Control flow graph construction and SSA conversion
+             // Control flow graph construction and SSA conversion
             irfun.ConstructControlFlowGraph();
             irfun.ResolveIndeterminantArguments(SymbolTable);
             irfun.CompleteLua51Loops();
@@ -2093,7 +2119,6 @@ namespace luadec
             irfun.PerformExpressionPropogation();
             irfun.DetectListInitializers();
             irfun.PerformExpressionPropogation();
-
             // CFG passes
             irfun.StructureCompoundConditionals();
             irfun.DetectLoops();
@@ -2110,11 +2135,10 @@ namespace luadec
             irfun.ArgumentNames = fun.LocalsAt(0);
             irfun.RenameVariables();
             irfun.Parenthesize();
-            //irfun.AnnotateEnvActFunctions();
+            irfun.AnnotateEnvActFunctions();
 
             // Convert to AST
-            irfun.ConvertToAST(true);*/
-
+            irfun.ConvertToAST(true);
             // Now generate IR for all the child closures
             for (int i = 0; i < fun.ChildFunctions.Length; i++)
             {
