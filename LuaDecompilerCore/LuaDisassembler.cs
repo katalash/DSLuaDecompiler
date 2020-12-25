@@ -8,7 +8,7 @@ using luadec.Utilities;
 
 namespace luadec
 {
-    class LuaDisassembler
+    public class LuaDisassembler
     {
         public enum Lua50Ops
         {

@@ -35,6 +35,8 @@
 *.CopyComplete
 obj/*
 bin/*
+*/obj/*
+*/bin/*
 .vs/*
 *.user
 *.lock

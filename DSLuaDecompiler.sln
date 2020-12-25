@@ -3,7 +3,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.29025.244
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DSLuaDecompiler", "DSLuaDecompiler.csproj", "{47811C0D-9FA6-4E84-AED5-70086AAA9095}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DSLuaDecompiler", "DSLuaDecompiler\DSLuaDecompiler.csproj", "{47811C0D-9FA6-4E84-AED5-70086AAA9095}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LuaDecompilerCore", "LuaDecompilerCore\LuaDecompilerCore.csproj", "{459CAB91-A3C7-42BA-8D2E-E8D4634C9380}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -15,6 +17,10 @@ Global
 		{47811C0D-9FA6-4E84-AED5-70086AAA9095}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{47811C0D-9FA6-4E84-AED5-70086AAA9095}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{47811C0D-9FA6-4E84-AED5-70086AAA9095}.Release|Any CPU.Build.0 = Release|Any CPU
+		{459CAB91-A3C7-42BA-8D2E-E8D4634C9380}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{459CAB91-A3C7-42BA-8D2E-E8D4634C9380}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{459CAB91-A3C7-42BA-8D2E-E8D4634C9380}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{459CAB91-A3C7-42BA-8D2E-E8D4634C9380}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
