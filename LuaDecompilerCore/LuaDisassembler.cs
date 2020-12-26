@@ -716,11 +716,14 @@ namespace luadec
                         }
                         else
                         {
-                            if (b > irfun.UpvalueBindings.Count)
+                            if (b >= irfun.UpvalueBindings.Count)
                             {
                                 throw new Exception("Reference to unbound upvalue");
                             }
-                            up = irfun.UpvalueBindings[(int)b];
+                            else
+                            {
+                                up = irfun.UpvalueBindings[(int)b];
+                            }
                         }
                         assn = new IR.Assignment(SymbolTable.GetRegister(a), new IR.IdentifierReference(up));
                         CheckLocal(assn, fun, pc);
@@ -751,11 +754,14 @@ namespace luadec
                         }
                         else
                         {
-                            if (b > irfun.UpvalueBindings.Count)
+                            if (b >= irfun.UpvalueBindings.Count)
                             {
                                 throw new Exception("Reference to unbound upvalue");
                             }
-                            up2 = irfun.UpvalueBindings[(int)b];
+                            else
+                            {
+                                up2 = irfun.UpvalueBindings[(int)b];
+                            }
                         }
                         instructions.Add(new IR.Assignment(up2, new IR.IdentifierReference(SymbolTable.GetRegister(a))));
                         break;
@@ -995,6 +1001,7 @@ namespace luadec
             // Control flow graph construction and SSA conversion
             irfun.ConstructControlFlowGraph();
             irfun.ResolveIndeterminantArguments(SymbolTable);
+
             irfun.ConvertToSSA(SymbolTable.GetAllRegistersInScope());
 
             // Upval registration
@@ -1028,7 +1035,7 @@ namespace luadec
             // Now generate IR for all the child closures
             for (int i = 0; i < fun.ChildFunctions.Length; i++)
             {
-                //if (i == 49)
+                //if (i == 1)
                 {
                     GenerateIR50(irfun.LookupClosure((uint)i), fun.ChildFunctions[i]);
                 }

@@ -180,7 +180,13 @@ namespace luadec.IR
         {
             for (int i = 0; i < Instructions.Count(); i++)
             {
-                if (Instructions[i] is Assignment assn && assn.Left.Count() == 1 && !assn.Left[0].HasIndex)
+                // If we encounter a closure we must skip instructions equal to the number of upvalues, as the assignments that follow are
+                // critical for upvalue binding analysis
+                if (Instructions[i] is Assignment a && a.Right is Closure c)
+                {
+                    i += c.Function.UpvalCount;
+                }
+                else if (Instructions[i] is Assignment assn && assn.Left.Count() == 1 && !assn.Left[0].HasIndex)
                 {
                     if (assn.Right is IdentifierReference reference && !reference.HasIndex && assn.Left[0].Identifier == reference.Identifier)
                     {
@@ -796,6 +802,10 @@ namespace luadec.IR
                     }
                     foreach (var def in inst.GetDefines(true))
                     {
+                        if (def.IsClosureBound)
+                        {
+                            continue;
+                        }
                         inst.RenameDefines(def, NewName(def));
                     }
                 }
@@ -842,6 +852,10 @@ namespace luadec.IR
                 {
                     foreach (var def in inst.GetDefines(true))
                     {
+                        if (def.IsClosureBound)
+                        {
+                            continue;
+                        }
                         Stacks[def.OriginalIdentifier].Pop();
                     }
                 }
@@ -982,7 +996,8 @@ namespace luadec.IR
                         if (inst is Assignment a && a.Right is FunctionCall fc && fc.Args.Count > 0 &&
                             fc.Args[0] is IdentifierReference ir && !ir.HasIndex && ir.Identifier.UseCount == 2 &&
                             i > 0 && b.Instructions[i - 1] is Assignment a2 && a2.Left.Count == 1 &&
-                            !a2.Left[0].HasIndex && a2.Left[0].Identifier == ir.Identifier)
+                            !a2.Left[0].HasIndex && a2.Left[0].Identifier == ir.Identifier &&
+                            (a2.Right is IdentifierReference || a2.Right is Constant))
                         {
                             a.ReplaceUses(a2.Left[0].Identifier, a2.Right);
                             b.Instructions.RemoveAt(i - 1);
@@ -2178,7 +2193,8 @@ namespace luadec.IR
                     {
                         foreach (var def in a.GetDefines(true))
                         {
-                            if (!newdeclared.Contains(def))
+                            // If the definition has been renamed at this point then it's from a parent closure and should not be made a local
+                            if (!def.Renamed && !newdeclared.Contains(def))
                             {
                                 newdeclared.Add(def);
                                 a.IsLocalDeclaration = true;
@@ -2700,7 +2716,7 @@ namespace luadec.IR
                         int ll = 0;
                         foreach (var l in a.Left)
                         {
-                            if (l is IdentifierReference ir && !ir.HasIndex && ir.Identifier.IType == Identifier.IdentifierType.Register && !renamed.Contains(ir.Identifier))
+                            if (l is IdentifierReference ir && !ir.HasIndex && ir.Identifier.IType == Identifier.IdentifierType.Register && !renamed.Contains(ir.Identifier) && !ir.Identifier.Renamed)
                             {
                                 renamed.Add(l.Identifier);
                                 if (a.LocalAssignments != null && ll < a.LocalAssignments.Count())
@@ -2712,6 +2728,8 @@ namespace luadec.IR
                                     ir.Identifier.Name = $@"f{DebugID}_local{localCounter}";
                                     localCounter++;
                                 }
+                                // Needed so upval uses by closures don't rename this
+                                ir.Identifier.Renamed = true;
                             }
                             ll++;
                         }

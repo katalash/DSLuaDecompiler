@@ -44,6 +44,7 @@ namespace luadec
             }
 
             Console.OutputEncoding = outEncoding;
+            //infilename = $@"E:\SteamLibrary\steamapps\common\DARK SOULS III\Game\script\m36_00_00_00-luabnd-dcx\script\ai\out\bin\111050_battle.lua";
             using (FileStream stream = File.OpenRead(infilename))
             {
                 BinaryReaderEx br = new BinaryReaderEx(false, stream);
