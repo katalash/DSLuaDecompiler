@@ -483,7 +483,8 @@ namespace luadec.IR
             // Forth pass: Merge blocks that have a single successor and that successor has a single predecessor
             for (int b = 0; b < BlockList.Count(); b++)
             {
-                if (BlockList[b].Successors.Count() == 1 && BlockList[b].Successors[0].Predecessors.Count() == 1 && BlockList[b].Instructions.Last() is Jump)
+                if (BlockList[b].Successors.Count() == 1 && BlockList[b].Successors[0].Predecessors.Count() == 1 && 
+                    (BlockList[b].Instructions.Last() is Jump || BlockList[b].Successors[0].BlockID == (BlockList[b].BlockID + 1)))
                 {
                     var curr = BlockList[b];
                     var succ = BlockList[b].Successors[0];
