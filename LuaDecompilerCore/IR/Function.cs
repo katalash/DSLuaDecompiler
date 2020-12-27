@@ -481,32 +481,38 @@ namespace luadec.IR
             }
 
             // Forth pass: Merge blocks that have a single successor and that successor has a single predecessor
-            for (int b = 0; b < BlockList.Count(); b++)
+            bool changed = true;
+            while (changed)
             {
-                if (BlockList[b].Successors.Count() == 1 && BlockList[b].Successors[0].Predecessors.Count() == 1 && 
-                    (BlockList[b].Instructions.Last() is Jump || BlockList[b].Successors[0].BlockID == (BlockList[b].BlockID + 1)))
+                changed = false;
+                for (int b = 0; b < BlockList.Count(); b++)
                 {
-                    var curr = BlockList[b];
-                    var succ = BlockList[b].Successors[0];
-                    curr.Instructions.RemoveAt(curr.Instructions.Count() - 1);
-                    foreach (var inst in succ.Instructions)
+                    if (BlockList[b].Successors.Count() == 1 && BlockList[b].Successors[0].Predecessors.Count() == 1 &&
+                        (BlockList[b].Instructions.Last() is Jump || (b + 1 < BlockList.Count() && BlockList[b].Successors[0] == BlockList[b + 1])))
                     {
-                        inst.Block = curr;
-                    }
-                    curr.Instructions.AddRange(succ.Instructions);
-                    curr.Successors = succ.Successors;
-                    foreach (var s in succ.Successors)
-                    {
-                        for (int p = 0; p < s.Predecessors.Count(); p++)
+                        var curr = BlockList[b];
+                        var succ = BlockList[b].Successors[0];
+                        curr.Instructions.RemoveAt(curr.Instructions.Count() - 1);
+                        foreach (var inst in succ.Instructions)
                         {
-                            if (s.Predecessors[p] == succ)
+                            inst.Block = curr;
+                        }
+                        curr.Instructions.AddRange(succ.Instructions);
+                        curr.Successors = succ.Successors;
+                        foreach (var s in succ.Successors)
+                        {
+                            for (int p = 0; p < s.Predecessors.Count(); p++)
                             {
-                                s.Predecessors[p] = curr;
+                                if (s.Predecessors[p] == succ)
+                                {
+                                    s.Predecessors[p] = curr;
+                                }
                             }
                         }
+                        BlockList.Remove(succ);
+                        b = Math.Max(0, b - 2);
+                        changed = true;
                     }
-                    BlockList.Remove(succ);
-                    b = Math.Max(0, b - 2);
                 }
             }
 

@@ -44,7 +44,7 @@ namespace luadec
             }
 
             Console.OutputEncoding = outEncoding;
-            //infilename = $@"E:\SteamLibrary\steamapps\common\DARK SOULS III\Game\script\aicommon-luabnd-dcx\script\ai\out\bin\Gunda_battle.lua";
+            //infilename = $@"E:\SteamLibrary\steamapps\common\DARK SOULS III\Game\script\aicommon-luabnd-dcx\script\ai\out\bin\table_ai_common.lua";
             using (FileStream stream = File.OpenRead(infilename))
             {
                 BinaryReaderEx br = new BinaryReaderEx(false, stream);
