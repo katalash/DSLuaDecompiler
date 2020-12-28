@@ -11,6 +11,7 @@ namespace luadec.IR
         public List<Expression> ReturnExpressions;
         public uint BeginRet = 0;
         public bool IsIndeterminantReturnCount = false;
+        public bool IsImplicit = false;
 
         public Return(List<Expression> expr)
         {
@@ -76,6 +77,10 @@ namespace luadec.IR
 
         public override string ToString()
         {
+            if (IsImplicit)
+            {
+                return "";
+            }
             string ret = "return ";
             for (int i = 0; i < ReturnExpressions.Count(); i++)
             {
