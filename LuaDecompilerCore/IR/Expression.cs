@@ -850,6 +850,11 @@ namespace luadec.IR
         public bool IsIndeterminantReturnCount = false;
         public bool IsIndeterminantArgumentCount = false;
 
+        /// <summary>
+        /// Index of where the function def register was originally defined. Used to help decide what expressions to inline
+        /// </summary>
+        public int FunctionDefIndex = 0;
+
         public FunctionCall(Expression fun, List<Expression> args)
         {
             Function = fun;

@@ -963,6 +963,37 @@ namespace luadec.IR
         // Given the IR is in SSA form, this does expression propogation/substitution
         public void PerformExpressionPropogation()
         {
+            // Lua function calls (and expressions in general have their bytecode generated recursively. This means for example when doing a function call,
+            // the name of the function is loaded to a register first, then all the subexpressions are computed, and finally the function is called. We can
+            // exploit this knowledge to determine which expressions were actually inlined into the function call in the original source code.
+            foreach (var b in BlockList)
+            {
+                var defines = new Dictionary<Identifier, int>();
+                var selfs = new HashSet<Identifier>();
+                for (int i = 0; i < b.Instructions.Count(); i++)
+                {
+                    b.Instructions[i].PrePropogationIndex = i;
+                    var defs = b.Instructions[i].GetDefines(true);
+                    if (defs.Count == 1)
+                    {
+                        defines.Add(defs.First(), i);
+                        if (b.Instructions[i] is Assignment a2 && a2.IsSelfAssignment)
+                        {
+                            selfs.Add(defs.First());
+                        }
+                    }
+                    if (b.Instructions[i] is Assignment a && a.Right is FunctionCall fc && fc.Function is IdentifierReference fir)
+                    {
+                        fc.FunctionDefIndex = defines[fir.Identifier];
+                        if (selfs.Contains(fir.Identifier))
+                        {
+                            // If a self op was used, the first arg will be loaded before the function name
+                            fc.FunctionDefIndex--;
+                        }
+                    }
+                }
+            }
+
             bool changed;
             do
             {
@@ -980,6 +1011,11 @@ namespace luadec.IR
                                 ((use.UseCount == 1 && ((i - 1 >= 0 && b.Instructions[i - 1] == use.DefiningInstruction) || (inst is Assignment a2 && a2.IsListAssignment))) || a.PropogateAlways) &&
                                 !a.Left[0].Identifier.IsClosureBound)
                             {
+                                // Don't substitute if this use's define was defined before the code gen for the function call even began
+                                if (!a.PropogateAlways && inst is Assignment a3 && a3.Right is FunctionCall fc && (use.DefiningInstruction.PrePropogationIndex < fc.FunctionDefIndex))
+                                {
+                                    continue;
+                                }
                                 bool replaced = inst.ReplaceUses(use, a.Right);
                                 if (a.Block != null && replaced)
                                 {
@@ -988,7 +1024,8 @@ namespace luadec.IR
                                     SSAVariables.Remove(use);
                                     if (b == a.Block)
                                     {
-                                        i--;
+                                        //i--;
+                                        i = -1;
                                     }
                                 }
                             }

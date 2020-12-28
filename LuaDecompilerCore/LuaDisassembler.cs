@@ -772,10 +772,12 @@ namespace luadec
                         instructions.Add(assn);
                         break;
                     case Lua50Ops.OpSelf:
-                        //instructions.Add(new IR.PlaceholderInstruction(($@"R({a + 1}) := R({b})")));
-                        instructions.Add(new IR.Assignment(SymbolTable.GetRegister(a + 1), new IR.IdentifierReference(SymbolTable.GetRegister(b))));
-                        //instructions.Add(new IR.PlaceholderInstruction(($@"R({a}) := R({b})[{RK(fun, c)}]")));
-                        instructions.Add(new IR.Assignment(SymbolTable.GetRegister(a), new IR.IdentifierReference(SymbolTable.GetRegister(b), RKIR(fun, c))));
+                        var op = new IR.Assignment(SymbolTable.GetRegister(a + 1), new IR.IdentifierReference(SymbolTable.GetRegister(b)));
+                        op.IsSelfAssignment = true;
+                        instructions.Add(op);
+                        op = new IR.Assignment(SymbolTable.GetRegister(a), new IR.IdentifierReference(SymbolTable.GetRegister(b), RKIR(fun, c)));
+                        op.IsSelfAssignment = true;
+                        instructions.Add(op);
                         break;
                     case Lua50Ops.OpAdd:
                         //instructions.Add(new IR.PlaceholderInstruction(($@"R({a}) := {RK(fun, b)} + {RK(fun, c)}")));
@@ -1022,7 +1024,7 @@ namespace luadec
             irfun.DetectTwoWayConditionals();
             irfun.SimplifyIfElseFollowChain();
             irfun.EliminateDeadAssignments(true);
-            irfun.PerformExpressionPropogation();
+            //irfun.PerformExpressionPropogation();
             irfun.VerifyLivenessNoInterference();
 
             // Convert out of SSA and rename variables
