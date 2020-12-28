@@ -949,8 +949,10 @@ namespace luadec
                     case Lua50Ops.OpSetListTo:
                         for (int j = 1; j <= (bx%32) + 1; j++)
                         {
-                            instructions.Add(new IR.Assignment(new IR.IdentifierReference(SymbolTable.GetRegister(a), new IR.Constant((double)(bx - (bx % 32) + j))),
-                                new IR.IdentifierReference(SymbolTable.GetRegister(a + (uint)j))));
+                            var inst = new IR.Assignment(new IR.IdentifierReference(SymbolTable.GetRegister(a), new IR.Constant((double)(bx - (bx % 32) + j))),
+                                new IR.IdentifierReference(SymbolTable.GetRegister(a + (uint)j)));
+                            inst.IsListAssignment = true;
+                            instructions.Add(inst);
                         }
                         break;
                     case Lua50Ops.OpClosure:
@@ -1009,6 +1011,7 @@ namespace luadec
 
             // Data flow passes
             irfun.EliminateDeadAssignments(true);
+            irfun.PruneUnusedPhiFunctions();
             irfun.PerformExpressionPropogation();
             irfun.DetectListInitializers();
 
@@ -1035,7 +1038,7 @@ namespace luadec
             // Now generate IR for all the child closures
             for (int i = 0; i < fun.ChildFunctions.Length; i++)
             {
-                //if (i == 15)
+                //if (i == 9)
                 {
                     GenerateIR50(irfun.LookupClosure((uint)i), fun.ChildFunctions[i]);
                 }

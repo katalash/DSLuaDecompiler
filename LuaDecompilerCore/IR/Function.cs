@@ -215,7 +215,7 @@ namespace luadec.IR
             // This will greatly simplify the generated control flow graph, so this is done first
             // This algorithm is run until convergence
             int instanceCounts = 1;
-            while (instanceCounts > 0)
+            //while (instanceCounts > 0)
             {
                 instanceCounts = 0;
                 for (int i = 0; i < Instructions.Count() - 2; i++)
@@ -971,7 +971,7 @@ namespace luadec.IR
                             if (use.DefiningInstruction != null &&
                                 use.DefiningInstruction is Assignment a &&
                                 a.Left.Count() == 1 && a.LocalAssignments == null &&
-                                (use.UseCount == 1 || a.PropogateAlways) &&
+                                ((use.UseCount == 1 && ((i - 1 >= 0 && b.Instructions[i - 1] == use.DefiningInstruction) || (inst is Assignment a2 && a2.IsListAssignment))) || a.PropogateAlways) &&
                                 !a.Left[0].Identifier.IsClosureBound)
                             {
                                 bool replaced = inst.ReplaceUses(use, a.Right);
@@ -1114,9 +1114,11 @@ namespace luadec.IR
                     // Defines/uses in phi functions
                     foreach (var phi in b.PhiFunctions)
                     {
+                        var useduses = new HashSet<Identifier>();
                         foreach (var use in phi.Value.Right)
                         {
-                            if (use != null)
+                            // If a phi function has multiple uses of the same identifier, only count it as one use for the purposes of this analysis
+                            if (use != null && !useduses.Contains(use))
                             {
                                 if (!usageCounts.ContainsKey(use))
                                 {
@@ -1141,6 +1143,7 @@ namespace luadec.IR
                                         singleUses.Remove(use);
                                     }
                                 }
+                                useduses.Add(use);
                             }
                         }
                         if (!usageCounts.ContainsKey(phi.Value.Left))
@@ -1229,6 +1232,72 @@ namespace luadec.IR
                     }
                     toRemove.ForEach(x => b.Instructions.Remove(x));
                 }
+            }
+        }
+
+        /// <summary>
+        /// Prune phi functions that don't end up being used at all by actual code
+        /// </summary>
+        public void PruneUnusedPhiFunctions()
+        {
+            var phisToKeep = new HashSet<PhiFunction>();
+            var usedIdentifiers = new HashSet<Identifier>();
+
+            // First, iterate through all the non-phi instructions to get all the used identifiers
+            foreach (var b in BlockList)
+            {
+                foreach (var inst in b.Instructions)
+                {
+                    foreach (var use in inst.GetUses(true))
+                    {
+                        if (!usedIdentifiers.Contains(use))
+                        {
+                            usedIdentifiers.Add(use);
+                        }
+                    }
+                }
+            }
+
+            // Next do an expansion cycle where phi functions that use the identifiers are marked kept, and then phi functions that the marked phi uses are also kept
+            bool changed = false;
+            foreach (var b in BlockList)
+            {
+                foreach (var phi in b.PhiFunctions)
+                {
+                    if (!phisToKeep.Contains(phi.Value) && usedIdentifiers.Contains(phi.Value.Left))
+                    {
+                        phisToKeep.Add(phi.Value);
+                        foreach (var use in phi.Value.Right)
+                        {
+                            if (!usedIdentifiers.Contains(use))
+                            {
+                                usedIdentifiers.Add(use);
+                            }
+                        }
+                        changed = true;
+                    }
+                }
+            }
+
+            // Now prune any phi functions that aren't marked
+            foreach (var b in BlockList)
+            {
+                var phiToRemove = new List<Identifier>();
+                foreach (var phi in b.PhiFunctions)
+                {
+                    if (!phisToKeep.Contains(phi.Value))
+                    {
+                        foreach (var i in phi.Value.Right)
+                        {
+                            if (i != null)
+                            {
+                                i.UseCount--;
+                            }
+                        }
+                        phiToRemove.Add(phi.Key);
+                    }
+                }
+                phiToRemove.ForEach(x => b.PhiFunctions.Remove(x));
             }
         }
 
@@ -1386,7 +1455,7 @@ namespace luadec.IR
                 {
                     var b = head.OriginalBlock;
                     b.IsLoopHead = true;
-                    b.LoopLatch = latch.Key.OriginalBlock;
+                    b.LoopLatches.Add(latch.Key.OriginalBlock);
                     b.LoopType = headGraph.LoopTypes[head];
                     if(headGraph.LoopFollows[head] == null)
                         continue;
@@ -1519,10 +1588,10 @@ namespace luadec.IR
                 {
                     foreach (var ur in unresolved)
                     {
-                        // If the loop latch has multiple predecessors, it's probably the follow
-                        if (b.LoopLatch != null && b.LoopLatch.Predecessors.Count() > 1)
+                        // If there's a single loop latch and it has multiple predecessors, it's probably the follow
+                        if (b.LoopLatches.Count == 1 && b.LoopLatches[0].Predecessors.Count() > 1)
                         {
-                            ur.Follow = b.LoopLatch;
+                            ur.Follow = b.LoopLatches[0];
                         }
                         // Otherwise the detected latch (of multiple) is probably within an if statement and the head is the true follow
                         else
@@ -2285,19 +2354,20 @@ namespace luadec.IR
                 // A for loop is a pretested loop where the follow does not match the head
                 if (node.LoopFollow != null && node.LoopFollow != node && node.Predecessors.Count() >= 2 && node.LoopType == CFG.LoopType.LoopPretested)
                 {
-                    var loopInitializer = node.Predecessors.First(x => x != node.LoopLatch);
+                    var loopInitializer = node.Predecessors.First(x => !node.LoopLatches.Contains(x));
 
                     // Match a numeric for
                     if (node.Instructions.Last() is Jump loopJump && loopJump.Condition is BinOp loopCondition && loopCondition.Operation == BinOp.OperationType.OpLoopCompare)
                     {
+
                         var nfor = new NumericFor();
                         nfor.Limit = loopCondition.Right;
                         Identifier loopvar = (loopCondition.Left as IdentifierReference).Identifier;
                         var incinst = node.Instructions[node.Instructions.Count() - 2];
                         nfor.Increment = ((incinst as Assignment).Right as BinOp).Right;
 
-                        // Search the predecessor block for the initial assignment (i.e. the definition)
-                        for (int i = loopInitializer.Instructions.Count() - 1; i >= 0; i--)
+                        // Search the predecessor block for the initial assignments (i.e. the definition)
+                        /*for (int i = loopInitializer.Instructions.Count() - 1; i >= 0; i--)
                         {
                             if (loopInitializer.Instructions[i] is Assignment a && a.GetDefines(true).Contains(loopvar))
                             {
@@ -2306,7 +2376,32 @@ namespace luadec.IR
                                 loopInitializer.Instructions.RemoveAt(i);
                                 break;
                             }
+                        }*/
+
+                        // Remove the sub instruction at the end
+                        loopInitializer.Instructions.RemoveAt(loopInitializer.Instructions.Count - 2);
+
+                        // Extract the step variable definition
+                        if (loopInitializer.Instructions[loopInitializer.Instructions.Count - 2] is Assignment incassn)
+                        {
+                            nfor.Increment = incassn.Right;
+                            loopInitializer.Instructions.RemoveAt(loopInitializer.Instructions.Count - 2);
                         }
+
+                        // Extract the limit variable definition
+                        if (loopInitializer.Instructions[loopInitializer.Instructions.Count - 2] is Assignment limitassn)
+                        {
+                            nfor.Limit = limitassn.Right;
+                            loopInitializer.Instructions.RemoveAt(loopInitializer.Instructions.Count - 2);
+                        }
+
+                        // Extract the initializer variable definition
+                        if (loopInitializer.Instructions[loopInitializer.Instructions.Count - 2] is Assignment initassn)
+                        {
+                            nfor.Initial = initassn;
+                            loopInitializer.Instructions.RemoveAt(loopInitializer.Instructions.Count - 2);
+                        }
+
                         nfor.Body = node.Successors[1];
                         nfor.Body.MarkCodegened(DebugID);
                         if (!usedFollows.Contains(node.LoopFollow))
@@ -2326,6 +2421,16 @@ namespace luadec.IR
                         node.MarkCodegened(DebugID);
                         // The head might be the follow of an if statement, so do this to not codegen it
                         usedFollows.Add(node);
+
+
+                        // Remove any jump instructions from the latches if they exist
+                        foreach (var latch in node.LoopLatches)
+                        {
+                            if (latch.Instructions.Count > 0 && latch.Instructions.Last() is Jump jmp2 && !jmp2.Conditional && jmp2.BBDest == node)
+                            {
+                                latch.Instructions.RemoveAt(latch.Instructions.Count - 1);
+                            }
+                        }
                     }
 
                     // Match a generic for with a predecessor initializer
@@ -2436,7 +2541,7 @@ namespace luadec.IR
                     }
 
                     // Match a repeat while (single block)
-                    else if (node.Instructions.Last() is Jump loopJump5 && loopJump5.Condition is Expression loopCondition5 && node.LoopLatch == node)
+                    else if (node.Instructions.Last() is Jump loopJump5 && loopJump5.Condition is Expression loopCondition5 && node.LoopLatches.Count == 1 && node.LoopLatches[0] == node)
                     {
                         var whiles = new While();
                         whiles.IsPostTested = true;
@@ -2493,11 +2598,11 @@ namespace luadec.IR
                     whiles.IsPostTested = true;
 
                     // Loop head has condition
-                    if (node.LoopLatch == null || node.LoopLatch.Instructions.Count == 0 || !(node.LoopLatch.Instructions.Last() is Jump))
+                    if (node.LoopLatches.Count != 1 || node.LoopLatches[0].Instructions.Count == 0 || !(node.LoopLatches[0].Instructions.Last() is Jump))
                     {
                         throw new Exception("Unrecognized post-tested loop");
                     }
-                    whiles.Condition = ((Jump)node.LoopLatch.Instructions.Last()).Condition;
+                    whiles.Condition = ((Jump)node.LoopLatches[0].Instructions.Last()).Condition;
 
                     whiles.Body = node;
                     if (node.LoopFollow != null && !usedFollows.Contains(node.LoopFollow))
@@ -2509,7 +2614,7 @@ namespace luadec.IR
 
                     if (node.Predecessors.Count == 2)
                     {
-                        var loopInitializer = node.Predecessors.First(x => x != node.LoopLatch);
+                        var loopInitializer = node.Predecessors.First(x => x != node.LoopLatches[0]);
                         if (loopInitializer.Successors.Count == 1)
                         {
                             if (loopInitializer.Instructions.Count > 0 && loopInitializer.Instructions[loopInitializer.Instructions.Count() - 1] is Jump)
@@ -2567,7 +2672,7 @@ namespace luadec.IR
 
                     if (node.Predecessors.Count == 2)
                     {
-                        var loopInitializer = node.Predecessors.First(x => x != node.LoopLatch);
+                        var loopInitializer = node.Predecessors.First(x => !node.LoopLatches.Contains(x));
                         if (loopInitializer.Successors.Count == 1)
                         {
                             if (loopInitializer.Instructions.Count() > 0 && loopInitializer.Instructions[loopInitializer.Instructions.Count() - 1] is Jump)

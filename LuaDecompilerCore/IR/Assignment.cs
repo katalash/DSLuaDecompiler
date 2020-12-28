@@ -46,6 +46,11 @@ namespace luadec.IR
         /// </summary>
         public bool IsGenericForAssignment = false;
 
+        /// <summary>
+        /// If true, this is a list assignment which affects how expression propogation is done
+        /// </summary>
+        public bool IsListAssignment = false;
+
         public Assignment(Identifier l, Expression r)
         {
             Left = new List<IdentifierReference>();
