@@ -145,6 +145,12 @@ namespace luadec.IR
                     }
                 }
             }
+
+            // Mark the implicit return lua always generates
+            if (Instructions.Last() is Return r && r.ReturnExpressions.Count == 0)
+            {
+                r.IsImplicit = true;
+            }
         }
 
         /// <summary>
@@ -2348,9 +2354,27 @@ namespace luadec.IR
             // Heads of for statements
             var forHeads = new HashSet<CFG.BasicBlock>();
 
+            var relocalize = new HashSet<Identifier>();
+
             // Step 1: build the AST for ifs/loops based on follow information
             foreach (var node in PostorderTraversal(true))
             {
+                // Search instructions for identifiers we need to relocalize
+                foreach (var inst in node.Instructions)
+                {
+                    if (inst is Assignment asn)
+                    {
+                        foreach (var def in inst.GetDefines(true))
+                        {
+                            if (relocalize.Contains(def))
+                            {
+                                asn.IsLocalDeclaration = true;
+                                relocalize.Remove(def);
+                            }
+                        }
+                    }
+                }
+
                 // A for loop is a pretested loop where the follow does not match the head
                 if (node.LoopFollow != null && node.LoopFollow != node && node.Predecessors.Count() >= 2 && node.LoopType == CFG.LoopType.LoopPretested)
                 {
@@ -2385,6 +2409,10 @@ namespace luadec.IR
                         if (loopInitializer.Instructions[loopInitializer.Instructions.Count - 2] is Assignment incassn)
                         {
                             nfor.Increment = incassn.Right;
+                            if (incassn.IsLocalDeclaration)
+                            {
+                                relocalize.Add(incassn.Left[0].Identifier);
+                            }
                             loopInitializer.Instructions.RemoveAt(loopInitializer.Instructions.Count - 2);
                         }
 
@@ -2392,6 +2420,10 @@ namespace luadec.IR
                         if (loopInitializer.Instructions[loopInitializer.Instructions.Count - 2] is Assignment limitassn)
                         {
                             nfor.Limit = limitassn.Right;
+                            if (limitassn.IsLocalDeclaration)
+                            {
+                                relocalize.Add(limitassn.Left[0].Identifier);
+                            }
                             loopInitializer.Instructions.RemoveAt(loopInitializer.Instructions.Count - 2);
                         }
 
@@ -2399,6 +2431,10 @@ namespace luadec.IR
                         if (loopInitializer.Instructions[loopInitializer.Instructions.Count - 2] is Assignment initassn)
                         {
                             nfor.Initial = initassn;
+                            if (initassn.IsLocalDeclaration)
+                            {
+                                relocalize.Add(initassn.Left[0].Identifier);
+                            }
                             loopInitializer.Instructions.RemoveAt(loopInitializer.Instructions.Count - 2);
                         }
 

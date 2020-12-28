@@ -44,7 +44,7 @@ namespace luadec
             }
 
             Console.OutputEncoding = outEncoding;
-            //infilename = $@"E:\SteamLibrary\steamapps\common\DARK SOULS III\Game\script\aicommon-luabnd-dcx\script\ai\out\bin\common_func.lua";
+            //infilename = $@"E:\SteamLibrary\steamapps\common\DARK SOULS III\Game\script\aicommon-luabnd-dcx\script\ai\out\bin\goal_list.lua";
             //infilename = $@"C:\Users\katalash\Downloads\script\aiCommon-luabnd-dcx\script\ai\out\bin\common_func.lua";
             using (FileStream stream = File.OpenRead(infilename))
             {
