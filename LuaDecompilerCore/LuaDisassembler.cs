@@ -921,7 +921,9 @@ namespace luadec
                             args.Add(new IR.IdentifierReference(SymbolTable.GetRegister((uint)arg)));
                         }
                         //instructions.Add(new IR.PlaceholderInstruction(($@"R({a}) := R({a})({args})")));
-                        instructions.Add(new IR.Return(new IR.FunctionCall(new IR.IdentifierReference(SymbolTable.GetRegister(a)), args)));
+                        var ret2 = new IR.Return(new IR.FunctionCall(new IR.IdentifierReference(SymbolTable.GetRegister(a)), args));
+                        ret2.IsTailReturn = true;
+                        instructions.Add(ret2);
                         break;
                     case Lua50Ops.OpReturn:
                         args = new List<IR.Expression>();

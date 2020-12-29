@@ -12,6 +12,7 @@ namespace luadec.IR
         public uint BeginRet = 0;
         public bool IsIndeterminantReturnCount = false;
         public bool IsImplicit = false;
+        public bool IsTailReturn = false;
 
         public Return(List<Expression> expr)
         {

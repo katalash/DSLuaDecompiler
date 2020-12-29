@@ -45,8 +45,8 @@ namespace luadec
 
             Console.OutputEncoding = outEncoding;
             //infilename = $@"E:\SteamLibrary\steamapps\common\DARK SOULS III\Game\script\aicommon-luabnd-dcx\script\ai\out\bin\goal_list.lua";
-            //infilename = $@"C:\Users\katalash\Downloads\script\aiCommon-luabnd-dcx\script\ai\out\bin\common_func.lua";
-            //infilename = $@"E:\soulsmodsstuff\soulsmodsgh\og\DSMapStudio\DecompileAllScripts\bin\Debug\net5.0\mismatches\aicommon.luabnd\001540_logic.lua";
+            infilename = $@"C:\Users\katalash\Downloads\script_interroot (1)\script_interroot\ai\out\approach_target.lua.out";
+            //infilename = $@"E:\soulsmodsstuff\soulsmodsgh\og\DSMapStudio\DecompileAllScripts\bin\Debug\net5.0\output\failures\aicommon.luabnd\approach_target.lua";
             using (FileStream stream = File.OpenRead(infilename))
             {
                 BinaryReaderEx br = new BinaryReaderEx(false, stream);
