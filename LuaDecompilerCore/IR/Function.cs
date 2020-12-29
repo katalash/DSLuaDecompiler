@@ -992,34 +992,37 @@ namespace luadec.IR
         }
 
         // Given the IR is in SSA form, this does expression propogation/substitution
-        public void PerformExpressionPropogation()
+        public void PerformExpressionPropogation(bool doFunctionRangeAnalysis)
         {
             // Lua function calls (and expressions in general have their bytecode generated recursively. This means for example when doing a function call,
             // the name of the function is loaded to a register first, then all the subexpressions are computed, and finally the function is called. We can
             // exploit this knowledge to determine which expressions were actually inlined into the function call in the original source code.
-            foreach (var b in BlockList)
+            if (doFunctionRangeAnalysis)
             {
-                var defines = new Dictionary<Identifier, int>();
-                var selfs = new HashSet<Identifier>();
-                for (int i = 0; i < b.Instructions.Count(); i++)
+                foreach (var b in BlockList)
                 {
-                    b.Instructions[i].PrePropogationIndex = i;
-                    var defs = b.Instructions[i].GetDefines(true);
-                    if (defs.Count == 1)
+                    var defines = new Dictionary<Identifier, int>();
+                    var selfs = new HashSet<Identifier>();
+                    for (int i = 0; i < b.Instructions.Count(); i++)
                     {
-                        defines.Add(defs.First(), i);
-                        if (b.Instructions[i] is Assignment a2 && a2.IsSelfAssignment)
+                        b.Instructions[i].PrePropogationIndex = i;
+                        var defs = b.Instructions[i].GetDefines(true);
+                        if (defs.Count == 1)
                         {
-                            selfs.Add(defs.First());
+                            defines.Add(defs.First(), i);
+                            if (b.Instructions[i] is Assignment a2 && a2.IsSelfAssignment)
+                            {
+                                selfs.Add(defs.First());
+                            }
                         }
-                    }
-                    if (b.Instructions[i] is Assignment a && a.Right is FunctionCall fc && fc.Function is IdentifierReference fir)
-                    {
-                        fc.FunctionDefIndex = defines[fir.Identifier];
-                        if (selfs.Contains(fir.Identifier))
+                        if (b.Instructions[i] is Assignment a && a.Right is FunctionCall fc && fc.Function is IdentifierReference fir)
                         {
-                            // If a self op was used, the first arg will be loaded before the function name
-                            fc.FunctionDefIndex--;
+                            fc.FunctionDefIndex = defines[fir.Identifier];
+                            if (selfs.Contains(fir.Identifier))
+                            {
+                                // If a self op was used, the first arg will be loaded before the function name
+                                fc.FunctionDefIndex--;
+                            }
                         }
                     }
                 }
@@ -1284,6 +1287,45 @@ namespace luadec.IR
                                 a2.Left[0].Identifier.UseCount--;
                                 b.Instructions.RemoveAt(i + 1);
                                 initIndex++;
+                            }
+                            else
+                            {
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Detects list initializers as a series of statements that serially add data to a newly initialized list
+        /// </summary>
+        public void DetectGenericListInitializers()
+        {
+            foreach (var b in BlockList)
+            {
+                for (int i = 0; i < b.Instructions.Count(); i++)
+                {
+                    if (b.Instructions[i] is Assignment a && a.Left.Count() == 1 && !a.Left[0].HasIndex && a.Right is InitializerList il && il.Exprs.Count() == 0)
+                    {
+                        while (i + 1 < b.Instructions.Count())
+                        {
+                            if (b.Instructions[i + 1] is Assignment a2 && a2.Left.Count() == 1 && a2.Left[0].Identifier == a.Left[0].Identifier && a2.Left[0].HasIndex &&
+                                a2.Left[0].TableIndices[0] is Constant c && c.ConstType == Constant.ConstantType.ConstString)
+                            {
+                                il.Exprs.Add(a2.Right);
+                                if (il.Assignments == null)
+                                {
+                                    il.Assignments = new List<Constant>();
+                                }
+                                il.Assignments.Add(c);
+                                if (a2.LocalAssignments != null)
+                                {
+                                    a.LocalAssignments = a2.LocalAssignments;
+                                }
+                                a2.Left[0].Identifier.UseCount--;
+                                b.Instructions.RemoveAt(i + 1);
                             }
                             else
                             {
