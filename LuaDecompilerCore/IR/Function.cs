@@ -1174,9 +1174,10 @@ namespace luadec.IR
                 foreach (var inst in b.Instructions)
                 {
                     var defs = inst.GetDefines(true);
-                    if (defs.Count == 1 && !definitelyLocal.Contains(defs.First()))
+                    var def = defs.First();
+                    if (defs.Count == 1 && !definitelyLocal.Contains(def) && !def.Renamed && !def.IsClosureBound)
                     {
-                        firstTempDef = (int)defs.First().OriginalIdentifier.Regnum;
+                        firstTempDef = (int)def.OriginalIdentifier.Regnum;
                         break;
                     }
                 }
