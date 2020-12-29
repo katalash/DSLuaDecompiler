@@ -1174,11 +1174,19 @@ namespace luadec.IR
                 foreach (var inst in b.Instructions)
                 {
                     var defs = inst.GetDefines(true);
-                    var def = defs.First();
-                    if (defs.Count == 1 && !definitelyLocal.Contains(def) && !def.Renamed && !def.IsClosureBound)
+                    if (defs.Count == 1)
                     {
-                        firstTempDef = (int)def.OriginalIdentifier.Regnum;
-                        break;
+                        var def = defs.First();
+                        if (!definitelyLocal.Contains(def) && !def.Renamed && !def.IsClosureBound)
+                        {
+                            firstTempDef = (int)def.OriginalIdentifier.Regnum;
+                            if (inst is Assignment self && self.IsSelfAssignment)
+                            {
+                                // Again a SELF op generates two assignments-the second one being the lower reg number
+                                firstTempDef--;
+                            }
+                            break;
+                        }
                     }
                 }
                 return firstTempDef;
