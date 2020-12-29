@@ -421,7 +421,7 @@ namespace luadec.IR
                     }
                 }
                 // Returns simply go directly to the end block, and starts a new basic block if not at the end
-                else if (Instructions[i] is Return ret)
+                else if (AnalysisOpts.AnalyzeReturns && Instructions[i] is Return ret)
                 {
                     currentBlock.Instructions.Add(ret);
                     ret.Block = currentBlock;
