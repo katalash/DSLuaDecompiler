@@ -991,13 +991,14 @@ namespace luadec.IR
             }*/
         }
 
+        private HashSet<Identifier> definitelyLocal = new HashSet<Identifier>();
         // Given the IR is in SSA form, this does expression propogation/substitution
-        public void PerformExpressionPropogation(bool doFunctionRangeAnalysis)
+        public void PerformExpressionPropogation(bool firstpass)
         {
             // Lua function calls (and expressions in general have their bytecode generated recursively. This means for example when doing a function call,
             // the name of the function is loaded to a register first, then all the subexpressions are computed, and finally the function is called. We can
             // exploit this knowledge to determine which expressions were actually inlined into the function call in the original source code.
-            if (doFunctionRangeAnalysis)
+            if (firstpass)
             {
                 foreach (var b in BlockList)
                 {
@@ -1034,7 +1035,6 @@ namespace luadec.IR
             // we can exploit this to figure out local variables in the original source code even if they only had one use: If the next register defined
             // within the scope (dominance hierarchy) after the first use of a recently defined register is not that register, then it's likely an actual
             // local variable.
-            HashSet<Identifier> definitelyLocal = new HashSet<Identifier>();
             int LocalIdentifyVisit(CFG.BasicBlock b, HashSet<Identifier> localRegs)
             {
                 HashSet<Identifier> thisLocalRegs = new HashSet<Identifier>();
@@ -1194,7 +1194,10 @@ namespace luadec.IR
                 }
                 return firstTempDef;
             }
-            LocalIdentifyVisit(BeginBlock, new HashSet<Identifier>(Parameters));
+            if (firstpass)
+            {
+                LocalIdentifyVisit(BeginBlock, new HashSet<Identifier>(Parameters));
+            }
 
             bool changed;
             do

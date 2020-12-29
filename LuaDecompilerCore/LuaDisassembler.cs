@@ -1019,7 +1019,7 @@ namespace luadec
             irfun.PerformExpressionPropogation(true);
             irfun.DetectListInitializers();
             irfun.DetectGenericListInitializers();
-            //irfun.PerformExpressionPropogation(false);
+            irfun.PerformExpressionPropogation(false);
 
             // CFG passes
             irfun.StructureCompoundConditionals();
