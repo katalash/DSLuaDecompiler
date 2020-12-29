@@ -41,6 +41,11 @@ namespace luadec.CFG
         public HashSet<IR.Identifier> KilledIdentifiers;
         public HashSet<IR.Identifier> LiveOut;
 
+        /// <summary>
+        /// Register IDs of registers killed (i.e. redefined) under the scope of this block (excluding this block)
+        /// </summary>
+        public HashSet<uint> ScopeKilled = new HashSet<uint>();
+
         // Control flow analysis
         public int ReversePostorderNumber = 0;
         public bool IsLoopHead = false;
