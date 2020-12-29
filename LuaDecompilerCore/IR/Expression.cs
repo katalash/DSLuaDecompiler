@@ -31,6 +31,11 @@ namespace luadec.IR
         {
             return new List<Expression>() { this };
         }
+
+        public virtual int GetLowestConstantID()
+        {
+            return -1;
+        }
     }
 
     public class Constant : Expression
@@ -52,33 +57,40 @@ namespace luadec.IR
         public string String;
         public bool Boolean;
 
-        public Constant(double num)
+        public int ConstantID;
+
+        public Constant(double num, int id)
         {
             ConstType = ConstantType.ConstNumber;
             Number = num;
+            ConstantID = id;
         }
 
-        public Constant(ulong inum)
+        public Constant(ulong inum, int id)
         {
             ConstType = ConstantType.ConstInteger;
             Integer = inum;
+            ConstantID = id;
         }
 
-        public Constant(string str)
+        public Constant(string str, int id)
         {
             ConstType = ConstantType.ConstString;
             String = str;
+            ConstantID = id;
         }
 
-        public Constant(bool b)
+        public Constant(bool b, int id)
         {
             ConstType = ConstantType.ConstBool;
             Boolean = b;
+            ConstantID = id;
         }
 
-        public Constant(ConstantType typ)
+        public Constant(ConstantType typ, int id)
         {
             ConstType = typ;
+            ConstantID = id;
         }
 
         public override string ToString()
@@ -101,6 +113,11 @@ namespace luadec.IR
                     return "nil";
             }
             return "";
+        }
+
+        public override int GetLowestConstantID()
+        {
+            return ConstantID;
         }
     }
 
@@ -245,6 +262,24 @@ namespace luadec.IR
             return ret;
         }
 
+        public override int GetLowestConstantID()
+        {
+            var id = Identifier.ConstantID;
+            foreach (var idx in TableIndices)
+            {
+                var nid = idx.GetLowestConstantID();
+                if (id == -1)
+                {
+                    id = nid;
+                }
+                else if (nid != -1)
+                {
+                    id = Math.Min(id, idx.GetLowestConstantID());
+                }
+            }
+            return id;
+        }
+
         public override string ToString()
         {
             // Detect a Lua 5.3 global variable and don't display it as a table reference
@@ -353,6 +388,20 @@ namespace luadec.IR
             HasParentheses = paren;
         }
 
+        public override int GetLowestConstantID()
+        {
+            var id = int.MaxValue;
+            foreach (var e in Exprs)
+            {
+                var nid = e.GetLowestConstantID();
+                if (nid != -1)
+                {
+                    id = Math.Min(id, e.GetLowestConstantID());
+                }
+            }
+            return id != int.MaxValue ? id : -1;
+        }
+
         public override string ToString()
         {
             string ret = "";
@@ -436,6 +485,20 @@ namespace luadec.IR
                 ret.AddRange(exp.GetExpressions());
             }
             return ret;
+        }
+
+        public override int GetLowestConstantID()
+        {
+            var id = int.MaxValue;
+            foreach (var e in Exprs)
+            {
+                var nid = e.GetLowestConstantID();
+                if (nid != -1)
+                {
+                    id = Math.Min(id, e.GetLowestConstantID());
+                }
+            }
+            return id != int.MaxValue ? id : -1;
         }
 
         public override string ToString()
@@ -582,6 +645,34 @@ namespace luadec.IR
                 op2.SetHasParentheses(true);
             }
 
+            // If we're a comparison op, we may need to swap the left and right if they both refer to constants
+            int leftConstID = Left.GetLowestConstantID();
+            int rightConstID = Right.GetLowestConstantID();
+
+            if (IsCompare() && Operation != OperationType.OpLoopCompare && leftConstID != -1 && rightConstID != -1 && leftConstID > rightConstID)
+            {
+                // We need to swap the left and right to keep matching recompiles
+                var tmp = Right;
+                Right = Left;
+                Left = tmp;
+                if (Operation == OperationType.OpLessThan)
+                {
+                    Operation = OperationType.OpGreaterThan;
+                }
+                else if (Operation == OperationType.OpGreaterThan)
+                {
+                    Operation = OperationType.OpLessThan;
+                }
+                else if (Operation == OperationType.OpLessEqual)
+                {
+                    Operation = OperationType.OpGreaterEqual;
+                }
+                else if (Operation == OperationType.OpGreaterEqual)
+                {
+                    Operation = OperationType.OpLessEqual;
+                }
+            }
+
             Left.Parenthesize();
             Right.Parenthesize();
         }
@@ -646,6 +737,21 @@ namespace luadec.IR
             ret.AddRange(Left.GetExpressions());
             ret.AddRange(Right.GetExpressions());
             return ret;
+        }
+
+        public override int GetLowestConstantID()
+        {
+            int left = Left.GetLowestConstantID();
+            int right = Right.GetLowestConstantID();
+            if (left == -1)
+            {
+                return right;
+            }
+            if (right == -1)
+            {
+                return left;
+            }
+            return Math.Min(left, right);
         }
 
         public override string ToString()
@@ -789,6 +895,10 @@ namespace luadec.IR
             return ret;
         }
 
+        public override int GetLowestConstantID()
+        {
+            return Exp.GetLowestConstantID();
+        }
         public override string ToString()
         {
             string op = "";
@@ -923,6 +1033,24 @@ namespace luadec.IR
             }
             ret.AddRange(Function.GetExpressions());
             return ret;
+        }
+
+        public override int GetLowestConstantID()
+        {
+            var id = Function.GetLowestConstantID();
+            foreach (var idx in Args)
+            {
+                var nid = idx.GetLowestConstantID();
+                if (id == -1)
+                {
+                    id = nid;
+                }
+                else if (nid != -1)
+                {
+                    id = Math.Min(id, idx.GetLowestConstantID());
+                }
+            }
+            return id;
         }
 
         public override string ToString()

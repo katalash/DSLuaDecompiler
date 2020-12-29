@@ -43,6 +43,9 @@ namespace luadec.IR
         public int UseCount = 0;
         public int PhiUseCount = 0;
 
+        // Used to help reorder some expressions
+        public int ConstantID = 0;
+
         public bool UpvalueResolved = false;
 
         // If this identifier is used by a closure and therefore can't be inlined

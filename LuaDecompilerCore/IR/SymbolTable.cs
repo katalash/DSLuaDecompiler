@@ -63,7 +63,7 @@ namespace luadec.IR
             return ScopeStack.Peek()[$@"UPVAL{upvalue}"];
         }
 
-        public Identifier GetGlobal(string global)
+        public Identifier GetGlobal(string global, int constantid)
         {
             if (!ScopeStack.First().ContainsKey(global))
             {
@@ -71,6 +71,7 @@ namespace luadec.IR
                 regi.IType = Identifier.IdentifierType.Global;
                 regi.VType = Identifier.ValueType.Unknown;
                 regi.Name = global;
+                regi.ConstantID = constantid;
                 ScopeStack.First().Add(regi.Name, regi);
             }
             return ScopeStack.First()[global];

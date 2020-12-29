@@ -610,7 +610,7 @@ namespace luadec.IR
                     Instructions[i + 1] is Assignment a2 && a2.IsIndeterminantVararg && a1.VarargAssignmentReg == (a2.VarargAssignmentReg - 1) &&
                     Instructions[i + 2] is Assignment a3 && a3.IsIndeterminantVararg && a3.VarargAssignmentReg == a1.VarargAssignmentReg)
                 {
-                    l1.Exprs.Add(new IR.Constant(Constant.ConstantType.ConstVarargs));
+                    l1.Exprs.Add(new IR.Constant(Constant.ConstantType.ConstVarargs, -1));
                     a1.LocalAssignments = a3.LocalAssignments;
                     Instructions.RemoveRange(i + 1, 2);
                 }
@@ -2932,7 +2932,7 @@ namespace luadec.IR
                     var whiles = new While();
 
                     // Loop head has condition
-                    whiles.Condition = new Constant(true);
+                    whiles.Condition = new Constant(true, -1);
 
                     whiles.Body = node;
                     if (node.LoopFollow != null && !usedFollows.Contains(node.LoopFollow))
