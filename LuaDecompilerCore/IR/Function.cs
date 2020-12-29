@@ -1107,6 +1107,13 @@ namespace luadec.IR
                         }
 
                         var def = defines.First();
+
+                        // Skip upvalue
+                        if (def.IsClosureBound || def.Renamed)
+                        {
+                            continue;
+                        }
+
                         // Move on if it's a known local
                         if (thisLocalRegs.Contains(def.OriginalIdentifier))
                         {
