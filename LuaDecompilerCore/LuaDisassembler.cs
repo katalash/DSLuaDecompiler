@@ -1018,7 +1018,7 @@ namespace luadec
             irfun.PruneUnusedPhiFunctions();
             irfun.DetectGenericListInitializers();
             irfun.PerformExpressionPropogation(true);
-            /*irfun.DetectGenericListInitializers();
+            irfun.DetectGenericListInitializers();
             irfun.DetectListInitializers();
             //irfun.PerformExpressionPropogation(false);
 
@@ -1040,7 +1040,7 @@ namespace luadec
             irfun.Parenthesize();
 
             // Convert to AST
-            irfun.ConvertToAST(true);*/
+            irfun.ConvertToAST(true);
 
             // Now generate IR for all the child closures
             for (int i = 0; i < fun.ChildFunctions.Length; i++)
