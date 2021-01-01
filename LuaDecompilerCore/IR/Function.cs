@@ -1149,6 +1149,8 @@ namespace luadec.IR
                         // Move on if it's a known local
                         if (thisLocalRegs.Contains(def.OriginalIdentifier))
                         {
+                            // Make sure the def is marked as local
+                            definitelyLocal.Add(def);
                             continue;
                         }
 
