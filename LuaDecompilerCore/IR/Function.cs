@@ -1025,6 +1025,16 @@ namespace luadec.IR
                                 fc.FunctionDefIndex--;
                             }
                         }
+                        // Detect tail calls
+                        else if (b.Instructions[i] is Return r && r.ReturnExpressions.Count == 1 && r.ReturnExpressions[0] is FunctionCall fc2 && fc2.Function is IdentifierReference fir2)
+                        {
+                            fc2.FunctionDefIndex = defines[fir2.Identifier];
+                            if (selfs.Contains(fir2.Identifier))
+                            {
+                                // If a self op was used, the first arg will be loaded before the function name
+                                fc2.FunctionDefIndex--;
+                            }
+                        }
                     }
                 }
             }
@@ -1218,6 +1228,10 @@ namespace luadec.IR
                             {
                                 // Don't substitute if this use's define was defined before the code gen for the function call even began
                                 if (!a.PropogateAlways && inst is Assignment a3 && a3.Right is FunctionCall fc && (use.DefiningInstruction.PrePropogationIndex < fc.FunctionDefIndex))
+                                {
+                                    continue;
+                                }
+                                if (!a.PropogateAlways && inst is Return r && r.ReturnExpressions.Count == 1 && r.ReturnExpressions[0] is FunctionCall fc2 && (use.DefiningInstruction.PrePropogationIndex < fc2.FunctionDefIndex))
                                 {
                                     continue;
                                 }
