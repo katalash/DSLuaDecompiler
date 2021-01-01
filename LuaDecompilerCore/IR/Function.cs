@@ -3068,6 +3068,11 @@ namespace luadec.IR
                             }
                             else if (ifStatement.True.IsLoopLatch || !ifStatement.True.Successors[0].IsLoopHead)
                             {
+                                if (!ifStatement.True.IsLoopLatch && lj.BBDest == node.Follow && node.Successors[1] == node.Follow)
+                                {
+                                    // Generate an empty else statement if there's a jump to the follow and it isn't fallthrough
+                                    ifStatement.False = new CFG.BasicBlock();
+                                }
                                 ifStatement.True.Instructions.Remove(lj);
                             }
                         }
