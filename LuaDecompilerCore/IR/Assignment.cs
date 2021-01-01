@@ -109,6 +109,14 @@ namespace luadec.IR
                 {
                     uses.UnionWith(id.GetUses(regonly));
                 }
+                // Indices are also uses
+                if (id.HasIndex)
+                {
+                    foreach (var idx in id.TableIndices)
+                    {
+                        uses.UnionWith(idx.GetUses(regonly));
+                    }
+                }
             }
             uses.UnionWith(Right.GetUses(regonly));
             return uses;
