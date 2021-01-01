@@ -518,7 +518,10 @@ namespace luadec.IR
                     {
                         var curr = BlockList[b];
                         var succ = BlockList[b].Successors[0];
-                        curr.Instructions.RemoveAt(curr.Instructions.Count() - 1);
+                        if (BlockList[b].Instructions.Last() is Jump)
+                        {
+                            curr.Instructions.RemoveAt(curr.Instructions.Count() - 1);
+                        }
                         foreach (var inst in succ.Instructions)
                         {
                             inst.Block = curr;
