@@ -1053,6 +1053,9 @@ namespace luadec.IR
                 HashSet<Identifier> thisLocalRegs = new HashSet<Identifier>();
                 thisLocalRegs.UnionWith(localRegs);
 
+                // Set of defines that are never used in this block (very very likely to be locals)
+                HashSet<Identifier> unusedDefines = new HashSet<Identifier>();
+
                 // Set of recently used registers that are candidates for locals
                 Dictionary<Identifier, Identifier> recentlyUsed = new Dictionary<Identifier, Identifier>();
                 for (int i = 0; i < b.Instructions.Count(); i++)
@@ -1060,9 +1063,22 @@ namespace luadec.IR
                     // First add registers such the set contains all the registers used up to this point
                     foreach (var use in b.Instructions[i].GetUses(true))
                     {
+                        // If it's used it's no longer an unused definition
+                        if (unusedDefines.Contains(use))
+                        {
+                            unusedDefines.Remove(use);
+                        }
+
                         if (thisLocalRegs.Contains(use.OriginalIdentifier))
                         {
                             // Already marked as a local
+                            continue;
+                        }
+
+                        if (definitelyLocal.Contains(use))
+                        {
+                            // Add it to the local regs
+                            thisLocalRegs.Add(use.OriginalIdentifier);
                             continue;
                         }
 
@@ -1136,6 +1152,9 @@ namespace luadec.IR
                             continue;
                         }
 
+                        // Add the new def to the unused defs until it's used otherwise
+                        unusedDefines.Add(def);
+
                         // Otherwise a quick redefine is likely a temp. Mark below as locals and above as temps
                         if (recentlyUsed.ContainsKey(def.OriginalIdentifier))
                         {
@@ -1158,6 +1177,13 @@ namespace luadec.IR
                             definitelyLocal.Add()
                         }*/
                     }
+                }
+
+                // Any unused defines at this point are locals
+                foreach (var unused in unusedDefines)
+                {
+                    definitelyLocal.Add(unused);
+                    thisLocalRegs.Add(unused.OriginalIdentifier);
                 }
 
                 // Visit next blocks in scope
@@ -1209,7 +1235,12 @@ namespace luadec.IR
             }
             if (firstpass)
             {
-                LocalIdentifyVisit(BeginBlock, new HashSet<Identifier>(Parameters));
+                var argregs = new HashSet<Identifier>();
+                foreach (var i in Parameters)
+                {
+                    argregs.Add(i.OriginalIdentifier);
+                }
+                LocalIdentifyVisit(BeginBlock, new HashSet<Identifier>(argregs));
             }
 
             bool changed;
