@@ -2654,6 +2654,12 @@ namespace luadec.IR
 
             var relocalize = new HashSet<Identifier>();
 
+            // Order the blocks sequentially
+            for (int i = 0; i < BlockList.Count; i++)
+            {
+                BlockList[i].OrderNumber = i;
+            }
+
             // Step 1: build the AST for ifs/loops based on follow information
             foreach (var node in PostorderTraversal(true))
             {
@@ -3068,9 +3074,9 @@ namespace luadec.IR
                             }
                             else if (ifStatement.True.IsLoopLatch || !ifStatement.True.Successors[0].IsLoopHead)
                             {
-                                if (!ifStatement.True.IsLoopLatch && lj.BBDest == node.Follow && node.Successors[1] == node.Follow)
+                                if (!ifStatement.True.IsLoopLatch && lj.BBDest == node.Follow && node.Successors[1] == node.Follow && ifStatement.True.OrderNumber + 1 == node.Follow.OrderNumber)
                                 {
-                                    // Generate an empty else statement if there's a jump to the follow and it isn't fallthrough
+                                    // Generate an empty else statement if there's a jump to the follow, the follow is the next block sequentially, and it isn't fallthrough
                                     ifStatement.False = new CFG.BasicBlock();
                                 }
                                 ifStatement.True.Instructions.Remove(lj);

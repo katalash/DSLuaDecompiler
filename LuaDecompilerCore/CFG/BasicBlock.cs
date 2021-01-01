@@ -48,6 +48,7 @@ namespace luadec.CFG
 
         // Control flow analysis
         public int ReversePostorderNumber = 0;
+        public int OrderNumber = 0;
         public bool IsLoopHead = false;
         public bool IsLoopLatch = false;
         public BasicBlock LoopFollow = null;
