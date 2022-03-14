@@ -34,7 +34,6 @@ namespace luadec.IR
             }
             if (False != null)
             {
-                ret += "\n";
                 // Check for elseif
                 if (False.Instructions.Count() == 1 && False.Instructions.First() is IfStatement s && s.Follow == null)
                 {
@@ -53,19 +52,14 @@ namespace luadec.IR
             }
             if (!IsElseIf)
             {
-                ret += "\n";
-            }
-            if (!IsElseIf)
-            {
                 for (int i = 0; i < indentLevel; i++)
                 {
                     ret += "    ";
                 }
-                ret += "end";
+                ret += "end\n";
             }
             if (Follow != null && Follow.Instructions.Count() > 0)
             {
-                ret += "\n";
                 ret += Follow.PrintBlock(indentLevel);
             }
             return ret;

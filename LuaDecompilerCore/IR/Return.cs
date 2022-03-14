@@ -76,15 +76,19 @@ namespace luadec.IR
             return ret;
         }
 
+        public override bool IsHidden()
+        {
+            return IsImplicit;
+        }
+
         public override string ToString()
         {
-            if (IsImplicit)
-            {
-                return "";
-            }
-            string ret = "return ";
+            string ret = "return";
             for (int i = 0; i < ReturnExpressions.Count(); i++)
             {
+                if (i == 0)
+                    ret += " ";
+
                 ret += ReturnExpressions[i].ToString();
                 if (i != ReturnExpressions.Count() - 1)
                 {

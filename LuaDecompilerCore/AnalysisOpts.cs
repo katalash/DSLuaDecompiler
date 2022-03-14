@@ -6,6 +6,6 @@ namespace luadec
 {
     public static class AnalysisOpts
     {
-        public static bool AnalyzeReturns = false;
+        public static bool AnalyzeReturns = true;
     }
 }

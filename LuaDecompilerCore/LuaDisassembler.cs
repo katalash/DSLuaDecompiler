@@ -921,9 +921,10 @@ namespace luadec
                             args.Add(new IR.IdentifierReference(SymbolTable.GetRegister((uint)arg)));
                         }
                         //instructions.Add(new IR.PlaceholderInstruction(($@"R({a}) := R({a})({args})")));
-                        var ret2 = new IR.Return(new IR.FunctionCall(new IR.IdentifierReference(SymbolTable.GetRegister(a)), args));
-                        ret2.IsTailReturn = true;
-                        instructions.Add(ret2);
+                        instructions.Add(new IR.Return(new IR.FunctionCall(new IR.IdentifierReference(SymbolTable.GetRegister(a)), args))
+                        {
+                            IsTailReturn = true
+                        });
                         break;
                     case Lua50Ops.OpReturn:
                         args = new List<IR.Expression>();
@@ -993,6 +994,8 @@ namespace luadec
                     irfun.AddInstruction(inst);
                 }
             }
+
+            irfun.MarkImplicitReturn();
             irfun.ApplyLabels();
 
             // Simple post-ir and idiom recognition analysis passes
@@ -1381,7 +1384,10 @@ namespace luadec
                         {
                             args.Add(new IR.IdentifierReference(SymbolTable.GetRegister((uint)arg)));
                         }
-                        instructions.Add(new IR.Return(new IR.FunctionCall(new IR.IdentifierReference(SymbolTable.GetRegister(a)), args)));
+                        instructions.Add(new IR.Return(new IR.FunctionCall(new IR.IdentifierReference(SymbolTable.GetRegister(a)), args))
+                        {
+                            IsTailReturn = true
+                        });
                         break;
                     case Lua53Ops.OpReturn:
                         args = new List<IR.Expression>();
@@ -1485,7 +1491,6 @@ namespace luadec
                                 break;
                         }
                         throw new Exception($@"Unimplemented opcode {OpProperties53[opcode].OpName}");
-                        break;
                 }
                 foreach (var inst in instructions)
                 {
@@ -1493,6 +1498,8 @@ namespace luadec
                     irfun.AddInstruction(inst);
                 }
             }
+
+            irfun.MarkImplicitReturn();
             irfun.ApplyLabels();
 
             // Simple post-ir and idiom recognition analysis passes
@@ -1536,6 +1543,8 @@ namespace luadec
             irfun.ArgumentNames = fun.LocalsAt(0);
             irfun.RenameVariables();
             irfun.Parenthesize();
+
+            irfun.MarkImplicitReturn();
 
             // Convert to AST
             irfun.ConvertToAST(true);
@@ -1768,8 +1777,19 @@ namespace luadec
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
+                    case LuaHKSOps.OpDivBk:
+                        //instructions.Add(new IR.PlaceholderInstruction(($@"R({a}) := {RK(fun, b)} / {RK(fun, c)}")));
+                        assn = new IR.Assignment(SymbolTable.GetRegister(a), new IR.BinOp(ToConstantIR(fun.ConstantsHKS[b], b), Register((uint)c), IR.BinOp.OperationType.OpDiv));
+                        CheckLocal(assn, fun, pc);
+                        instructions.Add(assn);
+                        break;
                     case LuaHKSOps.OpMod:
                         assn = new IR.Assignment(SymbolTable.GetRegister(a), new IR.BinOp(Register((uint)b), RKIRHKS(fun, c, szero), IR.BinOp.OperationType.OpMod));
+                        CheckLocal(assn, fun, pc);
+                        instructions.Add(assn);
+                        break;
+                    case LuaHKSOps.OpModBk:
+                        assn = new IR.Assignment(SymbolTable.GetRegister(a), new IR.BinOp(ToConstantIR(fun.ConstantsHKS[b], b), Register((uint)c), IR.BinOp.OperationType.OpMod));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
@@ -1915,13 +1935,17 @@ namespace luadec
                         instructions.Add(new IR.Assignment(new IR.IdentifierReference(SymbolTable.GetRegister(a), RKIRHKS(fun, b, false)), RKIRHKS(fun, c, false)));
                         break;
                     case LuaHKSOps.OpTailCallI:
+                    case LuaHKSOps.OpTailCallIR1:
                         args = new List<IR.Expression>();
                         for (int arg = (int)a + 1; arg < a + b; arg++)
                         {
                             args.Add(new IR.IdentifierReference(SymbolTable.GetRegister((uint)arg)));
                         }
                         //instructions.Add(new IR.PlaceholderInstruction(($@"R({a}) := R({a})({args})")));
-                        instructions.Add(new IR.Return(new IR.FunctionCall(new IR.IdentifierReference(SymbolTable.GetRegister(a)), args)));
+                        instructions.Add(new IR.Return(new IR.FunctionCall(new IR.IdentifierReference(SymbolTable.GetRegister(a)), args))
+                        {
+                            IsTailReturn = true
+                        });
                         break;
                     case LuaHKSOps.OpSetTableSBK:
                         //instructions.Add(new IR.PlaceholderInstruction(($@"R({a})[{RK(fun, b)}] := R({c})")));
@@ -2118,11 +2142,6 @@ namespace luadec
                                 break;
                         }
                         throw new Exception($@"Unimplemented opcode {OpPropertiesHKS[opcode].OpName}");
-                        if (OpPropertiesHKS[opcode].OpName == null)
-                        {
-                            Console.WriteLine(opcode);
-                        }
-                        break;
                 }
                 foreach (var inst in instructions)
                 {
@@ -2130,6 +2149,8 @@ namespace luadec
                     irfun.AddInstruction(inst);
                 }
             }
+
+            irfun.MarkImplicitReturn();
             irfun.ApplyLabels();
 
             // Simple post-ir and idiom recognition analysis passes
@@ -2139,11 +2160,15 @@ namespace luadec
             irfun.EliminateRedundantAssignments();
             irfun.MergeConditionalJumps();
             irfun.MergeConditionalAssignments();
-            //irfun.PeepholeOptimize();
+            irfun.PeepholeOptimize();
             irfun.CheckControlFlowIntegrity();
 
              // Control flow graph construction and SSA conversion
             irfun.ConstructControlFlowGraph();
+#if DEBUG_INDETERMINATE
+            Console.WriteLine("");
+            Console.Write($"function {fun.Name}(");
+#endif
             irfun.ResolveIndeterminantArguments(SymbolTable);
             irfun.CompleteLua51Loops();
             irfun.ConvertToSSA(SymbolTable.GetAllRegistersInScope());

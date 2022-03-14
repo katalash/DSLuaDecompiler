@@ -2,7 +2,7 @@
   "profiles": {
     "DSLuaDecompiler": {
       "commandName": "Project",
-      "commandLineArgs": "-d E:\\SteamLibrary\\steamapps\\common\\DARK SOULS III\\Game\\script\\m51_01_00_00-luabnd-dcx\\script\\ai\\out\\bin\\620100_battle.lua"
+      "commandLineArgs": "\"D:\\Documents\\Research\\Games\\EldenRing\\1.02.1\\extracted\\data\\action\\script\\c4500.hks\""
     }
   }
 }

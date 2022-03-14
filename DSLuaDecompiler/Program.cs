@@ -14,45 +14,81 @@ namespace luadec
         static void Main(string[] args)
         {
             Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-            Encoding outEncoding = Encoding.UTF8;
+            Console.OutputEncoding = Encoding.UTF8;
             // Super bad arg parser until I decide to use a better libary
             bool writeFile = true;
             string outfilename = null;
             string infilename = null;
             int arg = 0;
-            try
+            while (arg < args.Length)
             {
-                if (args[arg] == "-d")
+                try
                 {
-                    writeFile = false;
-                    arg++;
+                    if (args[arg] == "-d")
+                    {
+                        writeFile = false;
+                        arg++;
+                        continue;
+                    }
+                    else if (args[arg] == "-o")
+                    {
+                        outfilename = args[arg + 1];
+                        arg += 2;
+                        continue;
+                    }
+                    infilename = args[arg];
+                    if (outfilename == null)
+                    {
+                        outfilename =
+                            Path.GetDirectoryName(infilename) + "/decompiled/" +
+                            Path.GetFileNameWithoutExtension(infilename) + ".dec.lua";
+                    }
                 }
-                else if (args[arg] == "-o")
+                catch (Exception)
                 {
-                    outfilename = args[arg + 1];
-                    arg += 2;
+                    Console.WriteLine("Usage: DSLuaDecompiler.exe [options] inputfile.lua\n-o outputfile.lua\n-d Print output in console");
+                    return;
                 }
-                infilename = args[arg];
-                if (outfilename == null)
-                {
-                    outfilename = Path.GetFileNameWithoutExtension(infilename) + ".dec.lua";
-                }
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine("Usage: DSLuaDecompiler.exe [options] inputfile.lua\n-o outputfile.lua\n-d Print output in console");
-            }
 
-            Console.OutputEncoding = outEncoding;
-            //infilename = $@"E:\SteamLibrary\steamapps\common\DARK SOULS III\Game\script\aicommon-luabnd-dcx\script\ai\out\bin\goal_list.lua";
-            //infilename = $@"C:\Users\katalash\Downloads\script_interroot (1)\script_interroot\ai\out\approach_target.lua.out";
-            //infilename = $@"E:\soulsmodsstuff\soulsmodsgh\og\DSMapStudio\DecompileAllScripts\bin\Debug\net5.0\output\mismatches\aicommon.luabnd\walk_around_on_failed_path.lua";
+                Directory.CreateDirectory(Path.GetDirectoryName(outfilename));
+
+#if DEBUG
+                if (System.Diagnostics.Debugger.IsAttached)
+                {
+                    Decompile(infilename, outfilename, writeFile);
+                }
+                else
+                {
+#endif
+                    try
+                    {
+                        Decompile(infilename, outfilename, writeFile);
+                    }
+                    catch (Exception e)
+                    {
+                        Console.WriteLine($"Exception while decompiling {infilename}:");
+                        Console.WriteLine(e.Message);
+                        Console.WriteLine(e.StackTrace);
+                        Console.WriteLine("");
+                    }
+#if DEBUG
+                }
+#endif
+
+                outfilename = null;
+                arg++;
+            }
+        }
+
+        private static void Decompile(string infilename, string outfilename, bool writeFile)
+        {
             using (FileStream stream = File.OpenRead(infilename))
             {
                 BinaryReaderEx br = new BinaryReaderEx(false, stream);
                 var lua = new LuaFile(br);
                 IR.Function main = new IR.Function();
                 //LuaDisassembler.DisassembleFunction(lua.MainFunction);
+                Encoding outEncoding = Encoding.UTF8;
                 if (lua.Version == LuaFile.LuaVersion.Lua50)
                 {
                     LuaDisassembler.GenerateIR50(main, lua.MainFunction);
@@ -75,6 +111,7 @@ namespace luadec
                 }
                 else
                 {
+                    Console.OutputEncoding = outEncoding;
                     Console.WriteLine(main.ToString());
                 }
             }

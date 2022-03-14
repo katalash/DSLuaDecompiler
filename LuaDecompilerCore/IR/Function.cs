@@ -145,12 +145,6 @@ namespace luadec.IR
                     }
                 }
             }
-
-            // Mark the implicit return lua always generates
-            if (Instructions.Last() is Return r && r.ReturnExpressions.Count == 0)
-            {
-                r.IsImplicit = true;
-            }
         }
 
         /// <summary>
@@ -425,19 +419,28 @@ namespace luadec.IR
                 // Returns simply go directly to the end block, and starts a new basic block if not at the end
                 else if (AnalysisOpts.AnalyzeReturns && Instructions[i] is Return ret)
                 {
-                    currentBlock.Instructions.Add(ret);
-                    ret.Block = currentBlock;
-                    currentBlock.Successors.Add(EndBlock);
-                    EndBlock.Predecessors.Add(currentBlock);
-                    if (i + 1 < Instructions.Count())
+                    if (!ret.IsImplicit || i + 1 == Instructions.Count())
                     {
-                        currentBlock = new CFG.BasicBlock();
-                        BlockList.Add(currentBlock);
+                        currentBlock.Instructions.Add(ret);
+                        ret.Block = currentBlock;
+
+                        currentBlock.Successors.Add(EndBlock);
+                        EndBlock.Predecessors.Add(currentBlock);
+                        if (i + 1 < Instructions.Count())
+                        {
+                            currentBlock = new CFG.BasicBlock();
+                            BlockList.Add(currentBlock);
+                            if (Instructions[i + 1] is Label l)
+                            {
+                                labelBasicBlockMap.Add(l, currentBlock);
+                                i++;
+                            }
+                        }
                     }
-                    if (i + 1 < Instructions.Count() && Instructions[i + 1] is Label l)
+                    else
                     {
-                        labelBasicBlockMap.Add(l, currentBlock);
-                        i++;
+                        Instructions.RemoveAt(i);
+                        i--;
                     }
                 }
                 // Alternate return analysis for lua 5.0
@@ -487,26 +490,46 @@ namespace luadec.IR
                 }
             }
 
-            // Third pass: Remove unreachable blocks
+            // Third pass: Remove empty blocks (redundant returns)
             for (int b = 0; b < BlockList.Count(); b++)
             {
-                // Begin block has no predecessors but shouldn't be removed because :)
-                if (BlockList[b] == BeginBlock)
+                if (BlockList[b].Instructions.Count > 0)
                 {
                     continue;
                 }
-                if (BlockList[b].Predecessors.Count() == 0)
+                foreach (var pred in BlockList[b].Predecessors)
                 {
-                    foreach (var succ in BlockList[b].Successors)
-                    {
-                        succ.Predecessors.Remove(BlockList[b]);
-                    }
-                    BlockList.RemoveAt(b);
-                    b--;
+                    pred.Successors.Remove(BlockList[b]);
+                    pred.Successors.Add(BlockList[b].Successors.FirstOrDefault() ?? EndBlock);
                 }
+                foreach (var succ in BlockList[b].Successors)
+                {
+                    succ.Predecessors.Remove(BlockList[b]);
+                    succ.Predecessors.AddRange(BlockList[b].Predecessors);
+                }
+                BlockList.RemoveAt(b);
+                b--;
             }
 
-            // Forth pass: Merge blocks that have a single successor and that successor has a single predecessor
+            // Fourth pass: Remove unreachable blocks
+            for (int b = 0; b < BlockList.Count(); b++)
+            {
+                // Begin block has no predecessors but shouldn't be removed because :)
+                if (BlockList[b] == BeginBlock || BlockList[b].Predecessors.Count() != 0)
+                {
+                    continue;
+                }
+                foreach (var succ in BlockList[b].Successors)
+                {
+                    succ.Predecessors.Remove(BlockList[b]);
+                }
+                // Remove instructions from deleted blocks
+                Instructions.RemoveAll(inst => inst.Block == BlockList[b]);
+                BlockList.RemoveAt(b);
+                b--;
+            }
+
+            // Fifth pass: Merge blocks that have a single successor and that successor has a single predecessor
             bool changed = true;
             while (changed)
             {
@@ -558,6 +581,16 @@ namespace luadec.IR
                 }
             }
 
+            // Conditionals that got optimized into an unconditional jump should have their conditions cleared
+            foreach (var inst in Instructions)
+            {
+                if (inst.Block?.Successors.Count == 1 && inst is Jump jump)
+                {
+                    jump.Condition = null;
+                    jump.Conditional = false;
+                }
+            }
+
             BlockList.Add(EndBlock);
         }
 
@@ -568,12 +601,23 @@ namespace luadec.IR
         /// <param name="table"></param>
         public void ResolveIndeterminantArguments(SymbolTable table)
         {
+#if DEBUG_INDETERMINATE
+            Console.Write(string.Join(", ", Parameters.Select(p => $"{p.VType.ToString()} {p.Name}")));
+            Console.WriteLine(")");
+#endif
             // This analysis should not need any intrablock analysis
             foreach (var b in BlockList)
             {
+#if DEBUG_INDETERMINATE
+                Console.WriteLine($"    {b.GetName()}:");
+#endif
                 Identifier lastIndeterminantRet = null;
                 foreach (var i in b.Instructions)
                 {
+#if DEBUG_INDETERMINATE
+                    if (i.ToString().Length > 0)
+                        Console.WriteLine($"        {i.ToString()}");
+#endif
                     if (i is Assignment a2 && a2.Right is FunctionCall fc2 && fc2.IsIndeterminantArgumentCount)
                     {
                         if (lastIndeterminantRet == null)
@@ -603,6 +647,9 @@ namespace luadec.IR
                     }
                 }
             }
+#if DEBUG_INDETERMINATE
+            Console.WriteLine("end");
+#endif
         }
 
         public void ResolveVarargListAssignment()
@@ -1094,8 +1141,6 @@ namespace luadec.IR
                             recentlyUsed.Remove(use.OriginalIdentifier);
                         }
                     }
-
-                    bool removed = false;
 
                     var defines = b.Instructions[i].GetDefines(true);
 
@@ -1596,7 +1641,6 @@ namespace luadec.IR
             }
 
             // Next do an expansion cycle where phi functions that use the identifiers are marked kept, and then phi functions that the marked phi uses are also kept
-            bool changed = false;
             foreach (var b in BlockList)
             {
                 foreach (var phi in b.PhiFunctions)
@@ -1611,7 +1655,6 @@ namespace luadec.IR
                                 usedIdentifiers.Add(use);
                             }
                         }
-                        changed = true;
                     }
                 }
             }
@@ -1879,7 +1922,6 @@ namespace luadec.IR
                     if (maxNode != null)
                     {
                         b.Follow = maxNode;
-                        bool keepMN = false;
                         var unresolvedClone = new HashSet<CFG.BasicBlock>(unresolved);
                         foreach (var x in unresolvedClone)
                         {
@@ -1977,8 +2019,6 @@ namespace luadec.IR
                 if (lhead != null && b.Successors.Count() == 2 && b.Instructions.Last() is Jump jmp && !(b.IsLoopHead && b.LoopType == CFG.LoopType.LoopPretested))
                 {
                     // An if statement is unstructured but recoverable if it has a forward edge to the loop follow (break) or head (continue) on the left or right
-                    bool isBreak = false;
-                    bool isContinue = false;
                     foreach (var succ in b.DominanceTreeSuccessors)
                     {
                         if (succ.IsLoopLatch)
@@ -2090,18 +2130,18 @@ namespace luadec.IR
                             {
                                 // TODO: not correct
                                 throw new Exception("this is used so fix it");
-                                var newCond = new BinOp(n.Condition, ej.Condition, BinOp.OperationType.OpOr);
-                                n.Condition = newCond;
-                                if (e.Follow != null)
-                                {
-                                    node.Follow = (node.Follow.ReversePostorderNumber > e.Follow.ReversePostorderNumber) ? node.Follow : e.Follow;
-                                }
-                                node.Successors[1] = e.Successors[0];
-                                var i = e.Successors[0].Predecessors.IndexOf(e);
-                                e.Successors[0].Predecessors[i] = node;
-                                t.Predecessors.Remove(e);
-                                BlockList.Remove(e);
-                                changed = true;
+                                //var newCond = new BinOp(n.Condition, ej.Condition, BinOp.OperationType.OpOr);
+                                //n.Condition = newCond;
+                                //if (e.Follow != null)
+                                //{
+                                //    node.Follow = (node.Follow.ReversePostorderNumber > e.Follow.ReversePostorderNumber) ? node.Follow : e.Follow;
+                                //}
+                                //node.Successors[1] = e.Successors[0];
+                                //var i = e.Successors[0].Predecessors.IndexOf(e);
+                                //e.Successors[0].Predecessors[i] = node;
+                                //t.Predecessors.Remove(e);
+                                //BlockList.Remove(e);
+                                //changed = true;
                             }
                         }
                     }
@@ -2677,6 +2717,18 @@ namespace luadec.IR
             }
         }
 
+        /// <summary>
+        /// Mark empty returns at the end of a function as implicit
+        /// </summary>
+        public void MarkImplicitReturn()
+        {
+            while (Instructions.FindLast(i => !(i is Return r) || !r.IsImplicit) is Return r
+                && r.ReturnExpressions.Count == 0)
+            {
+                r.IsImplicit = true;
+            }
+        }
+
         public void ConvertToAST(bool lua51 = false)
         {
             // Traverse all the nodes in post-order and try to convert jumps to if statements
@@ -2740,10 +2792,10 @@ namespace luadec.IR
                         }*/
 
                         // Remove the sub instruction at the end
-                        loopInitializer.Instructions.RemoveAt(loopInitializer.Instructions.Count - 2);
+                        // loopInitializer.Instructions.RemoveAt(loopInitializer.Instructions.Count - 2);
 
                         // Extract the step variable definition
-                        if (loopInitializer.Instructions[loopInitializer.Instructions.Count - 2] is Assignment incassn)
+                        if (loopInitializer.GetInstruction(loopInitializer.Instructions.Count - 2) is Assignment incassn)
                         {
                             nfor.Increment = incassn.Right;
                             if (incassn.IsLocalDeclaration)
@@ -2754,7 +2806,7 @@ namespace luadec.IR
                         }
 
                         // Extract the limit variable definition
-                        if (loopInitializer.Instructions[loopInitializer.Instructions.Count - 2] is Assignment limitassn)
+                        if (loopInitializer.GetInstruction(loopInitializer.Instructions.Count - 2) is Assignment limitassn)
                         {
                             nfor.Limit = limitassn.Right;
                             if (limitassn.IsLocalDeclaration)
@@ -2765,12 +2817,13 @@ namespace luadec.IR
                         }
 
                         // Extract the initializer variable definition
-                        if (loopInitializer.Instructions[loopInitializer.Instructions.Count - 2] is Assignment initassn)
+                        if (loopInitializer.GetInstruction(loopInitializer.Instructions.Count - 2) is Assignment initassn)
                         {
                             nfor.Initial = initassn;
                             if (initassn.IsLocalDeclaration)
                             {
                                 relocalize.Add(initassn.Left[0].Identifier);
+                                RenameLoopVariable(node, initassn.Left[0].Identifier);
                             }
                             loopInitializer.Instructions.RemoveAt(loopInitializer.Instructions.Count - 2);
                         }
@@ -2783,7 +2836,7 @@ namespace luadec.IR
                             usedFollows.Add(node.LoopFollow);
                             node.LoopFollow.MarkCodegened(DebugID);
                         }
-                        if (loopInitializer.Instructions[loopInitializer.Instructions.Count() - 1] is Jump)
+                        if (loopInitializer.GetInstruction(loopInitializer.Instructions.Count - 1) is Jump)
                         {
                             loopInitializer.Instructions[loopInitializer.Instructions.Count() - 1] = nfor;
                         }
@@ -3095,7 +3148,7 @@ namespace luadec.IR
                     {
                         ifStatement.True = node.Successors[0];
                         ifStatement.True.MarkCodegened(DebugID);
-                        if (ifStatement.True.Instructions.Last() is Jump lj && !lj.Conditional)
+                        if (ifStatement.True.Instructions.LastOrDefault() is Jump lj && !lj.Conditional)
                         {
                             if (ifStatement.True.IsBreakNode)
                             {
@@ -3123,11 +3176,11 @@ namespace luadec.IR
                             ifStatement.True = bb;
                         }
                     }
-                    if (node.Successors[1] != node.Follow)
+                    if (node.Successors[1] != node.Follow && node.Successors[1] != node.Successors[0])
                     {
                         ifStatement.False = node.Successors[1];
                         ifStatement.False.MarkCodegened(DebugID);
-                        if (ifStatement.False.Instructions.Last() is Jump fj && !fj.Conditional)
+                        if (ifStatement.False.Instructions.LastOrDefault() is Jump fj && !fj.Conditional)
                         {
                             if (ifStatement.False.IsBreakNode)
                             {
@@ -3174,6 +3227,33 @@ namespace luadec.IR
             }
 
             IsAST = true;
+        }
+
+        private void RenameLoopVariable(CFG.BasicBlock node, Identifier identifier)
+        {
+            // Collect all identifier uses in preceding blocks
+            var uses = new HashSet<Identifier>();
+            var visited = new HashSet<CFG.BasicBlock>();
+            var blocks = node.Predecessors.AsEnumerable();
+
+            while (blocks.Any())
+            {
+                uses.UnionWith(blocks.SelectMany(b => b.Instructions).SelectMany(i => i.GetUses(true)));
+                visited.UnionWith(blocks);
+                blocks = blocks.SelectMany(b => b.Predecessors).Where(b => !visited.Contains(b));
+            }
+
+            // Take the first available letter starting from i
+            char letter = 'i';
+
+            while (uses.Where(i => i != identifier).Select(i => i.Name).Contains(letter.ToString()))
+            {
+                if (letter++ == 'z')
+                    return;
+            }
+
+            identifier.Name = letter.ToString();
+            identifier.Renamed = true;
         }
 
         // Rename variables from their temporary register based names to something more generic
@@ -3276,18 +3356,18 @@ namespace luadec.IR
 
         public string PrettyPrint(string funname = null)
         {
-            string str = "";
+            string str = "\n";
             if (DebugID != 0)
             {
                 if (funname == null)
                 {
                     //string str = $@"function {DebugID} (";
-                    str = $@"function (";
+                    str += $@"function (";
                 }
                 else
                 {
                     //str = $@"function {DebugID} {funname}(";
-                    str = $@"function {funname}(";
+                    str += $@"function {funname}(";
                 }
                 for (int i = 0; i < Parameters.Count(); i++)
                 {
@@ -3331,7 +3411,6 @@ namespace luadec.IR
             else if (IsAST)
             {
                 str += BeginBlock.PrintBlock(IndentLevel);
-                str += "\n";
             }
             else
             {
@@ -3389,7 +3468,7 @@ namespace luadec.IR
                 {
                     str += "    ";
                 }
-                str += "end\n";
+                str += "end";
             }
             return str;
         }

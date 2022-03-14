@@ -88,6 +88,17 @@ namespace luadec.CFG
         }
 
         /// <summary>
+        /// Get an instruction by index with bounds checking.
+        /// </summary>
+        public IR.IInstruction GetInstruction(int index)
+        {
+            if (index >= 0 && index < Instructions.Count)
+                return Instructions[index];
+            else
+                return null;
+        }
+
+        /// <summary>
         /// Once dominance information is computed, compute the immediate (closest) dominator using BFS
         /// </summary>
         public void ComputeImmediateDominator()
@@ -177,12 +188,16 @@ namespace luadec.CFG
             for (int j = begin; j < count; j++)
             {
                 var inst = Instructions[j];
+                if (inst.IsHidden())
+                {
+                    continue;
+                }
                 for (int i = 0; i < indentLevel; i++)
                 {
                     ret += "    ";
                 }
                 ret += inst.WriteLua(indentLevel);
-                if (!(inst is IR.IfStatement) && j != Instructions.Count() - 1)
+                if (!(inst is IR.IfStatement))
                 {
                     ret += "\n";
                 }

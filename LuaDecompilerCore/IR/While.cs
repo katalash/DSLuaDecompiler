@@ -29,7 +29,6 @@ namespace luadec.IR
             }
 
             ret += Body.PrintBlock(indentLevel + 1, IsBlockInlined);
-            ret += "\n";
             for (int i = 0; i < indentLevel; i++)
             {
                 ret += "    ";

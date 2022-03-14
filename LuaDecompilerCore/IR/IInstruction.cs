@@ -57,6 +57,11 @@ namespace luadec.IR
 
         public virtual bool ReplaceUses(Identifier orig, Expression sub) { return false; }
 
+        public virtual bool IsHidden()
+        {
+            return false;
+        }
+
         public virtual string WriteLua(int indentLevel)
         {
             return ToString();
