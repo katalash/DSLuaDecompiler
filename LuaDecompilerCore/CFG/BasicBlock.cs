@@ -180,6 +180,11 @@ namespace luadec.CFG
 
         public string PrintBlock(int indentLevel, bool infloopprint=false)
         {
+            bool IsClosure(int index)
+            {
+                return Instructions[index] is IR.Assignment assn && assn.Right is IR.Closure;
+            }
+
             string ret = "";
             //ret += $@"basicblock_{BlockID}:";
             //ret += "\n";
@@ -191,6 +196,11 @@ namespace luadec.CFG
                 if (inst.IsHidden())
                 {
                     continue;
+                }
+                if (j != begin && (IsClosure(j) || IsClosure(j - 1)))
+                {
+                    // Ensure closures/functions are surrounded by blank lines
+                    ret += "\n";
                 }
                 for (int i = 0; i < indentLevel; i++)
                 {

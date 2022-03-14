@@ -178,6 +178,11 @@ namespace luadec.IR
             return ret;
         }
 
+        public bool IsFunctionDeclaration()
+        {
+            return Left.Count() == 1 && !Left[0].HasIndex && !Left[0].DotNotation && Left[0].Identifier.IType == Identifier.IdentifierType.Global && Right is Closure;
+        }
+
         public override string ToString()
         {
             var ret = "";
@@ -186,9 +191,9 @@ namespace luadec.IR
             {
                 ret = "local ";
             }
-            if (Left.Count() == 1 && !Left[0].HasIndex && !Left[0].DotNotation && Left[0].Identifier.IType == Identifier.IdentifierType.Global && Right is Closure c)
+            if (IsFunctionDeclaration())
             {
-                return c.Function.PrettyPrint(Left[0].Identifier.Name);
+                return ((Closure)Right).Function.PrettyPrint(Left[0].Identifier.Name);
             }
             if (Left.Count() > 0)
             {

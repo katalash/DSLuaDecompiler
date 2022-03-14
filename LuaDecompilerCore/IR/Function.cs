@@ -3356,7 +3356,7 @@ namespace luadec.IR
 
         public string PrettyPrint(string funname = null)
         {
-            string str = "\n";
+            string str = "";
             if (DebugID != 0)
             {
                 if (funname == null)
