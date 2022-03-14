@@ -183,6 +183,14 @@ namespace luadec.IR
             return Left.Count() == 1 && !Left[0].HasIndex && !Left[0].DotNotation && Left[0].Identifier.IType == Identifier.IdentifierType.Global && Right is Closure;
         }
 
+        public void MergeLocalAssignments(Assignment other)
+        {
+            if (LocalAssignments == null)
+                LocalAssignments = other.LocalAssignments;
+            else if (other.LocalAssignments != null)
+                LocalAssignments.AddRange(other.LocalAssignments);
+        }
+
         public override string ToString()
         {
             var ret = "";

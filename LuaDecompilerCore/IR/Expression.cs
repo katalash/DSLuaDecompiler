@@ -431,6 +431,7 @@ namespace luadec.IR
     {
         public List<Expression> Exprs;
         public List<Constant> Assignments = null;
+        public bool ZeroBased = false;
 
         public InitializerList(List<Expression> expr)
         {
@@ -509,9 +510,9 @@ namespace luadec.IR
             // Pattern match special lua this call
             for (int i = 0; i < Exprs.Count(); i++)
             {
-                if (Assignments != null)
+                if (Assignments?.ElementAtOrDefault(i) != null)
                 {
-                    ret += Assignments[i].String + " = ";
+                    ret += $"[{Assignments[i].ToString()}] = ";
                 }
                 ret += Exprs[i].ToString();
                 if (i != Exprs.Count() - 1)

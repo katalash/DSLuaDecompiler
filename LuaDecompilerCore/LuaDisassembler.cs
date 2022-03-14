@@ -1019,9 +1019,8 @@ namespace luadec
             // Data flow passes
             irfun.EliminateDeadAssignments(true);
             irfun.PruneUnusedPhiFunctions();
-            irfun.DetectGenericListInitializers();
+            irfun.DetectListInitializers();
             irfun.PerformExpressionPropogation(true);
-            irfun.DetectGenericListInitializers();
             irfun.DetectListInitializers();
             //irfun.PerformExpressionPropogation(false);
 

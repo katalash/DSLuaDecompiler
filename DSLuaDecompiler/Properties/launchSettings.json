@@ -2,7 +2,7 @@
   "profiles": {
     "DSLuaDecompiler": {
       "commandName": "Project",
-      "commandLineArgs": "\"D:\\Documents\\Research\\Games\\EldenRing\\1.02.1\\extracted\\data\\action\\script\\c0000.hks\""
+      "commandLineArgs": "\"D:\\Documents\\Research\\Games\\EldenRing\\1.02.1\\extracted\\data\\action\\script\\common_define.hks\""
     }
   }
 }

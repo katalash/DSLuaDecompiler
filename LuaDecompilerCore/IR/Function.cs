@@ -269,14 +269,7 @@ namespace luadec.IR
                     a2.Right is Constant c2 && c2.ConstType == Constant.ConstantType.ConstNil)
                 {
                     a1.Left.AddRange(a2.Left);
-                    if (a1.LocalAssignments == null)
-                    {
-                        a1.LocalAssignments = a2.LocalAssignments;
-                    }
-                    else
-                    {
-                        a1.LocalAssignments.AddRange(a2.LocalAssignments);
-                    }
+                    a1.MergeLocalAssignments(a2);
                     Instructions.RemoveAt(i + 1);
                 }
             }
@@ -1359,6 +1352,191 @@ namespace luadec.IR
             } while (changed);
         }
 
+        private bool IsEmptyInitializerList(IInstruction instruction)
+        {
+            return instruction is Assignment a && a.Left.Count() == 1 && !a.Left[0].HasIndex &&
+                   a.Right is InitializerList il && il.Exprs.Count() == 0;
+        }
+
+        /// <summary>
+        /// Detects initializer lists emitted as a series of table assignments and merges them into a single
+        /// expression list
+        /// </summary>
+        public void CollapseInitializerList(CFG.BasicBlock block, int index)
+        {
+            var initAssign = block.Instructions[index] as Assignment;
+            var initList = initAssign.Right as InitializerList;
+            var initIdentifier = initAssign.Left[0].Identifier;
+
+            // Temporary assignments of table values to registers
+            var tempAssigns = new List<Assignment>();
+
+            // Temporary assignments of table indices to registers
+            var indexAssigns = new List<Assignment>();
+
+            // Assignments to each index in the table
+            var tableAssigns = new List<Assignment>();
+
+            // Constants for the index of each assignment into the table
+            var indexConstants = new List<Constant>();
+
+            Identifier GetRightIdentifier(Assignment a)
+            {
+                return (a.Right as IdentifierReference)?.Identifier;
+            }
+
+            Identifier GetIndexIdentifier(Assignment a)
+            {
+                return (a.Left.FirstOrDefault()?.TableIndices.FirstOrDefault() as IdentifierReference)?.Identifier;
+            }
+
+            bool CheckTableAssignmentIndex(Assignment a, out Constant indexConst)
+            {
+                indexConst = null;
+
+                if (a.Left.Count() != 1 || a.Left[0].Identifier != initIdentifier)
+                    return false;
+
+                if (a.Left[0].TableIndices.FirstOrDefault() is Constant c)
+                {
+                    indexConst = c;
+                    return true;
+                }
+
+                if (a.Left[0].TableIndices.FirstOrDefault() is IdentifierReference idref)
+                {
+                    var indexAssign = indexAssigns.FirstOrDefault(
+                        t => t.Left[0].Identifier == idref.Identifier);
+
+                    if (indexAssign == null)
+                        return false;
+
+                    indexConst = indexAssign.Right as Constant;
+                    return true;
+                }
+
+                return false;
+            }
+
+            bool IsTableAssignment(Assignment a)
+            {
+                if (a.Left.Count() != 1 || a.Left[0].Identifier != initIdentifier)
+                    return false;
+                else if (a.Left[0].TableIndices.FirstOrDefault() is Constant c)
+                    return true;
+                else if (a.Left[0].TableIndices.FirstOrDefault() is IdentifierReference idref)
+                    return true;
+                else
+                    return false;
+            }
+
+            while (index + 1 < block.Instructions.Count())
+            {
+                if (!(block.Instructions[index + 1] is Assignment a) || a.Left.Count() != 1)
+                    break;
+
+                var left = a.Left[0];
+
+                if (CheckTableAssignmentIndex(a, out var indexConst))
+                {
+                    tableAssigns.Add(a);
+                    indexConstants.Add(indexConst);
+                    index++;
+
+                    if (!tempAssigns.Any())
+                        continue;
+
+                    // Check that this matches with the corresponding temp assignment
+                    var temp = tempAssigns.ElementAtOrDefault(tableAssigns.Count - 1);
+                    if (temp == null || temp.Left[0].Identifier != GetRightIdentifier(a))
+                        return;
+                }
+                else if (!left.HasIndex && left.Identifier.IType == Identifier.IdentifierType.Register)
+                {
+#warning TODO: This should check that nothing references the table before the assignment
+                    if (block.Instructions.Skip(index + 1).Any(inst =>
+                        inst is Assignment a2 &&
+                        IsTableAssignment(a2) &&
+                        GetRightIdentifier(a2) == left.Identifier))
+                    {
+                        // Intermediate register storage
+                        tempAssigns.Add(a);
+
+                        // Attempt to recursively collapse sub initializer lists
+                        if (IsEmptyInitializerList(a))
+                            CollapseInitializerList(block, index + 1);
+                    }
+                    else if (block.Instructions.Skip(index + 1).Any(inst =>
+                        inst is Assignment a2 &&
+                        IsTableAssignment(a2) &&
+                        GetIndexIdentifier(a2) == left.Identifier))
+                    {
+                        if (!(a.Right is Constant c))
+                            break;
+
+                        // Temporary index constant storage
+                        indexAssigns.Add(a);
+                    }
+                    else
+                    {
+                        break;
+                    }
+
+                    index++;
+                }
+                else
+                {
+                    break;
+                }
+            }
+
+            if (!tableAssigns.Any())
+                    return;
+
+            if (tempAssigns.Any() && tableAssigns.Count != tempAssigns.Count)
+                    return;
+
+            block.Instructions.RemoveAll(inst => indexAssigns.Contains(inst));
+
+            for (var i = 0; i < tableAssigns.Count; i++)
+            {
+                if (tempAssigns.Any())
+                {
+                    initList.Exprs.Add(tempAssigns[i].Right);
+                    block.Instructions.Remove(tempAssigns[i]);
+                    initAssign.MergeLocalAssignments(tempAssigns[i]);
+                }
+                else
+                {
+                    initList.Exprs.Add(tableAssigns[i].Right);
+                }
+
+                block.Instructions.Remove(tableAssigns[i]);
+                initAssign.MergeLocalAssignments(tableAssigns[i]);
+                initIdentifier.UseCount--;
+            }
+
+            initList.Assignments = new List<Constant>();
+            for (var i = 0; i < indexConstants.Count; i++)
+            {
+                var current = indexConstants[i];
+                var last = i != 0 ? indexConstants[i - 1] : null;
+
+                if (current.ConstType != Constant.ConstantType.ConstNumber ||
+                    (last == null && current.Number != 1) ||
+                    (last != null && (
+                        last.ConstType != Constant.ConstantType.ConstNumber ||
+                        current.Number != last.Number + 1)))
+                {
+                    initList.Assignments.Add(current);
+                }
+                else
+                {
+                    initList.Assignments.Add(null);
+                }
+            }
+        }
+
         /// <summary>
         /// Detects list initializers as a series of statements that serially add data to a newly initialized list
         /// </summary>
@@ -1368,68 +1546,10 @@ namespace luadec.IR
             {
                 for (int i = 0; i < b.Instructions.Count(); i++)
                 {
-                    if (b.Instructions[i] is Assignment a && a.Left.Count() == 1 && !a.Left[0].HasIndex && a.Right is InitializerList il && il.Exprs.Count() == 0)
+                    if (IsEmptyInitializerList(b.Instructions[i]))
                     {
                         // Eat up any statements that follow that match the initializer list pattern
-                        int initIndex = 1;
-                        while (i + 1 < b.Instructions.Count())
-                        {
-                            if (b.Instructions[i + 1] is Assignment a2 && a2.Left.Count() == 1 && a2.Left[0].Identifier == a.Left[0].Identifier && a2.Left[0].HasIndex &&
-                                a2.Left[0].TableIndices[0] is Constant c && c.Number == (double)initIndex)
-                            {
-                                il.Exprs.Add(a2.Right);
-                                if (a2.LocalAssignments != null)
-                                {
-                                    a.LocalAssignments = a2.LocalAssignments;
-                                }
-                                a2.Left[0].Identifier.UseCount--;
-                                b.Instructions.RemoveAt(i + 1);
-                                initIndex++;
-                            }
-                            else
-                            {
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        /// <summary>
-        /// Detects list initializers as a series of statements that serially add data to a newly initialized list
-        /// </summary>
-        public void DetectGenericListInitializers()
-        {
-            foreach (var b in BlockList)
-            {
-                for (int i = 0; i < b.Instructions.Count(); i++)
-                {
-                    if (b.Instructions[i] is Assignment a && a.Left.Count() == 1 && !a.Left[0].HasIndex && a.Right is InitializerList il && il.Exprs.Count() == 0)
-                    {
-                        while (i + 1 < b.Instructions.Count())
-                        {
-                            if (b.Instructions[i + 1] is Assignment a2 && a2.Left.Count() == 1 && a2.Left[0].Identifier == a.Left[0].Identifier && a2.Left[0].HasIndex &&
-                                a2.Left[0].TableIndices[0] is Constant c && c.ConstType == Constant.ConstantType.ConstString)
-                            {
-                                il.Exprs.Add(a2.Right);
-                                if (il.Assignments == null)
-                                {
-                                    il.Assignments = new List<Constant>();
-                                }
-                                il.Assignments.Add(c);
-                                if (a2.LocalAssignments != null)
-                                {
-                                    a.LocalAssignments = a2.LocalAssignments;
-                                }
-                                a2.Left[0].Identifier.UseCount--;
-                                b.Instructions.RemoveAt(i + 1);
-                            }
-                            else
-                            {
-                                break;
-                            }
-                        }
+                        CollapseInitializerList(b, i);
                     }
                 }
             }
