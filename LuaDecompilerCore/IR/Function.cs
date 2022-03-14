@@ -1036,7 +1036,7 @@ namespace luadec.IR
 
         private HashSet<Identifier> definitelyLocal = new HashSet<Identifier>();
         // Given the IR is in SSA form, this does expression propogation/substitution
-        public void PerformExpressionPropogation(bool firstpass)
+        public void PerformExpressionPropagation(bool firstpass)
         {
             // Lua function calls (and expressions in general have their bytecode generated recursively. This means for example when doing a function call,
             // the name of the function is loaded to a register first, then all the subexpressions are computed, and finally the function is called. We can

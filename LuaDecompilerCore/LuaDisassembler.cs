@@ -1020,9 +1020,9 @@ namespace luadec
             irfun.EliminateDeadAssignments(true);
             irfun.PruneUnusedPhiFunctions();
             irfun.DetectListInitializers();
-            irfun.PerformExpressionPropogation(true);
+            irfun.PerformExpressionPropagation(true);
             irfun.DetectListInitializers();
-            //irfun.PerformExpressionPropogation(false);
+            //irfun.PerformExpressionPropagation(false);
 
             // CFG passes
             irfun.StructureCompoundConditionals();
@@ -1031,7 +1031,7 @@ namespace luadec
             irfun.DetectTwoWayConditionals();
             irfun.SimplifyIfElseFollowChain();
             irfun.EliminateDeadAssignments(true);
-            //irfun.PerformExpressionPropogation();
+            //irfun.PerformExpressionPropagation();
             irfun.VerifyLivenessNoInterference();
 
             // Convert out of SSA and rename variables
@@ -1522,9 +1522,9 @@ namespace luadec
 
             // Data flow passes
             irfun.EliminateDeadAssignments(true);
-            irfun.PerformExpressionPropogation(true);
+            irfun.PerformExpressionPropagation(true);
             irfun.DetectListInitializers();
-            irfun.PerformExpressionPropogation(false);
+            irfun.PerformExpressionPropagation(false);
 
             // CFG passes
             irfun.StructureCompoundConditionals();
@@ -1533,7 +1533,7 @@ namespace luadec
             irfun.DetectTwoWayConditionals();
             irfun.SimplifyIfElseFollowChain();
             irfun.EliminateDeadAssignments(true);
-            irfun.PerformExpressionPropogation(false);
+            irfun.PerformExpressionPropagation(false);
             irfun.VerifyLivenessNoInterference();
 
             // Convert out of SSA and rename variables
@@ -2174,9 +2174,9 @@ namespace luadec
 
             // Data flow passes
             irfun.EliminateDeadAssignments(true);
-            irfun.PerformExpressionPropogation(true);
+            irfun.PerformExpressionPropagation(true);
             irfun.DetectListInitializers();
-            irfun.PerformExpressionPropogation(false);
+            irfun.PerformExpressionPropagation(false);
             // CFG passes
             irfun.StructureCompoundConditionals();
             irfun.DetectLoops();
@@ -2184,7 +2184,7 @@ namespace luadec
             irfun.DetectTwoWayConditionals();
             irfun.SimplifyIfElseFollowChain();
             irfun.EliminateDeadAssignments(true);
-            irfun.PerformExpressionPropogation(false);
+            irfun.PerformExpressionPropagation(false);
             //irfun.VerifyLivenessNoInterference();
 
             // Convert out of SSA and rename variables
