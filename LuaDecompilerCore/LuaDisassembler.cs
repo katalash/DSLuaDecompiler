@@ -2197,19 +2197,11 @@ namespace luadec
 
             // Convert to AST
             irfun.ConvertToAST(true);
+
             // Now generate IR for all the child closures
             for (int i = 0; i < fun.ChildFunctions.Length; i++)
-            {
-                //if (i != 2 && i != 8 && i != 30)
-                //if (i == 16)
-                //if (i == 26)
-                //if (i == 79)
-                //if (i == 0)
-                //if (i != 0)
-                {
-                    GenerateIRHKS(irfun.LookupClosure((uint)i), fun.ChildFunctions[i]);
-                }
-            }
+                GenerateIRHKS(irfun.LookupClosure((uint)i), fun.ChildFunctions[i]);
+
             SymbolTable.EndScope();
         }
     }
