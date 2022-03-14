@@ -1122,6 +1122,12 @@ namespace luadec.IR
                             continue;
                         }
 
+                        if (b.Instructions[i] is Assignment a && a.Left.Any(ir => ir.Identifier == use))
+                        {
+                            // Table assignments don't count towards the local heuristics
+                            continue;
+                        }
+
                         if (!recentlyUsed.ContainsKey(use.OriginalIdentifier))
                         {
                             recentlyUsed.Add(use.OriginalIdentifier, use);
@@ -1297,7 +1303,7 @@ namespace luadec.IR
                             if (use.DefiningInstruction != null &&
                                 use.DefiningInstruction is Assignment a &&
                                 a.Left.Count() == 1 && a.LocalAssignments == null &&
-                                ((use.UseCount == 1 && ((i - 1 >= 0 && b.Instructions[i - 1] == use.DefiningInstruction) || (inst is Assignment a2 && a2.IsListAssignment)) && !definitelyLocal.Contains(use)) || a.PropagateAlways) &&
+                                ((use.UseCount == 1 && !definitelyLocal.Contains(use)) || a.PropagateAlways) &&
                                 !a.Left[0].Identifier.IsClosureBound)
                             {
                                 // Don't substitute if this use's define was defined before the code gen for the function call even began
@@ -1352,207 +1358,99 @@ namespace luadec.IR
             } while (changed);
         }
 
-        private bool IsEmptyInitializerList(IInstruction instruction)
+        private bool IsInitializerList(IInstruction instruction)
         {
             return instruction is Assignment a && a.Left.Count() == 1 && !a.Left[0].HasIndex &&
-                   a.Right is InitializerList il && il.Exprs.Count() == 0;
+                   a.Right is InitializerList;
         }
 
         /// <summary>
         /// Detects initializer lists emitted as a series of table assignments and merges them into a single
         /// expression list
         /// </summary>
-        public void CollapseInitializerList(CFG.BasicBlock block, int index)
+        private bool CollapseInitializerList(CFG.BasicBlock block, int startIndex)
         {
-            var initAssign = block.Instructions[index] as Assignment;
+            var initAssign = block.Instructions[startIndex] as Assignment;
             var initList = initAssign.Right as InitializerList;
             var initIdentifier = initAssign.Left[0].Identifier;
 
-            // Temporary assignments of table values to registers
-            var tempAssigns = new List<Assignment>();
+            Constant lastIndex = null;
+            var changed = false;
 
-            // Temporary assignments of table indices to registers
-            var indexAssigns = new List<Assignment>();
-
-            // Assignments to each index in the table
-            var tableAssigns = new List<Assignment>();
-
-            // Constants for the index of each assignment into the table
-            var indexConstants = new List<Constant>();
-
-            Identifier GetRightIdentifier(Assignment a)
+            for (var i = startIndex + 1; i < block.Instructions.Count(); i++)
             {
-                return (a.Right as IdentifierReference)?.Identifier;
-            }
-
-            Identifier GetIndexIdentifier(Assignment a)
-            {
-                return (a.Left.FirstOrDefault()?.TableIndices.FirstOrDefault() as IdentifierReference)?.Identifier;
-            }
-
-            bool CheckTableAssignmentIndex(Assignment a, out Constant indexConst)
-            {
-                indexConst = null;
-
-                if (a.Left.Count() != 1 || a.Left[0].Identifier != initIdentifier)
-                    return false;
-
-                if (a.Left[0].TableIndices.FirstOrDefault() is Constant c)
+                if (!(block.Instructions[i] is Assignment a))
                 {
-                    indexConst = c;
-                    return true;
-                }
-
-                if (a.Left[0].TableIndices.FirstOrDefault() is IdentifierReference idref)
-                {
-                    var indexAssign = indexAssigns.FirstOrDefault(
-                        t => t.Left[0].Identifier == idref.Identifier);
-
-                    if (indexAssign == null)
-                        return false;
-
-                    indexConst = indexAssign.Right as Constant;
-                    return true;
-                }
-
-                return false;
-            }
-
-            bool IsTableAssignment(Assignment a)
-            {
-                if (a.Left.Count() != 1 || a.Left[0].Identifier != initIdentifier)
-                    return false;
-                else if (a.Left[0].TableIndices.FirstOrDefault() is Constant c)
-                    return true;
-                else if (a.Left[0].TableIndices.FirstOrDefault() is IdentifierReference idref)
-                    return true;
-                else
-                    return false;
-            }
-
-            while (index + 1 < block.Instructions.Count())
-            {
-                if (!(block.Instructions[index + 1] is Assignment a) || a.Left.Count() != 1)
-                    break;
-
-                var left = a.Left[0];
-
-                if (CheckTableAssignmentIndex(a, out var indexConst))
-                {
-                    tableAssigns.Add(a);
-                    indexConstants.Add(indexConst);
-                    index++;
-
-                    if (!tempAssigns.Any())
-                        continue;
-
-                    // Check that this matches with the corresponding temp assignment
-                    var temp = tempAssigns.ElementAtOrDefault(tableAssigns.Count - 1);
-                    if (temp == null || temp.Left[0].Identifier != GetRightIdentifier(a))
-                        return;
-                }
-                else if (!left.HasIndex && left.Identifier.IType == Identifier.IdentifierType.Register)
-                {
-#warning TODO: This should check that nothing references the table before the assignment
-                    if (block.Instructions.Skip(index + 1).Any(inst =>
-                        inst is Assignment a2 &&
-                        IsTableAssignment(a2) &&
-                        GetRightIdentifier(a2) == left.Identifier))
-                    {
-                        // Intermediate register storage
-                        tempAssigns.Add(a);
-
-                        // Attempt to recursively collapse sub initializer lists
-                        if (IsEmptyInitializerList(a))
-                            CollapseInitializerList(block, index + 1);
-                    }
-                    else if (block.Instructions.Skip(index + 1).Any(inst =>
-                        inst is Assignment a2 &&
-                        IsTableAssignment(a2) &&
-                        GetIndexIdentifier(a2) == left.Identifier))
-                    {
-                        if (!(a.Right is Constant c))
-                            break;
-
-                        // Temporary index constant storage
-                        indexAssigns.Add(a);
-                    }
-                    else
-                    {
+                    // Break on call/return etc referencing table
+                    if (block.Instructions[i].GetUses(false).Contains(initIdentifier))
                         break;
-                    }
 
-                    index++;
+                    continue;
                 }
-                else
-                {
+
+                // Break on assignment reading from table
+                if (a.Right.GetUses(false).Contains(initIdentifier))
                     break;
-                }
-            }
 
-            if (!tableAssigns.Any())
-                    return;
+                if (a.Left.Count() != 1 || a.Left[0].Identifier != initIdentifier)
+                    continue;
 
-            if (tempAssigns.Any() && tableAssigns.Count != tempAssigns.Count)
-                    return;
+                if (!(a.Left[0].TableIndices.FirstOrDefault() is Constant index))
+                    continue;
 
-            block.Instructions.RemoveAll(inst => indexAssigns.Contains(inst));
-
-            for (var i = 0; i < tableAssigns.Count; i++)
-            {
-                if (tempAssigns.Any())
-                {
-                    initList.Exprs.Add(tempAssigns[i].Right);
-                    block.Instructions.Remove(tempAssigns[i]);
-                    initAssign.MergeLocalAssignments(tempAssigns[i]);
-                }
-                else
-                {
-                    initList.Exprs.Add(tableAssigns[i].Right);
-                }
-
-                block.Instructions.Remove(tableAssigns[i]);
-                initAssign.MergeLocalAssignments(tableAssigns[i]);
+                // Add to initializer list
+                changed = true;
+                initList.Exprs.Add(a.Right);
+                block.Instructions.Remove(a);
+                initAssign.MergeLocalAssignments(a);
                 initIdentifier.UseCount--;
-            }
 
-            initList.Assignments = new List<Constant>();
-            for (var i = 0; i < indexConstants.Count; i++)
-            {
-                var current = indexConstants[i];
-                var last = i != 0 ? indexConstants[i - 1] : null;
+                // Adjust for removed instruction
+                i--;
 
-                if (current.ConstType != Constant.ConstantType.ConstNumber ||
-                    (last == null && current.Number != 1) ||
-                    (last != null && (
-                        last.ConstType != Constant.ConstantType.ConstNumber ||
-                        current.Number != last.Number + 1)))
+                if (initList.Assignments == null)
+                    initList.Assignments = new List<Constant>();
+
+                // Add an explicit index for a non-sequential, non-numeric, or non-one based index
+                if (index.ConstType != Constant.ConstantType.ConstNumber ||
+                    (lastIndex == null && index.Number != 1) ||
+                    (lastIndex != null && (
+                        lastIndex.ConstType != Constant.ConstantType.ConstNumber ||
+                        index.Number != lastIndex.Number + 1)))
                 {
-                    initList.Assignments.Add(current);
+                    initList.Assignments.Add(index);
                 }
                 else
                 {
                     initList.Assignments.Add(null);
                 }
+
+                lastIndex = index;
             }
+
+            return changed;
         }
 
         /// <summary>
         /// Detects list initializers as a series of statements that serially add data to a newly initialized list
         /// </summary>
-        public void DetectListInitializers()
+        public bool DetectListInitializers()
         {
+            var changed = false;
             foreach (var b in BlockList)
             {
                 for (int i = 0; i < b.Instructions.Count(); i++)
                 {
-                    if (IsEmptyInitializerList(b.Instructions[i]))
+                    if (IsInitializerList(b.Instructions[i]))
                     {
                         // Eat up any statements that follow that match the initializer list pattern
-                        CollapseInitializerList(b, i);
+                        if (CollapseInitializerList(b, i))
+                            changed = true;
                     }
                 }
             }
+
+            return changed;
         }
 
         public List<CFG.BasicBlock> PostorderTraversal(bool reverse)

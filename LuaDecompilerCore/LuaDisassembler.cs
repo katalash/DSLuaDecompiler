@@ -2186,8 +2186,10 @@ namespace luadec
 
             // Data flow passes
             irfun.EliminateDeadAssignments(true);
-            irfun.DetectListInitializers();
             irfun.PerformExpressionPropagation(true);
+            irfun.DetectListInitializers();
+            irfun.PerformExpressionPropagation(false);
+
             // CFG passes
             irfun.StructureCompoundConditionals();
             irfun.DetectLoops();
