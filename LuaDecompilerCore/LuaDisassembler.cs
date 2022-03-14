@@ -1419,7 +1419,7 @@ namespace luadec
                         var jmp = new IR.Jump(irfun.GetLabel((uint)((i / 4) + 1 + sbx)), new IR.BinOp(new IR.IdentifierReference(SymbolTable.GetRegister(a)),
                             new IR.IdentifierReference(SymbolTable.GetRegister(a + 1)), IR.BinOp.OperationType.OpLoopCompare));
                         var pta = new IR.Assignment(SymbolTable.GetRegister(a + 3), Register((uint)a));
-                        pta.PropogateAlways = true;
+                        pta.PropagateAlways = true;
                         jmp.PostTakenAssignment = pta;
                         instructions.Add(jmp);
                         break;
@@ -1448,7 +1448,7 @@ namespace luadec
                     case Lua53Ops.OpTForLoop:
                         var jmp2 = new IR.Jump(irfun.GetLabel((uint)((i / 4) + 1 + sbx)), new IR.BinOp(Register((uint)a + 1), new IR.Constant(IR.Constant.ConstantType.ConstNil, -1), IR.BinOp.OperationType.OpEqual));
                         var pta2 = new IR.Assignment(SymbolTable.GetRegister(a), new IR.IdentifierReference(SymbolTable.GetRegister(a + 1)));
-                        pta2.PropogateAlways = true;
+                        pta2.PropagateAlways = true;
                         jmp2.PostTakenAssignment = pta2;
                         instructions.Add(jmp2);
                         break;
@@ -2027,7 +2027,7 @@ namespace luadec
                         var jmp = new IR.Jump(irfun.GetLabel(addr), new IR.BinOp(new IR.IdentifierReference(SymbolTable.GetRegister(a)),
                             new IR.IdentifierReference(SymbolTable.GetRegister(a + 1)), IR.BinOp.OperationType.OpLoopCompare));
                         var pta = new IR.Assignment(SymbolTable.GetRegister(a + 3), Register((uint)a));
-                        pta.PropogateAlways = true;
+                        pta.PropagateAlways = true;
                         jmp.PostTakenAssignment = pta;
                         instructions.Add(jmp);
                         break;

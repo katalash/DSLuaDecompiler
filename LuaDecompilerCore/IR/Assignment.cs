@@ -24,9 +24,9 @@ namespace luadec.IR
         public List<LuaFile.Local> LocalAssignments;
         
         /// <summary>
-        /// When this is set to true, the value defined by this is always expression/constant propogated, even if it's used more than once
+        /// When this is set to true, the value defined by this is always expression/constant propagated, even if it's used more than once
         /// </summary>
-        public bool PropogateAlways = false;
+        public bool PropagateAlways = false;
 
         /// <summary>
         /// This assignment represents an assignment to an indeterminant number of varargs

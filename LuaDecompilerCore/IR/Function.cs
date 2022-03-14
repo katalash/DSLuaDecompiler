@@ -671,7 +671,7 @@ namespace luadec.IR
                 if (b.Instructions.Count() > 0 && b.Instructions.Last() is Jump jmp && jmp.PostTakenAssignment != null)
                 {
                     b.Successors[1].Instructions.Insert(0, jmp.PostTakenAssignment);
-                    jmp.PostTakenAssignment.PropogateAlways = true;
+                    jmp.PostTakenAssignment.PropagateAlways = true;
                     jmp.PostTakenAssignment.Block = b.Successors[1];
                     jmp.PostTakenAssignment = null;
                 }
@@ -1297,15 +1297,15 @@ namespace luadec.IR
                             if (use.DefiningInstruction != null &&
                                 use.DefiningInstruction is Assignment a &&
                                 a.Left.Count() == 1 && a.LocalAssignments == null &&
-                                ((use.UseCount == 1 && ((i - 1 >= 0 && b.Instructions[i - 1] == use.DefiningInstruction) || (inst is Assignment a2 && a2.IsListAssignment)) && !definitelyLocal.Contains(use)) || a.PropogateAlways) &&
+                                ((use.UseCount == 1 && ((i - 1 >= 0 && b.Instructions[i - 1] == use.DefiningInstruction) || (inst is Assignment a2 && a2.IsListAssignment)) && !definitelyLocal.Contains(use)) || a.PropagateAlways) &&
                                 !a.Left[0].Identifier.IsClosureBound)
                             {
                                 // Don't substitute if this use's define was defined before the code gen for the function call even began
-                                if (!a.PropogateAlways && inst is Assignment a3 && a3.Right is FunctionCall fc && (use.DefiningInstruction.PrePropogationIndex < fc.FunctionDefIndex))
+                                if (!a.PropagateAlways && inst is Assignment a3 && a3.Right is FunctionCall fc && (use.DefiningInstruction.PrePropogationIndex < fc.FunctionDefIndex))
                                 {
                                     continue;
                                 }
-                                if (!a.PropogateAlways && inst is Return r && r.ReturnExpressions.Count == 1 && r.ReturnExpressions[0] is FunctionCall fc2 && (use.DefiningInstruction.PrePropogationIndex < fc2.FunctionDefIndex))
+                                if (!a.PropagateAlways && inst is Return r && r.ReturnExpressions.Count == 1 && r.ReturnExpressions[0] is FunctionCall fc2 && (use.DefiningInstruction.PrePropogationIndex < fc2.FunctionDefIndex))
                                 {
                                     continue;
                                 }
@@ -2443,8 +2443,8 @@ namespace luadec.IR
             HashSet<CFG.BasicBlock> processed = new HashSet<CFG.BasicBlock>();
             var remapCache = new Dictionary<CFG.BasicBlock, Dictionary<Identifier, Identifier>>();
 
-            // This is used to propogate replacements induced by a loop latch down a dominance heirarchy 
-            void BackPropogate(CFG.BasicBlock b, Dictionary<Identifier, Identifier> inReplacements)
+            // This is used to propagate replacements induced by a loop latch down a dominance heirarchy 
+            void BackPropagate(CFG.BasicBlock b, Dictionary<Identifier, Identifier> inReplacements)
             {
                 // Rename variables in the block by traversing in reverse order
                 for (int i = b.Instructions.Count() - 1; i >= 0; i--)
@@ -2470,7 +2470,7 @@ namespace luadec.IR
 
                 foreach (var succ in b.DominanceTreeSuccessors)
                 {
-                    BackPropogate(succ, inReplacements);
+                    BackPropagate(succ, inReplacements);
                 }
             }
 
@@ -2588,12 +2588,12 @@ namespace luadec.IR
                     }
                 }
 
-                // Propogate the replacements to children if this is a latch (i.e. induces a loop) and the head was already processed
+                // Propagate the replacements to children if this is a latch (i.e. induces a loop) and the head was already processed
                 foreach (var succ in b.Successors)
                 {
                     if (processed.Contains(succ) && succ.IsLoopHead)
                     {
-                        BackPropogate(succ, replacements);
+                        BackPropagate(succ, replacements);
                     }
                 }
 
@@ -2734,7 +2734,7 @@ namespace luadec.IR
                     }
                 }
 
-                // Propogate to children in the dominance heirarchy
+                // Propagate to children in the dominance heirarchy
                 foreach (var succ in b.DominanceTreeSuccessors)
                 {
                     visit(succ, newreplacements);
@@ -2750,8 +2750,8 @@ namespace luadec.IR
         public void AnnotateLocalDeclarations()
         {
             // This is kinda both a pre and post-order traversal of the dominance heirarchy. In the pre traversal,
-            // first local definitions are detected, marked, and propogated down the graph so that they aren't marked
-            // again. In the postorder traversal, these marked definitions are backpropogated up the dominance heirarchy.
+            // first local definitions are detected, marked, and propagated down the graph so that they aren't marked
+            // again. In the postorder traversal, these marked definitions are backpropagated up the dominance heirarchy.
             // If a node gets multiple marked nodes for the same variable from its children in the dominance heirarchy,
             // a new local assignment must be inserted right before the node splits.
             Dictionary<Identifier, List<Assignment>> visit(CFG.BasicBlock b, HashSet<Identifier> declared)
