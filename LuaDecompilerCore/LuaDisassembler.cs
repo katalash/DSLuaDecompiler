@@ -772,12 +772,14 @@ namespace luadec
                         instructions.Add(assn);
                         break;
                     case Lua50Ops.OpSelf:
-                        var op = new IR.Assignment(SymbolTable.GetRegister(a + 1), new IR.IdentifierReference(SymbolTable.GetRegister(b)));
-                        op.IsSelfAssignment = true;
-                        instructions.Add(op);
-                        op = new IR.Assignment(SymbolTable.GetRegister(a), new IR.IdentifierReference(SymbolTable.GetRegister(b), RKIR(fun, c)));
-                        op.IsSelfAssignment = true;
-                        instructions.Add(op);
+                        instructions.Add(new IR.Assignment(SymbolTable.GetRegister(a + 1), new IR.IdentifierReference(SymbolTable.GetRegister(b)))
+                        {
+                            IsSelfAssignment = true
+                        });
+                        instructions.Add(new IR.Assignment(SymbolTable.GetRegister(a), new IR.IdentifierReference(SymbolTable.GetRegister(b), RKIR(fun, c)))
+                        {
+                            IsSelfAssignment = true
+                        });
                         break;
                     case Lua50Ops.OpAdd:
                         //instructions.Add(new IR.PlaceholderInstruction(($@"R({a}) := {RK(fun, b)} + {RK(fun, c)}")));
@@ -1220,8 +1222,14 @@ namespace luadec
                         instructions.Add(assn);
                         break;
                     case Lua53Ops.OpSelf:
-                        instructions.Add(new IR.Assignment(SymbolTable.GetRegister(a + 1), new IR.IdentifierReference(SymbolTable.GetRegister(b))));
-                        instructions.Add(new IR.Assignment(SymbolTable.GetRegister(a), new IR.IdentifierReference(SymbolTable.GetRegister(b), RKIR53(fun, c))));
+                        instructions.Add(new IR.Assignment(SymbolTable.GetRegister(a + 1), new IR.IdentifierReference(SymbolTable.GetRegister(b)))
+                        {
+                            IsSelfAssignment = true
+                        });
+                        instructions.Add(new IR.Assignment(SymbolTable.GetRegister(a), new IR.IdentifierReference(SymbolTable.GetRegister(b), RKIR53(fun, c)))
+                        {
+                            IsSelfAssignment = true
+                        });
                         break;
                     case Lua53Ops.OpAdd:
                         assn = new IR.Assignment(SymbolTable.GetRegister(a), new IR.BinOp(RKIR53(fun, b), RKIR53(fun, c), IR.BinOp.OperationType.OpAdd));
@@ -1729,10 +1737,14 @@ namespace luadec
                         break;
                     
                     case LuaHKSOps.OpSelf:
-                        //instructions.Add(new IR.PlaceholderInstruction(($@"R({a + 1}) := R({b})")));
-                        instructions.Add(new IR.Assignment(SymbolTable.GetRegister(a + 1), Register((uint)b)));
-                        //instructions.Add(new IR.PlaceholderInstruction(($@"R({a}) := R({b})[{RK(fun, c)}]")));
-                        instructions.Add(new IR.Assignment(SymbolTable.GetRegister(a), new IR.IdentifierReference(SymbolTable.GetRegister((uint)b), RKIRHKS(fun, c, szero))));
+                        instructions.Add(new IR.Assignment(SymbolTable.GetRegister(a + 1), Register((uint)b))
+                        {
+                            IsSelfAssignment = true
+                        });
+                        instructions.Add(new IR.Assignment(SymbolTable.GetRegister(a), new IR.IdentifierReference(SymbolTable.GetRegister((uint)b), RKIRHKS(fun, c, szero)))
+                        {
+                            IsSelfAssignment = true
+                        });
                         break;
                     case LuaHKSOps.OpAdd:
                         //instructions.Add(new IR.PlaceholderInstruction(($@"R({a}) := {RK(fun, b)} + {RK(fun, c)}")));
