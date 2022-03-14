@@ -182,7 +182,7 @@ namespace luadec.CFG
         {
             bool IsClosure(int index)
             {
-                return Instructions[index] is IR.Assignment assn && assn.Right is IR.Closure;
+                return Instructions[index].GetExpressions().Where(e => e is IR.Closure).Any();
             }
 
             string ret = "";
