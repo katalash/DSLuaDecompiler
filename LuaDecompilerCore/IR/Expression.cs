@@ -93,6 +93,51 @@ namespace luadec.IR
             ConstantID = id;
         }
 
+        public override bool Equals(object obj)
+        {
+            if (!(obj is Constant other) || ConstType != other.ConstType)
+                return false;
+
+            switch (ConstType)
+            {
+                case ConstantType.ConstNumber:
+                    return Number == other.Number;
+                case ConstantType.ConstInteger:
+                    return Integer == other.Integer;
+                case ConstantType.ConstString:
+                    return String == other.String;
+                case ConstantType.ConstBool:
+                    return Boolean == other.Boolean;
+                case ConstantType.ConstTable:
+                case ConstantType.ConstVarargs:
+                case ConstantType.ConstNil:
+                    return true;
+            }
+
+            return false;
+        }
+
+        public override int GetHashCode()
+        {
+            switch (ConstType)
+            {
+                case ConstantType.ConstNumber:
+                    return Number.GetHashCode();
+                case ConstantType.ConstInteger:
+                    return Integer.GetHashCode();
+                case ConstantType.ConstString:
+                    return String.GetHashCode();
+                case ConstantType.ConstBool:
+                    return Boolean.GetHashCode();
+                case ConstantType.ConstTable:
+                case ConstantType.ConstVarargs:
+                case ConstantType.ConstNil:
+                    return ConstType.GetHashCode();
+            }
+
+            return 0;
+        }
+
         public override string ToString()
         {
             switch (ConstType)

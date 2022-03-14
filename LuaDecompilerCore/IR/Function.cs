@@ -1404,6 +1404,7 @@ namespace luadec.IR
             var initList = initAssign.Right as InitializerList;
             var initIdentifier = initAssign.Left[0].Identifier;
 
+            var usedIndices = new List<Constant>();
             Constant lastIndex = null;
             var changed = false;
 
@@ -1427,6 +1428,10 @@ namespace luadec.IR
 
                 if (!(a.Left[0].TableIndices.FirstOrDefault() is Constant index))
                     continue;
+
+                // No longer an initializer if indices are being reassigned
+                if (usedIndices.Any(used => used.Equals(index)))
+                    break;
 
                 // Add to initializer list
                 changed = true;
@@ -1455,6 +1460,7 @@ namespace luadec.IR
                     initList.Assignments.Add(null);
                 }
 
+                usedIndices.Add(index);
                 lastIndex = index;
             }
 
