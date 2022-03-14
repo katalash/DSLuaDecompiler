@@ -1388,10 +1388,10 @@ namespace luadec.IR
             } while (changed);
         }
 
-        private bool IsInitializerList(IInstruction instruction)
+        private bool IsEmptyInitializerList(IInstruction instruction)
         {
             return instruction is Assignment a && a.Left.Count() == 1 && !a.Left[0].HasIndex &&
-                   a.Right is InitializerList;
+                   a.Right is InitializerList il && il.Exprs.Count == 0;
         }
 
         /// <summary>
@@ -1471,7 +1471,7 @@ namespace luadec.IR
             {
                 for (int i = 0; i < b.Instructions.Count(); i++)
                 {
-                    if (IsInitializerList(b.Instructions[i]))
+                    if (IsEmptyInitializerList(b.Instructions[i]))
                     {
                         // Eat up any statements that follow that match the initializer list pattern
                         if (CollapseInitializerList(b, i))
