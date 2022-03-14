@@ -2186,6 +2186,7 @@ namespace luadec
 
             // Data flow passes
             irfun.EliminateDeadAssignments(true);
+#warning debug
             irfun.PerformExpressionPropagation(true);
             irfun.DetectListInitializers();
             irfun.PerformExpressionPropagation(false);

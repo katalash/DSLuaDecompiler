@@ -1109,11 +1109,13 @@ namespace luadec.IR
                             unusedDefines.Remove(use);
                         }
 
+#if USE_LOCAL_REGS_HEURISTIC
                         if (thisLocalRegs.Contains(use.OriginalIdentifier))
                         {
                             // Already marked as a local
                             continue;
                         }
+#endif
 
                         if (definitelyLocal.Contains(use))
                         {
@@ -1174,12 +1176,14 @@ namespace luadec.IR
                         }
 
                         // Move on if it's a known local
+#if USE_LOCAL_REGS_HEURISTIC
                         if (thisLocalRegs.Contains(def.OriginalIdentifier))
                         {
                             // Make sure the def is marked as local
                             definitelyLocal.Add(def);
                             continue;
                         }
+#endif
 
                         // Add the new def to the unused defs until it's used otherwise
                         unusedDefines.Add(def);
