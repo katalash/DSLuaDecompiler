@@ -1143,47 +1143,30 @@ namespace luadec.IR
 
                     var defines = b.Instructions[i].GetDefines(true);
 
-                    // If this is a multiassignment then these variables are almost certainly locals
-                    if (defines.Count > 1)
+                    // Self instructions have a lot of information because they always use the next available temp registers. This
+                    // means that any pending uses below us that haven't been redefined yet are actually locals. Note that the SELF
+                    // op actually translates to two IR ops with two registers used, so we account for that
+                    if (b.Instructions[i] is Assignment self && self.IsSelfAssignment)
                     {
-                        foreach (var def in defines)
+                        var def1 = defines.First();
+                        var def2 = b.Instructions[i + 1].GetDefines(true).First(); // Second instruction
+
+                        foreach (var k in recentlyUsed.Keys)
                         {
-                            // Unfortunately this pretty much kills any previous def of this in scope's chances to actually be a local
-                            if (recentlyUsed.ContainsKey(def.OriginalIdentifier))
+                            // If the reg number is less than the second define then it's a local
+                            if (k.Regnum < def2.OriginalIdentifier.Regnum)
                             {
-                                recentlyUsed.Remove(def.OriginalIdentifier);
+                                definitelyLocal.Add(recentlyUsed[k]);
+                                thisLocalRegs.Add(k);
                             }
-                            definitelyLocal.Add(def);
-                            thisLocalRegs.Add(def.OriginalIdentifier);
                         }
+                        recentlyUsed.Clear();
+                        i++;
+                        continue;
                     }
-                    // This is more interesting
-                    else if (defines.Count == 1)
+
+                    foreach (var def in defines)
                     {
-                        // Self instructions have a lot of information because they always use the next available temp registers. This
-                        // means that any pending uses below us that haven't been redefined yet are actually locals. Note that the SELF
-                        // op actually translates to two IR ops with two registers used, so we account for that
-                        if (b.Instructions[i] is Assignment self && self.IsSelfAssignment)
-                        {
-                            var def1 = defines.First();
-                            var def2 = b.Instructions[i + 1].GetDefines(true).First(); // Second instruction
-
-                            foreach (var k in recentlyUsed.Keys)
-                            {
-                                // If the reg number is less than the second define then it's a local
-                                if (k.Regnum < def2.OriginalIdentifier.Regnum)
-                                {
-                                    definitelyLocal.Add(recentlyUsed[k]);
-                                    thisLocalRegs.Add(k);
-                                }
-                            }
-                            recentlyUsed.Clear();
-                            i++;
-                            continue;
-                        }
-
-                        var def = defines.First();
-
                         // Skip upvalue
                         if (def.IsClosureBound || def.Renamed)
                         {
@@ -1216,12 +1199,6 @@ namespace luadec.IR
                             recentlyUsed.Clear();
                             continue;
                         }
-
-                        // We're now seeing a new register defined. Anything left in recently used is probably a local
-                        /*foreach (var ru in recentlyUsed)
-                        {
-                            definitelyLocal.Add()
-                        }*/
                     }
                 }
 
