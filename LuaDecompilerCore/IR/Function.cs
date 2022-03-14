@@ -1035,7 +1035,7 @@ namespace luadec.IR
         }
 
         private HashSet<Identifier> definitelyLocal = new HashSet<Identifier>();
-        // Given the IR is in SSA form, this does expression propogation/substitution
+        // Given the IR is in SSA form, this does expression propagation/substitution
         public void PerformExpressionPropagation(bool firstpass)
         {
             // Lua function calls (and expressions in general have their bytecode generated recursively. This means for example when doing a function call,
@@ -1049,7 +1049,7 @@ namespace luadec.IR
                     var selfs = new HashSet<Identifier>();
                     for (int i = 0; i < b.Instructions.Count(); i++)
                     {
-                        b.Instructions[i].PrePropogationIndex = i;
+                        b.Instructions[i].PrePropagationIndex = i;
                         var defs = b.Instructions[i].GetDefines(true);
                         if (defs.Count == 1)
                         {
@@ -1301,11 +1301,11 @@ namespace luadec.IR
                                 !a.Left[0].Identifier.IsClosureBound)
                             {
                                 // Don't substitute if this use's define was defined before the code gen for the function call even began
-                                if (!a.PropagateAlways && inst is Assignment a3 && a3.Right is FunctionCall fc && (use.DefiningInstruction.PrePropogationIndex < fc.FunctionDefIndex))
+                                if (!a.PropagateAlways && inst is Assignment a3 && a3.Right is FunctionCall fc && (use.DefiningInstruction.PrePropagationIndex < fc.FunctionDefIndex))
                                 {
                                     continue;
                                 }
-                                if (!a.PropagateAlways && inst is Return r && r.ReturnExpressions.Count == 1 && r.ReturnExpressions[0] is FunctionCall fc2 && (use.DefiningInstruction.PrePropogationIndex < fc2.FunctionDefIndex))
+                                if (!a.PropagateAlways && inst is Return r && r.ReturnExpressions.Count == 1 && r.ReturnExpressions[0] is FunctionCall fc2 && (use.DefiningInstruction.PrePropagationIndex < fc2.FunctionDefIndex))
                                 {
                                     continue;
                                 }

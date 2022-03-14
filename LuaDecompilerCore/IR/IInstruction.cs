@@ -17,9 +17,9 @@ namespace luadec.IR
         public int OpLocation = 0;
 
         /// <summary>
-        /// The instruction index in a basic block before propogation is done
+        /// The instruction index in a basic block before propagation is done
         /// </summary>
-        public int PrePropogationIndex = 0;
+        public int PrePropagationIndex = 0;
 
         /// <summary>
         /// Backpointer to the containing block. Used for some analysis
