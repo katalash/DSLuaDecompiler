@@ -1243,6 +1243,7 @@ namespace luadec.IR
                     }
                 }
 
+#if USE_LOCAL_REG_NUM_HEURISTIC
                 // Localize remaining identifiers with reg numbers below the first presumed temp define in the following blocks in scope
                 if (childFirstDef != -1 && childFirstDef != int.MaxValue)
                 {
@@ -1256,6 +1257,7 @@ namespace luadec.IR
                         }
                     }
                 }
+#endif
 
                 // Find the register of the first non-local define to return
                 int firstTempDef = -1;
