@@ -1274,7 +1274,8 @@ namespace luadec.IR
                 changed = false;
                 foreach (var b in BlockList)
                 {
-                    for (int i = 0; i < b.Instructions.Count(); i++)
+                    // Propagate single assignments
+                    for (int i = 0; i < b.Instructions.Count; i++)
                     {
                         var inst = b.Instructions[i];
                         foreach (var use in inst.GetUses(true))
@@ -1287,27 +1288,77 @@ namespace luadec.IR
                             {
                                 // Don't substitute if this use's define was defined before the code gen for the function call even began
                                 if (!a.PropagateAlways && inst is Assignment a3 && a3.Right is FunctionCall fc && (use.DefiningInstruction.PrePropagationIndex < fc.FunctionDefIndex))
-                                {
                                     continue;
-                                }
+
                                 if (!a.PropagateAlways && inst is Return r && r.ReturnExpressions.Count == 1 && r.ReturnExpressions[0] is FunctionCall fc2 && (use.DefiningInstruction.PrePropagationIndex < fc2.FunctionDefIndex))
-                                {
                                     continue;
-                                }
-                                bool replaced = inst.ReplaceUses(use, a.Right);
-                                if (a.Block != null && replaced)
+
+                                if (a.Left.Count == 1)
                                 {
-                                    changed = true;
-                                    a.Block.Instructions.Remove(a);
-                                    SSAVariables.Remove(use);
-                                    if (b == a.Block)
+                                    bool replaced = inst.ReplaceUses(use, a.Right);
+                                    if (a.Block != null && replaced)
                                     {
-                                        //i--;
-                                        i = -1;
+                                        changed = true;
+                                        a.Block.Instructions.Remove(a);
+                                        SSAVariables.Remove(use);
+                                        if (b == a.Block)
+                                            i = -1;
                                     }
                                 }
                             }
                         }
+                    }
+                    // Propagate multi assignments
+                    for (int i = 0; i < b.Instructions.Count; i++)
+                    {
+                        var inst = b.Instructions[i];
+                        if (!(inst is Assignment a) || a.Left.Count <= 1 || a.LocalAssignments != null)
+                            continue;
+
+                        if (i + a.Left.Count > b.Instructions.Count)
+                            continue;
+
+                        void MultiPropagate()
+                        {
+                            var copiedTemps = new List<Identifier>();
+
+                            for (int j = 0; j < a.Left.Count; j++)
+                            {
+                                if (a.Left[j].HasIndex)
+                                    return;
+
+                                var id = a.Left[j].Identifier;
+                                if (((id.UseCount != 1 || definitelyLocal.Contains(id)) && !a.PropagateAlways) || id.IsClosureBound)
+                                    return;
+
+                                // Must have a matching assignment from a temp variable
+                                var target = b.Instructions[i + j + 1];
+                                if (!(target is Assignment ta) || ta.Left.Count != 1)
+                                    return;
+
+                                if (!(ta.Right is IdentifierReference idref) || idref.HasIndex)
+                                    return;
+
+                                if (!a.Left.Select(idr => idr.Identifier).Contains(idref.Identifier))
+                                    return;
+
+                                if (copiedTemps.Contains(idref.Identifier))
+                                    return;
+
+                                copiedTemps.Add(idref.Identifier);
+                            }
+
+                            // Replace temps with destination vars and remove copies
+                            for (int j = 0; j < a.Left.Count; j++)
+                            {
+                                var offset = copiedTemps.IndexOf(a.Left[j].Identifier);
+                                a.Left[j] = ((Assignment)b.Instructions[i + offset + 1]).Left[0];
+                            }
+
+                            b.Instructions.RemoveRange(i + 1, a.Left.Count);
+                        };
+
+                        MultiPropagate();
                     }
                 }
 
