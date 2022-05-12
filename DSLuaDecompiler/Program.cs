@@ -4,6 +4,8 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.IO;
+using System.Net.Mime;
+using System.Threading.Channels;
 using luadec;
 using luadec.Utilities;
 
@@ -11,6 +13,11 @@ namespace luadec
 {
     class Program
     {
+        public static void UsageStatement()
+        {
+            Console.WriteLine("Usage: DSLuaDecompiler.exe [options] inputfile.lua\n-o outputfile.lua\n-d Print output in console");
+            Environment.Exit(0);
+        }
         static void Main(string[] args)
         {
             Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
@@ -24,19 +31,29 @@ namespace luadec
             {
                 try
                 {
-                    if (args[arg] == "-d")
+                    if (args[arg].ToLower() == "-d")
                     {
                         writeFile = false;
                         arg++;
                         continue;
                     }
-                    else if (args[arg] == "-o")
+                    if (args[arg].ToLower() == "-o")
                     {
                         outfilename = args[arg + 1];
                         arg += 2;
                         continue;
                     }
+                    if (args[arg].ToLower() == "-h")
+                    {
+                        outfilename = args[arg + 1];
+                        arg += 2;
+                        continue;
+                    }
+
                     infilename = args[arg];
+                    if (!File.Exists(infilename))
+                        UsageStatement();
+
                     if (outfilename == null)
                     {
                         outfilename =
@@ -46,7 +63,7 @@ namespace luadec
                 }
                 catch (Exception)
                 {
-                    Console.WriteLine("Usage: DSLuaDecompiler.exe [options] inputfile.lua\n-o outputfile.lua\n-d Print output in console");
+                    UsageStatement();
                     return;
                 }
 
