@@ -61,7 +61,7 @@ namespace DecompilerTester
             string dirfail,
             ref int fails,
             ref int compilefails,
-            ref int matches,
+            ref List<string> matches,
             ref int mismatches)
         {
             Encoding encoding = Encoding.UTF8;
@@ -115,7 +115,7 @@ namespace DecompilerTester
                         Console.ForegroundColor = ConsoleColor.Green;
                         Console.WriteLine("        Matched");
                         Console.ForegroundColor = ConsoleColor.White;
-                        ++matches;
+                        matches.Add(Path.GetFileName(name));
                     }
                     else
                     {
@@ -157,7 +157,7 @@ namespace DecompilerTester
             int fails = 0;
             int compilefails = 0;
             int mismatches = 0;
-            int matches = 0;
+            List<string> matches = new();
             if (Directory.Exists("output"))
                 Directory.Delete("output", true);
             if (!Directory.Exists("output/mismatches"))
@@ -200,6 +200,9 @@ namespace DecompilerTester
                     ref mismatches);
             }
 
+            string matchesDir = "output/matches.txt";
+            File.WriteAllLines(matchesDir, matches);
+
             Console.WriteLine();
             Console.WriteLine("Decompilation stats:");
             Console.WriteLine($"Total Lua Files:      {num}");
@@ -210,7 +213,7 @@ namespace DecompilerTester
             Console.ForegroundColor = ConsoleColor.Yellow;
             Console.WriteLine($"Mismatches:           {mismatches}");
             Console.ForegroundColor = ConsoleColor.Green;
-            Console.WriteLine($"Matches:              {matches}");
+            Console.WriteLine($"Matches:              {matches.Count}");
             Console.ReadLine();
         }
     }
