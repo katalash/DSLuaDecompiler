@@ -31,6 +31,10 @@
         public bool Renamed = false;
         public Identifier OriginalIdentifier = null;
 
+        // A name fragment that may be set if the identifier is used in certain common patterns. This is not globally or even locally unique; it just
+        // serves as input to the renaming function which will make it unique.
+        public string HeuristicName;
+
         // Some stuff to help with analysis
         public uint Regnum = 0;
         public IInstruction DefiningInstruction = null;

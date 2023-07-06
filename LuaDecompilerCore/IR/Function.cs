@@ -3177,7 +3177,22 @@ namespace LuaDecompilerCore.IR
         // Rename variables from their temporary register based names to something more generic
         public void RenameVariables()
         {
+            FindHeuristicNames();
+
             HashSet<Identifier> renamed = new HashSet<Identifier>();
+
+            var allIdentifiers = Parameters.Concat(
+                    BlockList.SelectMany(
+                        b => b.Instructions.OfType<Assignment>().SelectMany(
+                            a => a.Left.OfType<IdentifierReference>()
+                                .Where(ir => !ir.HasIndex && ir.Identifier.IType == Identifier.IdentifierType.Register && !ir.Identifier.Renamed)
+                                .Select(ir => ir.Identifier))))
+                .ToHashSet();
+            var heuristicNeedsNumber = allIdentifiers
+                .Where(p => p.HeuristicName != null)
+                .GroupBy(p => p.HeuristicName)
+                .ToDictionary(g => g.Key, g => g.Count() > 1);
+            var heuristicNameCounts = heuristicNeedsNumber.ToDictionary(g => g.Key, g => 0);
 
             // Rename function arguments
             for (int i = 0; i < Parameters.Count(); i++)
@@ -3186,6 +3201,19 @@ namespace LuaDecompilerCore.IR
                 if (ArgumentNames != null && ArgumentNames.Count() > i)
                 {
                     Parameters[i].Name = ArgumentNames[i].Name;
+                }
+                else if (Parameters[i].HeuristicName is string name)
+                {
+                    var suffix = "";
+                    if (heuristicNeedsNumber[name]) {
+                        suffix = heuristicNameCounts[name].ToString();
+                        heuristicNameCounts[name]++;
+                    }
+                    Parameters[i].Name = Parameters[i].HeuristicName + suffix;
+                }
+                else if (Parameters[i].UseCount == 0)
+                {
+                    Parameters[i].Name = "_";
                 }
                 else
                 {
@@ -3211,6 +3239,15 @@ namespace LuaDecompilerCore.IR
                                 {
                                     ir.Identifier.Name = a.LocalAssignments[ll].Name;
                                 }
+                                else if (ir.Identifier.HeuristicName is string name)
+                                {
+                                    var suffix = "";
+                                    if (heuristicNeedsNumber[name]) {
+                                        suffix = heuristicNameCounts[name].ToString();
+                                        heuristicNameCounts[name]++;
+                                    }
+                                    ir.Identifier.Name = ir.Identifier.HeuristicName + suffix;
+                                }
                                 else
                                 {
                                     ir.Identifier.Name = $@"f{DebugID}_local{localCounter}";
@@ -3223,6 +3260,239 @@ namespace LuaDecompilerCore.IR
                         }
                     }
                 }
+            }
+        }
+
+                // Look for common FromSoft patterns in how variables are assigned and used to determine if any of them should use more legible common names.
+        private void FindHeuristicNames()
+        {
+            foreach (var b in BlockList)
+            {
+                foreach (var i in b.Instructions)
+                {
+                    if (i is Assignment a)
+                    {
+                        var value = a.Right;
+                        if (a.Left.Count == 1)
+                        {
+                            var target = a.Left[0];
+                            if (LocalMethodName(value) is string m)
+                            {
+                                switch (m)
+                                {
+                                    case "GetDist":
+                                        MaybeSetHeuristicName(target, "distance");
+                                        break;
+
+                                    case "GetRandam_Int":
+                                    case "GetRandam_Float":
+                                        MaybeSetHeuristicName(target, "random");
+                                        break;
+                                }
+                            }
+                            else if (GlobalIdentifier(value) is String global && global.StartsWith("TARGET_"))
+                            {
+                                MaybeSetHeuristicName(value, "target");
+                            }
+                        }
+
+                        if (LocalMethodName(value) is string method)
+                        {
+                            switch (method)
+                            {
+                                case "HasSpecialEffectId":
+                                case "AddObserveSpecialEffectAttribute":
+                                    MaybeSetHeuristicName(MethodReceiver(value), "actor");
+                                    MaybeSetHeuristicName(FunctionArg(value, 0), "target");
+                                    MaybeSetHeuristicName(FunctionArg(value, 1), "speffect");
+                                    break;
+
+                                case "DoEzAction":
+                                    MaybeSetHeuristicName(MethodReceiver(value), "actor");
+                                    MaybeSetHeuristicName(FunctionArg(value, 2), "action");
+                                    break;
+
+                                case "ClearSubGoal":
+                                    MaybeSetHeuristicName(MethodReceiver(value), "goals");
+                                    break;
+
+                                case "Common_Battle_Activate":
+                                    MaybeSetHeuristicName(FunctionArg(value, 0), "actor");
+                                    MaybeSetHeuristicName(FunctionArg(value, 1), "goals");
+                                    MaybeSetHeuristicName(FunctionArg(value, 2), "probabilities");
+                                    MaybeSetHeuristicName(FunctionArg(value, 3), "acts");
+                                    MaybeSetHeuristicName(FunctionArg(value, 4), "fallback");
+                                    break;
+
+                                case "GetDist":
+                                    MaybeSetHeuristicName(MethodReceiver(value), "actor");
+                                    MaybeSetHeuristicName(FunctionArg(value, 0), "target");
+                                    break;
+
+                                case "GetRandam_Int":
+                                case "GetRandam_Float":
+                                    MaybeSetHeuristicName(MethodReceiver(value), "actor");
+                                    MaybeSetHeuristicName(FunctionArg(value, 0), "min");
+                                    MaybeSetHeuristicName(FunctionArg(value, 1), "max");
+                                    break;
+
+                                case "IsInterupt":
+                                    MaybeSetHeuristicName(MethodReceiver(value), "actor");
+                                    MaybeSetHeuristicName(FunctionArg(value, 0), "interrupt");
+                                    break;
+
+                                case "AddSubGoal":
+                                    MaybeSetHeuristicName(MethodReceiver(value), "goals");
+                                    switch (GlobalIdentifier(FunctionArg(value, 0)))
+                                    {
+                                        case "GOAL_COMMON_ApproachTarget":
+                                        case "GOAL_COMMON_LeaveTarget":
+                                            MaybeSetHeuristicName(FunctionArg(value, 2), "movement_target");
+                                            MaybeSetHeuristicName(FunctionArg(value, 3), "distance");
+                                            MaybeSetHeuristicName(FunctionArg(value, 4), "turning_target");
+                                            MaybeSetHeuristicName(FunctionArg(value, 5), "is_walking");
+                                            MaybeSetHeuristicName(FunctionArg(value, 6), "action");
+                                            break;
+
+                                        case "GOAL_COMMON_ComboAttackTunableSpin":
+                                        case "GOAL_COMMON_ComboTunable_SuccessAngle180":
+                                            MaybeSetHeuristicName(FunctionArg(value, 2), "action");
+                                            MaybeSetHeuristicName(FunctionArg(value, 3), "target");
+                                            MaybeSetHeuristicName(FunctionArg(value, 4), "success_distance");
+                                            MaybeSetHeuristicName(FunctionArg(value, 5), "turn_time_before");
+                                            MaybeSetHeuristicName(FunctionArg(value, 6), "front_decision_angle");
+                                            MaybeSetHeuristicName(FunctionArg(value, 7), "max_angle");
+                                            MaybeSetHeuristicName(FunctionArg(value, 8), "min_angle");
+                                            break;
+
+                                        case "GOAL_COMMON_ComboRepeat":
+                                            MaybeSetHeuristicName(FunctionArg(value, 2), "action");
+                                            MaybeSetHeuristicName(FunctionArg(value, 3), "target");
+                                            MaybeSetHeuristicName(FunctionArg(value, 4), "success_distance");
+                                            MaybeSetHeuristicName(FunctionArg(value, 5), "max_angle");
+                                            MaybeSetHeuristicName(FunctionArg(value, 6), "min_angle");
+                                            MaybeSetHeuristicName(FunctionArg(value, 7), "success_angle");
+                                            break;
+
+                                        case "GOAL_COMMON_SidewayMove":
+                                            MaybeSetHeuristicName(FunctionArg(value, 2), "target");
+                                            MaybeSetHeuristicName(FunctionArg(value, 6), "action");
+                                            break;
+
+                                        case "GOAL_COMMON_StepSafety":
+                                            MaybeSetHeuristicName(FunctionArg(value, 2), "forward_priority");
+                                            MaybeSetHeuristicName(FunctionArg(value, 3), "back_priority");
+                                            MaybeSetHeuristicName(FunctionArg(value, 4), "left_priority");
+                                            MaybeSetHeuristicName(FunctionArg(value, 5), "right_priority");
+                                            MaybeSetHeuristicName(FunctionArg(value, 6), "target");
+                                            MaybeSetHeuristicName(FunctionArg(value, 7), "safe_distance");
+                                            MaybeSetHeuristicName(FunctionArg(value, 8), "turn_time_before");
+                                            MaybeSetHeuristicName(FunctionArg(value, 9), "success_if_impossible");
+                                            break;
+
+                                        case "GOAL_COMMON_Turn":
+                                            MaybeSetHeuristicName(FunctionArg(value, 2), "target");
+                                            MaybeSetHeuristicName(FunctionArg(value, 3), "font_decision_angle");
+                                            MaybeSetHeuristicName(FunctionArg(value, 4), "action");
+                                            MaybeSetHeuristicName(FunctionArg(value, 5), "desire");
+                                            MaybeSetHeuristicName(FunctionArg(value, 6), "success_if_dead");
+                                            break;
+
+                                        // There are plenty more goals in use—these are just the ones I found in a sample AI script. Additional ones
+                                        // can be added as-needed, or en masse if someone's got a lot of time on their hands.
+                                    }
+                                    break;
+                            }
+                        }
+                        else if (FunctionName(value) is string function)
+                        {
+                            switch (function) {
+                                case "Common_Battle_Activate":
+                                    MaybeSetHeuristicName(FunctionArg(value, 0), "actor");
+                                    MaybeSetHeuristicName(FunctionArg(value, 1), "goals");
+                                    MaybeSetHeuristicName(FunctionArg(value, 2), "probabilities");
+                                    MaybeSetHeuristicName(FunctionArg(value, 3), "acts");
+                                    MaybeSetHeuristicName(FunctionArg(value, 4), "fallback");
+                                    break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // If `e` is a method call on a local variable, returns the name of the method being called.
+        private string LocalMethodName(Expression e)
+        {
+            if (e is FunctionCall fc && fc.IsMethodCall && fc.Function is IdentifierReference ir && ir.TableIndices.Count == 1 &&
+                ir.TableIndices[0] is Constant c && c.ConstType == Constant.ConstantType.ConstString &&
+                ir.Identifier.IType != Identifier.IdentifierType.GlobalTable)
+            {
+                return c.String;
+            }
+            return null;
+        }
+
+        // If `e` is a function call, returns the name of the function being called.
+        private string FunctionName(Expression e)
+        {
+            if (e is FunctionCall fc && fc.Function is IdentifierReference ir && ir.TableIndices.Count == 0 &&
+                ir.Identifier.IType == Identifier.IdentifierType.Global)
+            {
+                return ir.Identifier.Name;
+            }
+            return null;
+        }
+
+        // If `e` is a reference to a global identifier, returns that identifier's name.
+        private string GlobalIdentifier(Expression e)
+        {
+            if (e is IdentifierReference ir && !ir.HasIndex &&
+                (ir.Identifier.IType == Identifier.IdentifierType.Global || ir.Identifier.IType == Identifier.IdentifierType.GlobalTable))
+            {
+                return ir.Identifier.Name;
+            }
+            return null;
+        }
+
+        // If `e` is a function call with at least `i + 1` arguments, returns the argument at the given index.
+        private Expression FunctionArg(Expression e, int i)
+        {
+            if (e is FunctionCall fc)
+            {
+                // Method calls have an implicit self arg.
+                if (fc.IsMethodCall) i++;
+                if (i < fc.Args.Count)
+                {
+                    return fc.Args[i];
+                }
+            }
+            return null;
+        }
+
+        // If `e` is a method call, returns its receiver.
+        private Identifier MethodReceiver(Expression e)
+        {
+            if (e is FunctionCall fc) return fc.MethodReceiver;
+            return null;
+        }
+
+        // If `e` is a reference to a local variable that doesn't already have a name, set its heuristic name to `name`.
+        private void MaybeSetHeuristicName(Expression e, string name)
+        {
+            if (e is IdentifierReference ir && !ir.HasIndex)
+            {
+                MaybeSetHeuristicName(ir.Identifier, name);
+            }
+        }
+
+        // If `e` is a reference to a local variable that doesn't already have a name, set its heuristic name to `name`.
+        private void MaybeSetHeuristicName(Identifier i, string name)
+        {
+            if (!i.Renamed && i.HeuristicName == null &&
+                (i.IType == Identifier.IdentifierType.Register || i.IType == Identifier.IdentifierType.Upvalue))
+            {
+                i.HeuristicName = name;
             }
         }
 
