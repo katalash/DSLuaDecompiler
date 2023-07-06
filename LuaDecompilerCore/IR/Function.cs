@@ -3211,10 +3211,10 @@ namespace LuaDecompilerCore.IR
                     }
                     Parameters[i].Name = Parameters[i].HeuristicName + suffix;
                 }
-                else if (Parameters[i].UseCount == 0)
-                {
-                    Parameters[i].Name = "_";
-                }
+                // else if (Parameters[i].UseCount == 0)
+                // {
+                //     Parameters[i].Name = "_";
+                // }
                 else
                 {
                     Parameters[i].Name = $@"arg{i}";
