@@ -3302,53 +3302,53 @@ namespace LuaDecompilerCore.IR
                             {
                                 case "HasSpecialEffectId":
                                 case "AddObserveSpecialEffectAttribute":
-                                    MaybeSetHeuristicName(MethodReceiver(value), "actor");
+                                    MaybeSetHeuristicName(MethodReceiver(value), "ai");
                                     MaybeSetHeuristicName(FunctionArg(value, 0), "target");
                                     MaybeSetHeuristicName(FunctionArg(value, 1), "speffect");
                                     break;
 
                                 case "DoEzAction":
-                                    MaybeSetHeuristicName(MethodReceiver(value), "actor");
+                                    MaybeSetHeuristicName(MethodReceiver(value), "ai");
                                     MaybeSetHeuristicName(FunctionArg(value, 2), "action");
                                     break;
 
                                 case "ClearSubGoal":
-                                    MaybeSetHeuristicName(MethodReceiver(value), "goals");
+                                    MaybeSetHeuristicName(MethodReceiver(value), "goal");
                                     break;
 
                                 case "Common_Battle_Activate":
-                                    MaybeSetHeuristicName(FunctionArg(value, 0), "actor");
-                                    MaybeSetHeuristicName(FunctionArg(value, 1), "goals");
-                                    MaybeSetHeuristicName(FunctionArg(value, 2), "probabilities");
+                                    MaybeSetHeuristicName(FunctionArg(value, 0), "ai");
+                                    MaybeSetHeuristicName(FunctionArg(value, 1), "goal");
+                                    MaybeSetHeuristicName(FunctionArg(value, 2), "fate");
                                     MaybeSetHeuristicName(FunctionArg(value, 3), "acts");
                                     MaybeSetHeuristicName(FunctionArg(value, 4), "fallback");
                                     break;
 
                                 case "GetDist":
-                                    MaybeSetHeuristicName(MethodReceiver(value), "actor");
+                                    MaybeSetHeuristicName(MethodReceiver(value), "ai");
                                     MaybeSetHeuristicName(FunctionArg(value, 0), "target");
                                     break;
 
                                 case "GetRandam_Int":
                                 case "GetRandam_Float":
-                                    MaybeSetHeuristicName(MethodReceiver(value), "actor");
+                                    MaybeSetHeuristicName(MethodReceiver(value), "ai");
                                     MaybeSetHeuristicName(FunctionArg(value, 0), "min");
                                     MaybeSetHeuristicName(FunctionArg(value, 1), "max");
                                     break;
 
                                 case "IsInterupt":
-                                    MaybeSetHeuristicName(MethodReceiver(value), "actor");
+                                    MaybeSetHeuristicName(MethodReceiver(value), "ai");
                                     MaybeSetHeuristicName(FunctionArg(value, 0), "interrupt");
                                     break;
 
                                 case "AddSubGoal":
-                                    MaybeSetHeuristicName(MethodReceiver(value), "goals");
+                                    MaybeSetHeuristicName(MethodReceiver(value), "goal");
                                     switch (GlobalIdentifier(FunctionArg(value, 0)))
                                     {
                                         case "GOAL_COMMON_ApproachTarget":
                                         case "GOAL_COMMON_LeaveTarget":
                                             MaybeSetHeuristicName(FunctionArg(value, 2), "movement_target");
-                                            MaybeSetHeuristicName(FunctionArg(value, 3), "distance");
+                                            MaybeSetHeuristicName(FunctionArg(value, 3), "dist");
                                             MaybeSetHeuristicName(FunctionArg(value, 4), "turning_target");
                                             MaybeSetHeuristicName(FunctionArg(value, 5), "is_walking");
                                             MaybeSetHeuristicName(FunctionArg(value, 6), "action");
@@ -3408,9 +3408,9 @@ namespace LuaDecompilerCore.IR
                         {
                             switch (function) {
                                 case "Common_Battle_Activate":
-                                    MaybeSetHeuristicName(FunctionArg(value, 0), "actor");
-                                    MaybeSetHeuristicName(FunctionArg(value, 1), "goals");
-                                    MaybeSetHeuristicName(FunctionArg(value, 2), "probabilities");
+                                    MaybeSetHeuristicName(FunctionArg(value, 0), "ai");
+                                    MaybeSetHeuristicName(FunctionArg(value, 1), "goal");
+                                    MaybeSetHeuristicName(FunctionArg(value, 2), "fate");
                                     MaybeSetHeuristicName(FunctionArg(value, 3), "acts");
                                     MaybeSetHeuristicName(FunctionArg(value, 4), "fallback");
                                     break;
