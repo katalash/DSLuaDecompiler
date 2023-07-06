@@ -3281,12 +3281,12 @@ namespace LuaDecompilerCore.IR
                                 switch (m)
                                 {
                                     case "GetDist":
-                                        MaybeSetHeuristicName(target, "distance");
+                                        MaybeSetHeuristicName(target, "dist");
                                         break;
 
                                     case "GetRandam_Int":
                                     case "GetRandam_Float":
-                                        MaybeSetHeuristicName(target, "random");
+                                        MaybeSetHeuristicName(target, "fate");
                                         break;
                                 }
                             }
@@ -3319,7 +3319,7 @@ namespace LuaDecompilerCore.IR
                                 case "Common_Battle_Activate":
                                     MaybeSetHeuristicName(FunctionArg(value, 0), "ai");
                                     MaybeSetHeuristicName(FunctionArg(value, 1), "goal");
-                                    MaybeSetHeuristicName(FunctionArg(value, 2), "fate");
+                                    MaybeSetHeuristicName(FunctionArg(value, 2), "actPerArr");
                                     MaybeSetHeuristicName(FunctionArg(value, 3), "acts");
                                     MaybeSetHeuristicName(FunctionArg(value, 4), "fallback");
                                     break;
@@ -3358,7 +3358,7 @@ namespace LuaDecompilerCore.IR
                                         case "GOAL_COMMON_ComboTunable_SuccessAngle180":
                                             MaybeSetHeuristicName(FunctionArg(value, 2), "action");
                                             MaybeSetHeuristicName(FunctionArg(value, 3), "target");
-                                            MaybeSetHeuristicName(FunctionArg(value, 4), "success_distance");
+                                            MaybeSetHeuristicName(FunctionArg(value, 4), "success_dist");
                                             MaybeSetHeuristicName(FunctionArg(value, 5), "turn_time_before");
                                             MaybeSetHeuristicName(FunctionArg(value, 6), "front_decision_angle");
                                             MaybeSetHeuristicName(FunctionArg(value, 7), "max_angle");
@@ -3368,7 +3368,7 @@ namespace LuaDecompilerCore.IR
                                         case "GOAL_COMMON_ComboRepeat":
                                             MaybeSetHeuristicName(FunctionArg(value, 2), "action");
                                             MaybeSetHeuristicName(FunctionArg(value, 3), "target");
-                                            MaybeSetHeuristicName(FunctionArg(value, 4), "success_distance");
+                                            MaybeSetHeuristicName(FunctionArg(value, 4), "success_dist");
                                             MaybeSetHeuristicName(FunctionArg(value, 5), "max_angle");
                                             MaybeSetHeuristicName(FunctionArg(value, 6), "min_angle");
                                             MaybeSetHeuristicName(FunctionArg(value, 7), "success_angle");
@@ -3385,7 +3385,7 @@ namespace LuaDecompilerCore.IR
                                             MaybeSetHeuristicName(FunctionArg(value, 4), "left_priority");
                                             MaybeSetHeuristicName(FunctionArg(value, 5), "right_priority");
                                             MaybeSetHeuristicName(FunctionArg(value, 6), "target");
-                                            MaybeSetHeuristicName(FunctionArg(value, 7), "safe_distance");
+                                            MaybeSetHeuristicName(FunctionArg(value, 7), "safe_dist");
                                             MaybeSetHeuristicName(FunctionArg(value, 8), "turn_time_before");
                                             MaybeSetHeuristicName(FunctionArg(value, 9), "success_if_impossible");
                                             break;
@@ -3410,7 +3410,7 @@ namespace LuaDecompilerCore.IR
                                 case "Common_Battle_Activate":
                                     MaybeSetHeuristicName(FunctionArg(value, 0), "ai");
                                     MaybeSetHeuristicName(FunctionArg(value, 1), "goal");
-                                    MaybeSetHeuristicName(FunctionArg(value, 2), "fate");
+                                    MaybeSetHeuristicName(FunctionArg(value, 2), "actPerArr");
                                     MaybeSetHeuristicName(FunctionArg(value, 3), "acts");
                                     MaybeSetHeuristicName(FunctionArg(value, 4), "fallback");
                                     break;
