@@ -4,8 +4,6 @@ using System.Text;
 using LuaDecompilerCore;
 using LuaDecompilerCore.IR;
 using LuaDecompilerCore.Utilities;
-using SoulsFormats.Binder;
-using SoulsFormats.Binder.BND4;
 
 namespace DecompilerTester
 {
@@ -174,7 +172,7 @@ namespace DecompilerTester
                 string str2 = "output/miscompiles/" + Path.GetFileNameWithoutExtension(path);
                 string str3 = "output/failures/" + Path.GetFileNameWithoutExtension(path);
                 Console.WriteLine("Decompiling luabnd " + Path.GetFileName(path));
-                foreach (BinderFile file in BND4.Read(path).Files)
+                foreach (SoulsFormats.BinderFile file in SoulsFormats.BND4.Read(path).Files)
                 {
                     if (file.Name.EndsWith(".lua"))
                     {
