@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace luadec.IR
+﻿namespace LuaDecompilerCore.IR
 {
     /// <summary>
     /// A label that represents a jump target

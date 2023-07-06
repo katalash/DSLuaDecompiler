@@ -1,10 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Collections.Generic;
 
-namespace luadec.IR
+namespace LuaDecompilerCore.IR
 {
     /// <summary>
     /// Data instruction. Don't know what it does but doesn't seem to do anything important for decompilation purposes.

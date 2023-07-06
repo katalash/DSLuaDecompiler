@@ -1,10 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Linq;
 
-namespace luadec.IR
+namespace LuaDecompilerCore.IR
 {
     /// <summary>
     /// Higher level AST node for encoding if statements

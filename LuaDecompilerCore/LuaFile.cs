@@ -1,11 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using luadec.Utilities;
+using LuaDecompilerCore.Utilities;
 
-namespace luadec
+namespace LuaDecompilerCore
 {
     public class LuaFile
     {

@@ -1,10 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
-namespace luadec.CFG
+namespace LuaDecompilerCore.CFG
 {
     /// <summary>
     /// A block of instructions in which control flow only enters at the beginning and leaves at the end

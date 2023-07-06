@@ -1,10 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
-namespace luadec.CFG
+namespace LuaDecompilerCore.CFG
 {
     /// <summary>
     /// A minimalist graph for encoding control flow graphs. Intended to be used for interval analysis

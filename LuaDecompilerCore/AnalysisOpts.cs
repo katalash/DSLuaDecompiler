@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace luadec
+﻿namespace LuaDecompilerCore
 {
     public static class AnalysisOpts
     {

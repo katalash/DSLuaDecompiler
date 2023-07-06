@@ -1,10 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
-namespace luadec.IR
+namespace LuaDecompilerCore.IR
 {
     /// <summary>
     /// Table to keep track of symbols inside different scopes

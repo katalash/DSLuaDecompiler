@@ -7,6 +7,10 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DSLuaDecompiler", "DSLuaDec
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LuaDecompilerCore", "LuaDecompilerCore\LuaDecompilerCore.csproj", "{459CAB91-A3C7-42BA-8D2E-E8D4634C9380}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DecompilerTester", "DecompilerTester\DecompilerTester.csproj", "{7373B8BD-606D-4B1D-9A7F-2BCB58FFF530}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SoulsFormats", "SoulsFormats\SoulsFormats\SoulsFormats.csproj", "{BDB6B434-1EFD-4F86-B446-7179EE57B2E3}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +25,14 @@ Global
 		{459CAB91-A3C7-42BA-8D2E-E8D4634C9380}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{459CAB91-A3C7-42BA-8D2E-E8D4634C9380}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{459CAB91-A3C7-42BA-8D2E-E8D4634C9380}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7373B8BD-606D-4B1D-9A7F-2BCB58FFF530}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7373B8BD-606D-4B1D-9A7F-2BCB58FFF530}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7373B8BD-606D-4B1D-9A7F-2BCB58FFF530}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7373B8BD-606D-4B1D-9A7F-2BCB58FFF530}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BDB6B434-1EFD-4F86-B446-7179EE57B2E3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BDB6B434-1EFD-4F86-B446-7179EE57B2E3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BDB6B434-1EFD-4F86-B446-7179EE57B2E3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BDB6B434-1EFD-4F86-B446-7179EE57B2E3}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

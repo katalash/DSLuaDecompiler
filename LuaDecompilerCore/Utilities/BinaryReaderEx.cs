@@ -1,12 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Drawing;
 using System.IO;
 using System.Linq;
-using System.Numerics;
 using System.Text;
 
-namespace luadec.Utilities
+namespace LuaDecompilerCore.Utilities
 {
     /// <summary>
     /// An extended reader for binary data supporting big and little endianness, value assertions, and arrays.
