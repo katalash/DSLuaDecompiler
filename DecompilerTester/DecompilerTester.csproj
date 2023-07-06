@@ -12,4 +12,11 @@
       <ProjectReference Include="..\SoulsFormats\SoulsFormats\SoulsFormats.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+      <None Remove="luac-5.0.2.exe" />
+      <Content Include="luac-5.0.2.exe">
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      </Content>
+    </ItemGroup>
+
 </Project>
