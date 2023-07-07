@@ -1782,8 +1782,19 @@ namespace LuaDecompilerCore
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
+                    case LuaHKSOps.OpDivBk:
+                        //instructions.Add(new IR.PlaceholderInstruction(($@"R({a}) := {RK(fun, b)} / {RK(fun, c)}")));
+                        assn = new IR.Assignment(_symbolTable.GetRegister(a), new IR.BinOp(ToConstantIR(fun.ConstantsHKS[b], b), Register((uint)c), IR.BinOp.OperationType.OpDiv));
+                        CheckLocal(assn, fun, pc);
+                        instructions.Add(assn);
+                        break;
                     case LuaHKSOps.OpMod:
                         assn = new Assignment(_symbolTable.GetRegister(a), new BinOp(Register((uint)b), RKIRHKS(fun, c, szero), BinOp.OperationType.OpMod));
+                        CheckLocal(assn, fun, pc);
+                        instructions.Add(assn);
+                        break;
+                    case LuaHKSOps.OpModBk:
+                        assn = new IR.Assignment(_symbolTable.GetRegister(a), new IR.BinOp(ToConstantIR(fun.ConstantsHKS[b], b), Register((uint)c), IR.BinOp.OperationType.OpMod));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
@@ -1929,13 +1940,18 @@ namespace LuaDecompilerCore
                         instructions.Add(new Assignment(new IdentifierReference(_symbolTable.GetRegister(a), RKIRHKS(fun, b, false)), RKIRHKS(fun, c, false)));
                         break;
                     case LuaHKSOps.OpTailCallI:
+                    case LuaHKSOps.OpTailCallIR1:
                         args = new List<Expression>();
                         for (int arg = (int)a + 1; arg < a + b; arg++)
                         {
                             args.Add(new IdentifierReference(_symbolTable.GetRegister((uint)arg)));
                         }
                         //instructions.Add(new IR.PlaceholderInstruction(($@"R({a}) := R({a})({args})")));
-                        instructions.Add(new Return(new FunctionCall(new IdentifierReference(_symbolTable.GetRegister(a)), args)));
+                        instructions.Add(
+                            new Return(new FunctionCall(new IdentifierReference(_symbolTable.GetRegister(a)), args))
+                            {
+                                IsTailReturn = true
+                            });
                         break;
                     case LuaHKSOps.OpSetTableSBK:
                         //instructions.Add(new IR.PlaceholderInstruction(($@"R({a})[{RK(fun, b)}] := R({c})")));
@@ -2183,7 +2199,7 @@ namespace LuaDecompilerCore
             irfun.ArgumentNames = fun.LocalsAt(0);
             irfun.RenameVariables();
             irfun.Parenthesize();
-            irfun.AnnotateEnvActFunctions();
+            //irfun.AnnotateEnvActFunctions();
 
             // Convert to AST
             irfun.ConvertToAST(true);

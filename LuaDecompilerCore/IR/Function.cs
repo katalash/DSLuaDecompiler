@@ -2744,7 +2744,7 @@ namespace LuaDecompilerCore.IR
                         loopInitializer.Instructions.RemoveAt(loopInitializer.Instructions.Count - 2);
 
                         // Extract the step variable definition
-                        if (loopInitializer.Instructions[loopInitializer.Instructions.Count - 2] is Assignment incassn)
+                        if (loopInitializer.GetInstruction(loopInitializer.Instructions.Count - 2) is Assignment incassn)
                         {
                             nfor.Increment = incassn.Right;
                             if (incassn.IsLocalDeclaration)
@@ -2755,7 +2755,7 @@ namespace LuaDecompilerCore.IR
                         }
 
                         // Extract the limit variable definition
-                        if (loopInitializer.Instructions[loopInitializer.Instructions.Count - 2] is Assignment limitassn)
+                        if (loopInitializer.GetInstruction(loopInitializer.Instructions.Count - 2) is Assignment limitassn)
                         {
                             nfor.Limit = limitassn.Right;
                             if (limitassn.IsLocalDeclaration)
@@ -2766,7 +2766,7 @@ namespace LuaDecompilerCore.IR
                         }
 
                         // Extract the initializer variable definition
-                        if (loopInitializer.Instructions[loopInitializer.Instructions.Count - 2] is Assignment initassn)
+                        if (loopInitializer.GetInstruction(loopInitializer.Instructions.Count - 2) is Assignment initassn)
                         {
                             nfor.Initial = initassn;
                             if (initassn.IsLocalDeclaration)
@@ -2784,9 +2784,9 @@ namespace LuaDecompilerCore.IR
                             usedFollows.Add(node.LoopFollow);
                             node.LoopFollow.MarkCodegened(FunctionId);
                         }
-                        if (loopInitializer.Instructions[loopInitializer.Instructions.Count() - 1] is Jump)
+                        if (loopInitializer.GetInstruction(loopInitializer.Instructions.Count - 1) is Jump)
                         {
-                            loopInitializer.Instructions[loopInitializer.Instructions.Count() - 1] = nfor;
+                            loopInitializer.Instructions[loopInitializer.Instructions.Count - 1] = nfor;
                         }
                         else
                         {

@@ -84,6 +84,16 @@ namespace LuaDecompilerCore.CFG
             KilledIdentifiers = new HashSet<IR.Identifier>();
             LiveOut = new HashSet<IR.Identifier>();
         }
+        
+        /// <summary>
+        /// Get an instruction by index with bounds checking.
+        /// </summary>
+        public IR.IInstruction GetInstruction(int index)
+        {
+            if (index >= 0 && index < Instructions.Count)
+                return Instructions[index];
+            return null;
+        }
 
         /// <summary>
         /// Once dominance information is computed, compute the immediate (closest) dominator using BFS
