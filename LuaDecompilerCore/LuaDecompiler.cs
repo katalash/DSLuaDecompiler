@@ -6,7 +6,7 @@ using LuaDecompilerCore.Utilities;
 
 namespace LuaDecompilerCore
 {
-    public class LuaDisassembler
+    public class LuaDecompiler
     {
         public enum Lua50Ops
         {
@@ -405,9 +405,15 @@ namespace LuaDecompilerCore
             new OpProperties("GETGLOBAL_MEM", OpMode.IABx),
         };
 
-        public static SymbolTable SymbolTable = new SymbolTable();
+        public DecompilationOptions DecompilationOptions { get; private set; }
+        private readonly SymbolTable _symbolTable = new();
 
-        private static string RK(LuaFile.Function fun, uint val)
+        public LuaDecompiler(DecompilationOptions options)
+        {
+            DecompilationOptions = options;
+        }
+        
+        private string RK(LuaFile.Function fun, uint val)
         {
             if (val < 250)
             {
@@ -419,11 +425,11 @@ namespace LuaDecompilerCore
             }
         }
 
-        private static Expression RKIR(LuaFile.Function fun, uint val)
+        private Expression RKIR(LuaFile.Function fun, uint val)
         {
             if (val < 250)
             {
-                return new IdentifierReference(SymbolTable.GetRegister(val));
+                return new IdentifierReference(_symbolTable.GetRegister(val));
             }
             else
             {
@@ -431,11 +437,11 @@ namespace LuaDecompilerCore
             }
         }
 
-        private static Expression RKIR53(LuaFile.Function fun, uint val)
+        private Expression RKIR53(LuaFile.Function fun, uint val)
         {
             if ((val & (1 << 8)) == 0)
             {
-                return new IdentifierReference(SymbolTable.GetRegister(val));
+                return new IdentifierReference(_symbolTable.GetRegister(val));
             }
             else
             {
@@ -443,11 +449,11 @@ namespace LuaDecompilerCore
             }
         }
 
-        private static Expression RKIRHKS(LuaFile.Function fun, int val, bool szero)
+        private Expression RKIRHKS(LuaFile.Function fun, int val, bool szero)
         {
             if (val >= 0 && !szero)
             {
-                return new IdentifierReference(SymbolTable.GetRegister((uint)val));
+                return new IdentifierReference(_symbolTable.GetRegister((uint)val));
             }
             else if (szero)
             {
@@ -459,12 +465,12 @@ namespace LuaDecompilerCore
             }
         }
 
-        private static IdentifierReference Register(uint reg)
+        private IdentifierReference Register(uint reg)
         {
-            return new IdentifierReference(SymbolTable.GetRegister((uint)reg));
+            return new IdentifierReference(_symbolTable.GetRegister((uint)reg));
         }
 
-        public static void DisassembleFunction(LuaFile.Function fun)
+        public void DisassembleFunction(LuaFile.Function fun)
         {
             Console.WriteLine($@"Constants:");
             for (int i = 0; i < fun.Constants.Length; i++)
@@ -605,7 +611,7 @@ namespace LuaDecompilerCore
             Console.WriteLine("}");
         }
 
-        private static Constant ToConstantIR(LuaFile.Constant con, int id)
+        private Constant ToConstantIR(LuaFile.Constant con, int id)
         {
             if (con.Type == LuaFile.Constant.ConstantType.TypeNumber)
             {
@@ -622,7 +628,7 @@ namespace LuaDecompilerCore
             return new Constant(Constant.ConstantType.ConstNil, id);
         }
 
-        private static Constant ToConstantIR(LuaFile.ConstantHKS con, int id)
+        private Constant ToConstantIR(LuaFile.ConstantHKS con, int id)
         {
             if (con.Type == LuaFile.ConstantHKS.ConstantType.TypeNumber)
             {
@@ -639,22 +645,24 @@ namespace LuaDecompilerCore
             return new Constant(Constant.ConstantType.ConstNil, id);
         }
 
-        public static void GenerateIR50(Function irfun, LuaFile.Function fun)
+        public void DecompileLua50Function(Function irfun, LuaFile.Function fun)
         {
+            irfun.InsertDebugComments = DecompilationOptions.OutputDebugComments;
+            
             // First register closures for all the children
             for (int i = 0; i < fun.ChildFunctions.Length; i++)
             {
-                var cfun = new Function();
+                var cfun = new Function(fun.ChildFunctions[i].FunctionID);
                 // Upval count needs to be set for child functions for analysis to be correct
                 cfun.UpvalCount = fun.ChildFunctions[i].Nups;
                 irfun.AddClosure(cfun);
             }
 
-            SymbolTable.BeginScope();
+            _symbolTable.BeginScope();
             var parameters = new List<Identifier>();
             for (uint i = 0; i < fun.NumParams; i++)
             {
-                parameters.Add(SymbolTable.GetRegister(i));
+                parameters.Add(_symbolTable.GetRegister(i));
             }
             irfun.SetParameters(parameters);
 
@@ -676,18 +684,18 @@ namespace LuaDecompilerCore
                 {
                     case Lua50Ops.OpMove:
                         //instructions.Add(new IR.PlaceholderInstruction(($@"R({a}) := R({b})")));
-                        assn = new Assignment(SymbolTable.GetRegister(a), new IdentifierReference(SymbolTable.GetRegister(b)));
+                        assn = new Assignment(_symbolTable.GetRegister(a), new IdentifierReference(_symbolTable.GetRegister(b)));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
                     case Lua50Ops.OpLoadK:
                         //instructions.Add(new IR.PlaceholderInstruction(($@"R({a}) := {fun.Constants[b].ToString()}")));
-                        assn = new Assignment(SymbolTable.GetRegister(a), ToConstantIR(fun.Constants[bx], (int)bx));
+                        assn = new Assignment(_symbolTable.GetRegister(a), ToConstantIR(fun.Constants[bx], (int)bx));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
                     case Lua50Ops.OpLoadBool:
-                        assn = new Assignment(SymbolTable.GetRegister(a), new Constant(b == 1, -1));
+                        assn = new Assignment(_symbolTable.GetRegister(a), new Constant(b == 1, -1));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         if (c > 0)
@@ -699,14 +707,14 @@ namespace LuaDecompilerCore
                         var nassn = new List<IdentifierReference>();
                         for (int arg = (int)a; arg <= b; arg++)
                         {
-                            nassn.Add(new IdentifierReference(SymbolTable.GetRegister((uint)arg)));
+                            nassn.Add(new IdentifierReference(_symbolTable.GetRegister((uint)arg)));
                         }
                         assn = new Assignment(nassn, new Constant(Constant.ConstantType.ConstNil, -1));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
                     case Lua50Ops.OpGetUpVal:
-                        var up = SymbolTable.GetUpvalue(b);
+                        var up = _symbolTable.GetUpvalue(b);
                         if (fun.UpvalueNames.Count() > 0 && !up.UpvalueResolved)
                         {
                             up.Name = fun.UpvalueNames[b].Name;
@@ -723,28 +731,28 @@ namespace LuaDecompilerCore
                                 up = irfun.UpvalueBindings[(int)b];
                             }
                         }
-                        assn = new Assignment(SymbolTable.GetRegister(a), new IdentifierReference(up));
+                        assn = new Assignment(_symbolTable.GetRegister(a), new IdentifierReference(up));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
                     case Lua50Ops.OpGetGlobal:
                         //instructions.Add(new IR.PlaceholderInstruction(($@"R({a}) := Gbl[{fun.Constants[bx].ToString()}]")));
-                        assn = new Assignment(SymbolTable.GetRegister(a), new IdentifierReference(SymbolTable.GetGlobal(fun.Constants[bx].ToString(), (int)bx)));
+                        assn = new Assignment(_symbolTable.GetRegister(a), new IdentifierReference(_symbolTable.GetGlobal(fun.Constants[bx].ToString(), (int)bx)));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
                     case Lua50Ops.OpGetTable:
                         //instructions.Add(new IR.PlaceholderInstruction(($@"R({a}) := R({b})[{RK(fun, c)}]")));
-                        assn = new Assignment(SymbolTable.GetRegister(a), new IdentifierReference(SymbolTable.GetRegister(b), RKIR(fun, c)));
+                        assn = new Assignment(_symbolTable.GetRegister(a), new IdentifierReference(_symbolTable.GetRegister(b), RKIR(fun, c)));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
                     case Lua50Ops.OpSetGlobal:
                         //instructions.Add(new IR.PlaceholderInstruction(($@"Gbl[{fun.Constants[bx].ToString()}] := R({a})")));
-                        instructions.Add(new Assignment(SymbolTable.GetGlobal(fun.Constants[bx].ToString(), (int)bx), new IdentifierReference(SymbolTable.GetRegister(a))));
+                        instructions.Add(new Assignment(_symbolTable.GetGlobal(fun.Constants[bx].ToString(), (int)bx), new IdentifierReference(_symbolTable.GetRegister(a))));
                         break;
                     case Lua50Ops.OpSetUpVal:
-                        var up2 = SymbolTable.GetUpvalue(b);
+                        var up2 = _symbolTable.GetUpvalue(b);
                         if (fun.UpvalueNames.Count() > 0 && !up2.UpvalueResolved)
                         {
                             up2.Name = fun.UpvalueNames[b].Name;
@@ -761,63 +769,63 @@ namespace LuaDecompilerCore
                                 up2 = irfun.UpvalueBindings[(int)b];
                             }
                         }
-                        instructions.Add(new Assignment(up2, new IdentifierReference(SymbolTable.GetRegister(a))));
+                        instructions.Add(new Assignment(up2, new IdentifierReference(_symbolTable.GetRegister(a))));
                         break;
                     case Lua50Ops.OpNewTable:
                         //instructions.Add(new IR.PlaceholderInstruction(($@"R({a}) := {{}} size = {b}, {c}")));
-                        assn = new Assignment(SymbolTable.GetRegister(a), new InitializerList(new List<Expression>()));
+                        assn = new Assignment(_symbolTable.GetRegister(a), new InitializerList(new List<Expression>()));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
                     case Lua50Ops.OpSelf:
-                        var op = new Assignment(SymbolTable.GetRegister(a + 1), new IdentifierReference(SymbolTable.GetRegister(b)));
+                        var op = new Assignment(_symbolTable.GetRegister(a + 1), new IdentifierReference(_symbolTable.GetRegister(b)));
                         op.IsSelfAssignment = true;
                         instructions.Add(op);
-                        op = new Assignment(SymbolTable.GetRegister(a), new IdentifierReference(SymbolTable.GetRegister(b), RKIR(fun, c)));
+                        op = new Assignment(_symbolTable.GetRegister(a), new IdentifierReference(_symbolTable.GetRegister(b), RKIR(fun, c)));
                         op.IsSelfAssignment = true;
                         instructions.Add(op);
                         break;
                     case Lua50Ops.OpAdd:
                         //instructions.Add(new IR.PlaceholderInstruction(($@"R({a}) := {RK(fun, b)} + {RK(fun, c)}")));
-                        assn = new Assignment(SymbolTable.GetRegister(a), new BinOp(RKIR(fun, b), RKIR(fun, c), BinOp.OperationType.OpAdd));
+                        assn = new Assignment(_symbolTable.GetRegister(a), new BinOp(RKIR(fun, b), RKIR(fun, c), BinOp.OperationType.OpAdd));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
                     case Lua50Ops.OpSub:
                         //instructions.Add(new IR.PlaceholderInstruction(($@"R({a}) := {RK(fun, b)} - {RK(fun, c)}")));
-                        assn = new Assignment(SymbolTable.GetRegister(a), new BinOp(RKIR(fun, b), RKIR(fun, c), BinOp.OperationType.OpSub));
+                        assn = new Assignment(_symbolTable.GetRegister(a), new BinOp(RKIR(fun, b), RKIR(fun, c), BinOp.OperationType.OpSub));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
                     case Lua50Ops.OpMul:
                         //instructions.Add(new IR.PlaceholderInstruction(($@"R({a}) := {RK(fun, b)} * {RK(fun, c)}")));
-                        assn = new Assignment(SymbolTable.GetRegister(a), new BinOp(RKIR(fun, b), RKIR(fun, c), BinOp.OperationType.OpMul));
+                        assn = new Assignment(_symbolTable.GetRegister(a), new BinOp(RKIR(fun, b), RKIR(fun, c), BinOp.OperationType.OpMul));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
                     case Lua50Ops.OpDiv:
                         //instructions.Add(new IR.PlaceholderInstruction(($@"R({a}) := {RK(fun, b)} / {RK(fun, c)}")));
-                        assn = new Assignment(SymbolTable.GetRegister(a), new BinOp(RKIR(fun, b), RKIR(fun, c), BinOp.OperationType.OpDiv));
+                        assn = new Assignment(_symbolTable.GetRegister(a), new BinOp(RKIR(fun, b), RKIR(fun, c), BinOp.OperationType.OpDiv));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
                     case Lua50Ops.OpPow:
                         //instructions.Add(new IR.PlaceholderInstruction(($@"R({a}) := {RK(fun, b)} ^ {RK(fun, c)}")));
-                        assn = new Assignment(SymbolTable.GetRegister(a), new BinOp(RKIR(fun, b), RKIR(fun, c), BinOp.OperationType.OpPow));
+                        assn = new Assignment(_symbolTable.GetRegister(a), new BinOp(RKIR(fun, b), RKIR(fun, c), BinOp.OperationType.OpPow));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
                     case Lua50Ops.OpUnm:
                         //instructions.Add(new IR.PlaceholderInstruction(($@"R({a}) := -R({b})")));
-                        assn = new Assignment(SymbolTable.GetRegister(a),
-                            new UnaryOp(new IdentifierReference(SymbolTable.GetRegister(b)), UnaryOp.OperationType.OpNegate));
+                        assn = new Assignment(_symbolTable.GetRegister(a),
+                            new UnaryOp(new IdentifierReference(_symbolTable.GetRegister(b)), UnaryOp.OperationType.OpNegate));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
                     case Lua50Ops.OpNot:
                         //instructions.Add(new IR.PlaceholderInstruction(($@"R({a}) := not R({b})")));
-                        assn = new Assignment(SymbolTable.GetRegister(a),
-                            new UnaryOp(new IdentifierReference(SymbolTable.GetRegister(b)), UnaryOp.OperationType.OpNot));
+                        assn = new Assignment(_symbolTable.GetRegister(a),
+                            new UnaryOp(new IdentifierReference(_symbolTable.GetRegister(b)), UnaryOp.OperationType.OpNot));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
@@ -825,10 +833,10 @@ namespace LuaDecompilerCore
                         args = new List<Expression>();
                         for (int arg = (int)b; arg <= c; arg++)
                         {
-                            args.Add(new IdentifierReference(SymbolTable.GetRegister((uint)arg)));
+                            args.Add(new IdentifierReference(_symbolTable.GetRegister((uint)arg)));
                         }
                         //instructions.Add(new IR.PlaceholderInstruction(($@"R({a}) := R({a})({args})")));
-                        assn = new Assignment(SymbolTable.GetRegister(a), new Concat(args));
+                        assn = new Assignment(_symbolTable.GetRegister(a), new Concat(args));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
@@ -882,29 +890,29 @@ namespace LuaDecompilerCore
                             //instructions.Add(new IR.Jump(irfun.GetLabel((uint)((i / 4) + 2)), new IR.BinOp(RKIR(fun, b), new IR.Constant(0.0), IR.BinOp.OperationType.OpEqual)));
                             instructions.Add(new Jump(irfun.GetLabel((uint)((i / 4) + 2)), new UnaryOp(RKIR(fun, b), UnaryOp.OperationType.OpNot)));
                         }
-                        instructions.Add(new Assignment(SymbolTable.GetRegister(a), new IdentifierReference(SymbolTable.GetRegister(b))));
+                        instructions.Add(new Assignment(_symbolTable.GetRegister(a), new IdentifierReference(_symbolTable.GetRegister(b))));
                         break;
                     case Lua50Ops.OpSetTable:
                         //instructions.Add(new IR.PlaceholderInstruction(($@"R({a})[{RK(fun, b)}] := R({c})")));
-                        instructions.Add(new Assignment(new IdentifierReference(SymbolTable.GetRegister(a), RKIR(fun, b)), RKIR(fun, c)));
+                        instructions.Add(new Assignment(new IdentifierReference(_symbolTable.GetRegister(a), RKIR(fun, b)), RKIR(fun, c)));
                         break;
                     case Lua50Ops.OpCall:
                         args = new List<Expression>();
                         var rets = new List<IdentifierReference>();
                         for (int arg = (int)a + 1; arg < a + b; arg++)
                         {
-                            args.Add(new IdentifierReference(SymbolTable.GetRegister((uint)arg)));
+                            args.Add(new IdentifierReference(_symbolTable.GetRegister((uint)arg)));
                         }
                         for (int r = (int)a; r <= (int)(a) + c - 2; r++)
                         {
-                            rets.Add(new IdentifierReference(SymbolTable.GetRegister((uint)r)));
+                            rets.Add(new IdentifierReference(_symbolTable.GetRegister((uint)r)));
                         }
                         if (c == 0)
                         {
-                            rets.Add(new IdentifierReference(SymbolTable.GetRegister((uint)a)));
+                            rets.Add(new IdentifierReference(_symbolTable.GetRegister((uint)a)));
                         }
                         //instructions.Add(new IR.PlaceholderInstruction(($@"R({a}) := R({a})({args})")));
-                        var funcall = new FunctionCall(new IdentifierReference(SymbolTable.GetRegister(a)), args);
+                        var funcall = new FunctionCall(new IdentifierReference(_symbolTable.GetRegister(a)), args);
                         funcall.IsIndeterminantArgumentCount = (b == 0);
                         funcall.IsIndeterminantReturnCount = (c == 0);
                         funcall.BeginArg = a + 1;
@@ -916,10 +924,10 @@ namespace LuaDecompilerCore
                         args = new List<Expression>();
                         for (int arg = (int)a + 1; arg < a + b; arg++)
                         {
-                            args.Add(new IdentifierReference(SymbolTable.GetRegister((uint)arg)));
+                            args.Add(new IdentifierReference(_symbolTable.GetRegister((uint)arg)));
                         }
                         //instructions.Add(new IR.PlaceholderInstruction(($@"R({a}) := R({a})({args})")));
-                        var ret2 = new Return(new FunctionCall(new IdentifierReference(SymbolTable.GetRegister(a)), args));
+                        var ret2 = new Return(new FunctionCall(new IdentifierReference(_symbolTable.GetRegister(a)), args));
                         ret2.IsTailReturn = true;
                         instructions.Add(ret2);
                         break;
@@ -929,7 +937,7 @@ namespace LuaDecompilerCore
                         {
                             for (int arg = (int)a; arg < a + b - 1; arg++)
                             {
-                                args.Add(new IdentifierReference(SymbolTable.GetRegister((uint)arg)));
+                                args.Add(new IdentifierReference(_symbolTable.GetRegister((uint)arg)));
                             }
                         }
                         var ret = new Return(args);
@@ -942,17 +950,17 @@ namespace LuaDecompilerCore
                         //instructions.Add(new IR.PlaceholderInstruction(($@"return {args}")));
                         break;
                     case Lua50Ops.OpForLoop:
-                        instructions.Add(new Assignment(new IdentifierReference(SymbolTable.GetRegister(a)), new BinOp(new IdentifierReference(SymbolTable.GetRegister(a)),
-                            new IdentifierReference(SymbolTable.GetRegister(a + 2)), BinOp.OperationType.OpAdd)));
-                        instructions.Add(new Jump(irfun.GetLabel((uint)((i / 4) + 1 + sbx)), new BinOp(new IdentifierReference(SymbolTable.GetRegister(a)),
-                            new IdentifierReference(SymbolTable.GetRegister(a + 1)), BinOp.OperationType.OpLoopCompare)));
+                        instructions.Add(new Assignment(new IdentifierReference(_symbolTable.GetRegister(a)), new BinOp(new IdentifierReference(_symbolTable.GetRegister(a)),
+                            new IdentifierReference(_symbolTable.GetRegister(a + 2)), BinOp.OperationType.OpAdd)));
+                        instructions.Add(new Jump(irfun.GetLabel((uint)((i / 4) + 1 + sbx)), new BinOp(new IdentifierReference(_symbolTable.GetRegister(a)),
+                            new IdentifierReference(_symbolTable.GetRegister(a + 1)), BinOp.OperationType.OpLoopCompare)));
                         break;
                     case Lua50Ops.OpSetList:
                     case Lua50Ops.OpSetListTo:
                         for (int j = 1; j <= (bx%32) + 1; j++)
                         {
-                            var inst = new Assignment(new IdentifierReference(SymbolTable.GetRegister(a), new Constant((double)(bx - (bx % 32) + j), -1)),
-                                new IdentifierReference(SymbolTable.GetRegister(a + (uint)j)));
+                            var inst = new Assignment(new IdentifierReference(_symbolTable.GetRegister(a), new Constant((double)(bx - (bx % 32) + j), -1)),
+                                new IdentifierReference(_symbolTable.GetRegister(a + (uint)j)));
                             inst.IsListAssignment = true;
                             instructions.Add(inst);
                         }
@@ -965,7 +973,7 @@ namespace LuaDecompilerCore
                         //    args += $@"R({arg})";
                         //}
                         //instructions.Add(new IR.PlaceholderInstruction(($@"R({a}) := closure(KPROTO[{bx}]{args})")));
-                        assn = new Assignment(SymbolTable.GetRegister(a), new Closure(irfun.LookupClosure(bx)));
+                        assn = new Assignment(_symbolTable.GetRegister(a), new Closure(irfun.LookupClosure(bx)));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
@@ -1004,9 +1012,9 @@ namespace LuaDecompilerCore
 
             // Control flow graph construction and SSA conversion
             irfun.ConstructControlFlowGraph();
-            irfun.ResolveIndeterminantArguments(SymbolTable);
+            irfun.ResolveIndeterminantArguments(_symbolTable);
 
-            irfun.ConvertToSSA(SymbolTable.GetAllRegistersInScope());
+            irfun.ConvertToSSA(_symbolTable.GetAllRegistersInScope());
 
             // Upval registration
             irfun.RegisterClosureUpvalues50();
@@ -1043,17 +1051,19 @@ namespace LuaDecompilerCore
             // Now generate IR for all the child closures
             for (int i = 0; i < fun.ChildFunctions.Length; i++)
             {
-                //if (i == 9)
-                {
-                    GenerateIR50(irfun.LookupClosure((uint)i), fun.ChildFunctions[i]);
-                }
+                if (DecompilationOptions.IncludedFunctionIds != null && 
+                    !DecompilationOptions.IncludedFunctionIds.Contains(fun.ChildFunctions[i].FunctionID))
+                    continue;
+                if (DecompilationOptions.ExcludedFunctionIds.Contains(fun.ChildFunctions[i].FunctionID))
+                    continue;
+                DecompileLua50Function(irfun.LookupClosure((uint)i), fun.ChildFunctions[i]);
             }
-            SymbolTable.EndScope();
+            _symbolTable.EndScope();
         }
 
-        public static Identifier Upvalue53(LuaFile.Function fun, uint upid)
+        public Identifier Upvalue53(LuaFile.Function fun, uint upid)
         {
-            Identifier up = SymbolTable.GetUpvalue(upid);
+            Identifier up = _symbolTable.GetUpvalue(upid);
             if (upid < fun.Upvalues.Count() && fun.Upvalues[upid].InStack)
             {
                 up.StackUpvalue = true;
@@ -1066,12 +1076,14 @@ namespace LuaDecompilerCore
             return up;
         }
 
-        public static void GenerateIR53(Function irfun, LuaFile.Function fun, bool isRootFunction)
+        public void DecompileLua53Function(Function irfun, LuaFile.Function fun, bool isRootFunction)
         {
+            irfun.InsertDebugComments = DecompilationOptions.OutputDebugComments;
+            
             // First register closures for all the children
             for (int i = 0; i < fun.ChildFunctions.Length; i++)
             {
-                var cfun = new Function();
+                var cfun = new Function(fun.ChildFunctions[i].FunctionID);
                 // Upval count needs to be set for child functions for analysis to be correct
                 cfun.UpvalCount = fun.ChildFunctions[i].Upvalues.Length;
                 foreach (var uv in fun.ChildFunctions[i].Upvalues)
@@ -1092,11 +1104,11 @@ namespace LuaDecompilerCore
                 irfun.UpvalueBindings.Add(globalTable);
             }
 
-            SymbolTable.BeginScope();
+            _symbolTable.BeginScope();
             var parameters = new List<Identifier>();
             for (uint i = 0; i < fun.NumParams; i++)
             {
-                parameters.Add(SymbolTable.GetRegister(i));
+                parameters.Add(_symbolTable.GetRegister(i));
             }
             irfun.SetParameters(parameters);
 
@@ -1121,17 +1133,17 @@ namespace LuaDecompilerCore
                 switch ((Lua53Ops)opcode)
                 {
                     case Lua53Ops.OpMove:
-                        assn = new Assignment(SymbolTable.GetRegister(a), new IdentifierReference(SymbolTable.GetRegister(b)));
+                        assn = new Assignment(_symbolTable.GetRegister(a), new IdentifierReference(_symbolTable.GetRegister(b)));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
                     case Lua53Ops.OpLoadK:
-                        assn = new Assignment(SymbolTable.GetRegister(a), ToConstantIR(fun.Constants[bx], (int)bx));
+                        assn = new Assignment(_symbolTable.GetRegister(a), ToConstantIR(fun.Constants[bx], (int)bx));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
                     case Lua53Ops.OpLoadBool:
-                        assn = new Assignment(SymbolTable.GetRegister(a), new Constant(b == 1, -1));
+                        assn = new Assignment(_symbolTable.GetRegister(a), new Constant(b == 1, -1));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         if (c > 0)
@@ -1143,7 +1155,7 @@ namespace LuaDecompilerCore
                         var nassn = new List<IdentifierReference>();
                         for (int arg = (int)a; arg <= a + b; arg++)
                         {
-                            nassn.Add(new IdentifierReference(SymbolTable.GetRegister((uint)arg)));
+                            nassn.Add(new IdentifierReference(_symbolTable.GetRegister((uint)arg)));
                         }
                         assn = new Assignment(nassn, new Constant(Constant.ConstantType.ConstNil, -1));
                         CheckLocal(assn, fun, pc);
@@ -1156,7 +1168,7 @@ namespace LuaDecompilerCore
                             throw new Exception("Reference to unbound upvalue");
                         }
                         up = irfun.UpvalueBindings[(int)b];
-                        assn = new Assignment(SymbolTable.GetRegister(a), new IdentifierReference(up));
+                        assn = new Assignment(_symbolTable.GetRegister(a), new IdentifierReference(up));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
@@ -1170,17 +1182,17 @@ namespace LuaDecompilerCore
                         var rkir = RKIR53(fun, c);
                         if (up4.StackUpvalue && rkir is Constant c1 && c1.ConstType == Constant.ConstantType.ConstString)
                         {
-                            assn = new Assignment(SymbolTable.GetRegister(a), new IdentifierReference(SymbolTable.GetGlobal(c1.String, -1)));
+                            assn = new Assignment(_symbolTable.GetRegister(a), new IdentifierReference(_symbolTable.GetGlobal(c1.String, -1)));
                         }
                         else
                         {
-                            assn = new Assignment(SymbolTable.GetRegister(a), new IdentifierReference(up4, rkir));
+                            assn = new Assignment(_symbolTable.GetRegister(a), new IdentifierReference(up4, rkir));
                         }
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
                     case Lua53Ops.OpGetTable:
-                        assn = new Assignment(SymbolTable.GetRegister(a), new IdentifierReference(SymbolTable.GetRegister(b), RKIR53(fun, c)));
+                        assn = new Assignment(_symbolTable.GetRegister(a), new IdentifierReference(_symbolTable.GetRegister(b), RKIR53(fun, c)));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
@@ -1194,7 +1206,7 @@ namespace LuaDecompilerCore
                         var rkir2 = RKIR53(fun, b);
                         if (up3.StackUpvalue && rkir2 is Constant c2 && c2.ConstType == Constant.ConstantType.ConstString)
                         {
-                            instructions.Add(new Assignment(SymbolTable.GetGlobal(c2.String, -1), RKIR53(fun, c)));
+                            instructions.Add(new Assignment(_symbolTable.GetGlobal(c2.String, -1), RKIR53(fun, c)));
                         }
                         else
                         {
@@ -1208,87 +1220,87 @@ namespace LuaDecompilerCore
                             up2.Name = fun.UpvalueNames[b].Name;
                             up2.UpvalueResolved = true;
                         }
-                        instructions.Add(new Assignment(up2, new IdentifierReference(SymbolTable.GetRegister(a))));
+                        instructions.Add(new Assignment(up2, new IdentifierReference(_symbolTable.GetRegister(a))));
                         break;
                     case Lua53Ops.OpNewTable:
-                        assn = new Assignment(SymbolTable.GetRegister(a), new InitializerList(new List<Expression>()));
+                        assn = new Assignment(_symbolTable.GetRegister(a), new InitializerList(new List<Expression>()));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
                     case Lua53Ops.OpSelf:
-                        instructions.Add(new Assignment(SymbolTable.GetRegister(a + 1), new IdentifierReference(SymbolTable.GetRegister(b))));
-                        instructions.Add(new Assignment(SymbolTable.GetRegister(a), new IdentifierReference(SymbolTable.GetRegister(b), RKIR53(fun, c))));
+                        instructions.Add(new Assignment(_symbolTable.GetRegister(a + 1), new IdentifierReference(_symbolTable.GetRegister(b))));
+                        instructions.Add(new Assignment(_symbolTable.GetRegister(a), new IdentifierReference(_symbolTable.GetRegister(b), RKIR53(fun, c))));
                         break;
                     case Lua53Ops.OpAdd:
-                        assn = new Assignment(SymbolTable.GetRegister(a), new BinOp(RKIR53(fun, b), RKIR53(fun, c), BinOp.OperationType.OpAdd));
+                        assn = new Assignment(_symbolTable.GetRegister(a), new BinOp(RKIR53(fun, b), RKIR53(fun, c), BinOp.OperationType.OpAdd));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
                     case Lua53Ops.OpSub:
-                        assn = new Assignment(SymbolTable.GetRegister(a), new BinOp(RKIR53(fun, b), RKIR53(fun, c), BinOp.OperationType.OpSub));
+                        assn = new Assignment(_symbolTable.GetRegister(a), new BinOp(RKIR53(fun, b), RKIR53(fun, c), BinOp.OperationType.OpSub));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
                     case Lua53Ops.OpMul:
-                        assn = new Assignment(SymbolTable.GetRegister(a), new BinOp(RKIR53(fun, b), RKIR53(fun, c), BinOp.OperationType.OpMul));
+                        assn = new Assignment(_symbolTable.GetRegister(a), new BinOp(RKIR53(fun, b), RKIR53(fun, c), BinOp.OperationType.OpMul));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
                     case Lua53Ops.OpDiv:
-                        assn = new Assignment(SymbolTable.GetRegister(a), new BinOp(RKIR53(fun, b), RKIR53(fun, c), BinOp.OperationType.OpDiv));
+                        assn = new Assignment(_symbolTable.GetRegister(a), new BinOp(RKIR53(fun, b), RKIR53(fun, c), BinOp.OperationType.OpDiv));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
                     case Lua53Ops.OpIDiv:
-                        assn = new Assignment(SymbolTable.GetRegister(a), new BinOp(RKIR53(fun, b), RKIR53(fun, c), BinOp.OperationType.OpFloorDiv));
+                        assn = new Assignment(_symbolTable.GetRegister(a), new BinOp(RKIR53(fun, b), RKIR53(fun, c), BinOp.OperationType.OpFloorDiv));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
                     case Lua53Ops.OpBAnd:
-                        assn = new Assignment(SymbolTable.GetRegister(a), new BinOp(RKIR53(fun, b), RKIR53(fun, c), BinOp.OperationType.OpBAnd));
+                        assn = new Assignment(_symbolTable.GetRegister(a), new BinOp(RKIR53(fun, b), RKIR53(fun, c), BinOp.OperationType.OpBAnd));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
                     case Lua53Ops.OpBOr:
-                        assn = new Assignment(SymbolTable.GetRegister(a), new BinOp(RKIR53(fun, b), RKIR53(fun, c), BinOp.OperationType.OpBOr));
+                        assn = new Assignment(_symbolTable.GetRegister(a), new BinOp(RKIR53(fun, b), RKIR53(fun, c), BinOp.OperationType.OpBOr));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
                     case Lua53Ops.OpBXOr:
-                        assn = new Assignment(SymbolTable.GetRegister(a), new BinOp(RKIR53(fun, b), RKIR53(fun, c), BinOp.OperationType.OpBXOr));
+                        assn = new Assignment(_symbolTable.GetRegister(a), new BinOp(RKIR53(fun, b), RKIR53(fun, c), BinOp.OperationType.OpBXOr));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
                     case Lua53Ops.OpShL:
-                        assn = new Assignment(SymbolTable.GetRegister(a), new BinOp(RKIR53(fun, b), RKIR53(fun, c), BinOp.OperationType.OpShiftLeft));
+                        assn = new Assignment(_symbolTable.GetRegister(a), new BinOp(RKIR53(fun, b), RKIR53(fun, c), BinOp.OperationType.OpShiftLeft));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
                     case Lua53Ops.OpShR:
-                        assn = new Assignment(SymbolTable.GetRegister(a), new BinOp(RKIR53(fun, b), RKIR53(fun, c), BinOp.OperationType.OpShiftRight));
+                        assn = new Assignment(_symbolTable.GetRegister(a), new BinOp(RKIR53(fun, b), RKIR53(fun, c), BinOp.OperationType.OpShiftRight));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
                     case Lua53Ops.OpPow:
-                        assn = new Assignment(SymbolTable.GetRegister(a), new BinOp(RKIR53(fun, b), RKIR53(fun, c), BinOp.OperationType.OpPow));
+                        assn = new Assignment(_symbolTable.GetRegister(a), new BinOp(RKIR53(fun, b), RKIR53(fun, c), BinOp.OperationType.OpPow));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
                     case Lua53Ops.OpUnm:
-                        assn = new Assignment(SymbolTable.GetRegister(a),
-                            new UnaryOp(new IdentifierReference(SymbolTable.GetRegister(b)), UnaryOp.OperationType.OpNegate));
+                        assn = new Assignment(_symbolTable.GetRegister(a),
+                            new UnaryOp(new IdentifierReference(_symbolTable.GetRegister(b)), UnaryOp.OperationType.OpNegate));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
                     case Lua53Ops.OpBNot:
-                        assn = new Assignment(SymbolTable.GetRegister(a),
-                            new UnaryOp(new IdentifierReference(SymbolTable.GetRegister(b)), UnaryOp.OperationType.OpBNot));
+                        assn = new Assignment(_symbolTable.GetRegister(a),
+                            new UnaryOp(new IdentifierReference(_symbolTable.GetRegister(b)), UnaryOp.OperationType.OpBNot));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
                     case Lua53Ops.OpNot:
-                        assn = new Assignment(SymbolTable.GetRegister(a),
-                            new UnaryOp(new IdentifierReference(SymbolTable.GetRegister(b)), UnaryOp.OperationType.OpNot));
+                        assn = new Assignment(_symbolTable.GetRegister(a),
+                            new UnaryOp(new IdentifierReference(_symbolTable.GetRegister(b)), UnaryOp.OperationType.OpNot));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
@@ -1296,9 +1308,9 @@ namespace LuaDecompilerCore
                         args = new List<Expression>();
                         for (int arg = (int)b; arg <= c; arg++)
                         {
-                            args.Add(new IdentifierReference(SymbolTable.GetRegister((uint)arg)));
+                            args.Add(new IdentifierReference(_symbolTable.GetRegister((uint)arg)));
                         }
-                        assn = new Assignment(SymbolTable.GetRegister(a), new Concat(args));
+                        assn = new Assignment(_symbolTable.GetRegister(a), new Concat(args));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
@@ -1348,24 +1360,24 @@ namespace LuaDecompilerCore
                         }
                         break;
                     case Lua53Ops.OpSetTable:
-                        instructions.Add(new Assignment(new IdentifierReference(SymbolTable.GetRegister(a), RKIR53(fun, b)), RKIR53(fun, c)));
+                        instructions.Add(new Assignment(new IdentifierReference(_symbolTable.GetRegister(a), RKIR53(fun, b)), RKIR53(fun, c)));
                         break;
                     case Lua53Ops.OpCall:
                         args = new List<Expression>();
                         var rets = new List<IdentifierReference>();
                         for (int arg = (int)a + 1; arg < a + b; arg++)
                         {
-                            args.Add(new IdentifierReference(SymbolTable.GetRegister((uint)arg)));
+                            args.Add(new IdentifierReference(_symbolTable.GetRegister((uint)arg)));
                         }
                         for (int r = (int)a; r <= (int)(a) + c - 2; r++)
                         {
-                            rets.Add(new IdentifierReference(SymbolTable.GetRegister((uint)r)));
+                            rets.Add(new IdentifierReference(_symbolTable.GetRegister((uint)r)));
                         }
                         if (c == 0)
                         {
-                            rets.Add(new IdentifierReference(SymbolTable.GetRegister((uint)a)));
+                            rets.Add(new IdentifierReference(_symbolTable.GetRegister((uint)a)));
                         }
-                        var funcall = new FunctionCall(new IdentifierReference(SymbolTable.GetRegister(a)), args);
+                        var funcall = new FunctionCall(new IdentifierReference(_symbolTable.GetRegister(a)), args);
                         funcall.IsIndeterminantArgumentCount = (b == 0);
                         funcall.IsIndeterminantReturnCount = (c == 0);
                         funcall.BeginArg = a + 1;
@@ -1377,9 +1389,9 @@ namespace LuaDecompilerCore
                         args = new List<Expression>();
                         for (int arg = (int)a + 1; arg < a + b; arg++)
                         {
-                            args.Add(new IdentifierReference(SymbolTable.GetRegister((uint)arg)));
+                            args.Add(new IdentifierReference(_symbolTable.GetRegister((uint)arg)));
                         }
-                        instructions.Add(new Return(new FunctionCall(new IdentifierReference(SymbolTable.GetRegister(a)), args)));
+                        instructions.Add(new Return(new FunctionCall(new IdentifierReference(_symbolTable.GetRegister(a)), args)));
                         break;
                     case Lua53Ops.OpReturn:
                         args = new List<Expression>();
@@ -1387,7 +1399,7 @@ namespace LuaDecompilerCore
                         {
                             for (int arg = (int)a; arg < a + b - 1; arg++)
                             {
-                                args.Add(new IdentifierReference(SymbolTable.GetRegister((uint)arg)));
+                                args.Add(new IdentifierReference(_symbolTable.GetRegister((uint)arg)));
                             }
                         }
                         var ret = new Return(args);
@@ -1399,11 +1411,11 @@ namespace LuaDecompilerCore
                         instructions.Add(ret);
                         break;
                     case Lua53Ops.OpForLoop:
-                        instructions.Add(new Assignment(new IdentifierReference(SymbolTable.GetRegister(a)), new BinOp(new IdentifierReference(SymbolTable.GetRegister(a)),
-                            new IdentifierReference(SymbolTable.GetRegister(a + 2)), BinOp.OperationType.OpAdd)));
-                        var jmp = new Jump(irfun.GetLabel((uint)((i / 4) + 1 + sbx)), new BinOp(new IdentifierReference(SymbolTable.GetRegister(a)),
-                            new IdentifierReference(SymbolTable.GetRegister(a + 1)), BinOp.OperationType.OpLoopCompare));
-                        var pta = new Assignment(SymbolTable.GetRegister(a + 3), Register((uint)a));
+                        instructions.Add(new Assignment(new IdentifierReference(_symbolTable.GetRegister(a)), new BinOp(new IdentifierReference(_symbolTable.GetRegister(a)),
+                            new IdentifierReference(_symbolTable.GetRegister(a + 2)), BinOp.OperationType.OpAdd)));
+                        var jmp = new Jump(irfun.GetLabel((uint)((i / 4) + 1 + sbx)), new BinOp(new IdentifierReference(_symbolTable.GetRegister(a)),
+                            new IdentifierReference(_symbolTable.GetRegister(a + 1)), BinOp.OperationType.OpLoopCompare));
+                        var pta = new Assignment(_symbolTable.GetRegister(a + 3), Register((uint)a));
                         pta.PropogateAlways = true;
                         jmp.PostTakenAssignment = pta;
                         instructions.Add(jmp);
@@ -1411,20 +1423,20 @@ namespace LuaDecompilerCore
                     case Lua53Ops.OpTForCall:
                         args = new List<Expression>();
                         rets = new List<IdentifierReference>();
-                        args.Add(new IdentifierReference(SymbolTable.GetRegister((uint)a + 1)));
-                        args.Add(new IdentifierReference(SymbolTable.GetRegister((uint)a + 2)));
+                        args.Add(new IdentifierReference(_symbolTable.GetRegister((uint)a + 1)));
+                        args.Add(new IdentifierReference(_symbolTable.GetRegister((uint)a + 2)));
                         if (c == 0)
                         {
-                            rets.Add(new IdentifierReference(SymbolTable.GetRegister((uint)a + 3)));
+                            rets.Add(new IdentifierReference(_symbolTable.GetRegister((uint)a + 3)));
                         }
                         else
                         {
                             for (int r = (int)a + 3; r <= a + c + 2; r++)
                             {
-                                rets.Add(new IdentifierReference(SymbolTable.GetRegister((uint)r)));
+                                rets.Add(new IdentifierReference(_symbolTable.GetRegister((uint)r)));
                             }
                         }
-                        var fcall = new FunctionCall(new IdentifierReference(SymbolTable.GetRegister(a)), args);
+                        var fcall = new FunctionCall(new IdentifierReference(_symbolTable.GetRegister(a)), args);
                         fcall.IsIndeterminantReturnCount = (c == 0);
                         assn = new Assignment(rets, fcall);
                         CheckLocal(assn, fun, pc);
@@ -1432,7 +1444,7 @@ namespace LuaDecompilerCore
                         break;
                     case Lua53Ops.OpTForLoop:
                         var jmp2 = new Jump(irfun.GetLabel((uint)((i / 4) + 1 + sbx)), new BinOp(Register((uint)a + 1), new Constant(Constant.ConstantType.ConstNil, -1), BinOp.OperationType.OpEqual));
-                        var pta2 = new Assignment(SymbolTable.GetRegister(a), new IdentifierReference(SymbolTable.GetRegister(a + 1)));
+                        var pta2 = new Assignment(_symbolTable.GetRegister(a), new IdentifierReference(_symbolTable.GetRegister(a + 1)));
                         pta2.PropogateAlways = true;
                         jmp2.PostTakenAssignment = pta2;
                         instructions.Add(jmp2);
@@ -1440,12 +1452,12 @@ namespace LuaDecompilerCore
                     case Lua53Ops.OpSetList:
                         for (int j = 1; j <= (bx % 32) + 1; j++)
                         {
-                            instructions.Add(new Assignment(new IdentifierReference(SymbolTable.GetRegister(a), new Constant((double)(bx - (bx % 32) + j), -1)),
-                                new IdentifierReference(SymbolTable.GetRegister(a + (uint)j))));
+                            instructions.Add(new Assignment(new IdentifierReference(_symbolTable.GetRegister(a), new Constant((double)(bx - (bx % 32) + j), -1)),
+                                new IdentifierReference(_symbolTable.GetRegister(a + (uint)j))));
                         }
                         break;
                     case Lua53Ops.OpClosure:
-                        assn = new Assignment(SymbolTable.GetRegister(a), new Closure(irfun.LookupClosure(bx)));
+                        assn = new Assignment(_symbolTable.GetRegister(a), new Closure(irfun.LookupClosure(bx)));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
@@ -1456,13 +1468,13 @@ namespace LuaDecompilerCore
                         instructions.Add(new Jump(irfun.GetLabel((uint)((i / 4) + 1 + sbx))));
                         break;
                     case Lua53Ops.OpLen:
-                        assn = new Assignment(SymbolTable.GetRegister(a),
-                            new UnaryOp(new IdentifierReference(SymbolTable.GetRegister((uint)b)), UnaryOp.OperationType.OpLength));
+                        assn = new Assignment(_symbolTable.GetRegister(a),
+                            new UnaryOp(new IdentifierReference(_symbolTable.GetRegister((uint)b)), UnaryOp.OperationType.OpLength));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
                     case Lua53Ops.OpMod:
-                        assn = new Assignment(SymbolTable.GetRegister(a), new BinOp(Register((uint)b), RKIR53(fun, c), BinOp.OperationType.OpMod));
+                        assn = new Assignment(_symbolTable.GetRegister(a), new BinOp(Register((uint)b), RKIR53(fun, c), BinOp.OperationType.OpMod));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
@@ -1504,13 +1516,13 @@ namespace LuaDecompilerCore
 
             // Control flow graph construction and SSA conversion
             irfun.ConstructControlFlowGraph();
-            irfun.ResolveIndeterminantArguments(SymbolTable);
+            irfun.ResolveIndeterminantArguments(_symbolTable);
             irfun.CompleteLua51Loops();
 
             // Upval resolution
-            irfun.RegisterClosureUpvalues53(SymbolTable.GetAllRegistersInScope());
+            irfun.RegisterClosureUpvalues53(_symbolTable.GetAllRegistersInScope());
 
-            irfun.ConvertToSSA(SymbolTable.GetAllRegistersInScope());
+            irfun.ConvertToSSA(_symbolTable.GetAllRegistersInScope());
 
             // Data flow passes
             irfun.EliminateDeadAssignments(true);
@@ -1541,46 +1553,50 @@ namespace LuaDecompilerCore
             // Now generate IR for all the child closures
             for (int i = 0; i < fun.ChildFunctions.Length; i++)
             {
-                //if (i == 8)
-                {
-                    GenerateIR53(irfun.LookupClosure((uint)i), fun.ChildFunctions[i], false);
-                }
+                if (DecompilationOptions.IncludedFunctionIds != null && 
+                    !DecompilationOptions.IncludedFunctionIds.Contains(fun.ChildFunctions[i].FunctionID))
+                    continue;
+                if (DecompilationOptions.ExcludedFunctionIds.Contains(fun.ChildFunctions[i].FunctionID))
+                    continue;
+                DecompileLua53Function(irfun.LookupClosure((uint)i), fun.ChildFunctions[i], false);
             }
-            SymbolTable.EndScope();
+            _symbolTable.EndScope();
         }
 
-        private static void CheckLocal(Assignment a, LuaFile.Function fun, int index)
+        private void CheckLocal(Assignment a, LuaFile.Function fun, int index)
         {
             a.LocalAssignments = fun.LocalsAt(index + 1);
         }
 
-        private static void CheckLocal(Data d, LuaFile.Function fun, int index)
+        private void CheckLocal(Data d, LuaFile.Function fun, int index)
         {
             d.Locals = fun.LocalsAt(index + 1);
         }
 
-        public static void GenerateIRHKS(Function irfun, LuaFile.Function fun)
+        public void DecompileHksFunction(Function irfun, LuaFile.Function fun)
         {
             Identifier debugCounter = new Identifier();
             debugCounter.IType = Identifier.IdentifierType.GlobalTable;
             debugCounter.VType = Identifier.ValueType.Number;
             debugCounter.IsClosureBound = true;
             irfun.UpvalueBindings.Add(debugCounter);
+
+            irfun.InsertDebugComments = DecompilationOptions.OutputDebugComments;
             
             // First register closures for all the children
             for (int i = 0; i < fun.ChildFunctions.Length; i++)
             {
-                var cfun = new Function();
+                var cfun = new Function(fun.ChildFunctions[i].FunctionID);
                 // Upval count needs to be set for child functions for analysis to be correct
                 cfun.UpvalCount = fun.ChildFunctions[i].Nups;
                 irfun.AddClosure(cfun);
             }
 
-            SymbolTable.BeginScope();
+            _symbolTable.BeginScope();
             var parameters = new List<Identifier>();
             for (uint i = 0; i < fun.NumParams; i++)
             {
-                parameters.Add(SymbolTable.GetRegister(i));
+                parameters.Add(_symbolTable.GetRegister(i));
             }
             irfun.SetParameters(parameters);
 
@@ -1633,19 +1649,19 @@ namespace LuaDecompilerCore
                 {
                     case LuaHKSOps.OpMove:
                         //instructions.Add(new IR.PlaceholderInstruction(($@"R({a}) := R({b})")));
-                        assn = new Assignment(SymbolTable.GetRegister(a), Register((uint)b));
+                        assn = new Assignment(_symbolTable.GetRegister(a), Register((uint)b));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
                     case LuaHKSOps.OpLoadK:
                         //instructions.Add(new IR.PlaceholderInstruction(($@"R({a}) := {fun.Constants[b].ToString()}")));
-                        assn = new Assignment(SymbolTable.GetRegister(a), ToConstantIR(fun.ConstantsHKS[bx], (int)bx));
+                        assn = new Assignment(_symbolTable.GetRegister(a), ToConstantIR(fun.ConstantsHKS[bx], (int)bx));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
                     case LuaHKSOps.OpLoadBool:
                         //instructions.Add(new IR.PlaceholderInstruction(($@"R({a}) := (Bool){b}")));
-                        assn = new Assignment(SymbolTable.GetRegister(a), new Constant(b == 1, -1));
+                        assn = new Assignment(_symbolTable.GetRegister(a), new Constant(b == 1, -1));
                         assn.NilAssignmentReg = a;
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
@@ -1659,7 +1675,7 @@ namespace LuaDecompilerCore
                         var nlist = new List<IdentifierReference>();
                         for (int arg = (int)a; arg <= b; arg++)
                         {
-                            nlist.Add(new IdentifierReference(SymbolTable.GetRegister((uint)arg)));
+                            nlist.Add(new IdentifierReference(_symbolTable.GetRegister((uint)arg)));
                         }
                         assn = new Assignment(nlist, new Constant(Constant.ConstantType.ConstNil, -1));
                         assn.NilAssignmentReg = a;
@@ -1667,16 +1683,16 @@ namespace LuaDecompilerCore
                         instructions.Add(assn);
                         break;
                     case LuaHKSOps.OpGetUpVal:
-                        var up = SymbolTable.GetUpvalue((uint)b);
+                        var up = _symbolTable.GetUpvalue((uint)b);
                         if (fun.UpvalueNames.Count() > 0 && !up.UpvalueResolved)
                         {
                             up.Name = fun.UpvalueNames[b].Name;
                             up.UpvalueResolved = true;
                         }
-                        instructions.Add(new Assignment(SymbolTable.GetRegister(a), new IdentifierReference(up)));
+                        instructions.Add(new Assignment(_symbolTable.GetRegister(a), new IdentifierReference(up)));
                         break;
                     case LuaHKSOps.OpSetUpVal:
-                        var up2 = SymbolTable.GetUpvalue((uint)b);
+                        var up2 = _symbolTable.GetUpvalue((uint)b);
                         if (fun.UpvalueNames.Count() > 0 && !up2.UpvalueResolved)
                         {
                             up2.Name = fun.UpvalueNames[b].Name;
@@ -1690,29 +1706,29 @@ namespace LuaDecompilerCore
                             }
                             up2 = irfun.UpvalueBindings[(int)b];
                         }
-                        instructions.Add(new Assignment(up2, new IdentifierReference(SymbolTable.GetRegister(a))));
+                        instructions.Add(new Assignment(up2, new IdentifierReference(_symbolTable.GetRegister(a))));
                         break;
                     case LuaHKSOps.OpGetGlobalMem:
                     case LuaHKSOps.OpGetGlobal:
                         //instructions.Add(new IR.PlaceholderInstruction(($@"R({a}) := Gbl[{fun.Constants[bx].ToString()}]")));
-                        assn = new Assignment(SymbolTable.GetRegister(a), new IdentifierReference(SymbolTable.GetGlobal(fun.ConstantsHKS[bx].ToString(), (int)bx)));
+                        assn = new Assignment(_symbolTable.GetRegister(a), new IdentifierReference(_symbolTable.GetGlobal(fun.ConstantsHKS[bx].ToString(), (int)bx)));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
                     case LuaHKSOps.OpGetTableS:
                     case LuaHKSOps.OpGetTable:
                         //instructions.Add(new IR.PlaceholderInstruction(($@"R({a}) := R({b})[{RK(fun, c)}]")));
-                        assn = new Assignment(SymbolTable.GetRegister(a), new IdentifierReference(SymbolTable.GetRegister((uint)b), RKIRHKS(fun, c, szero)));
+                        assn = new Assignment(_symbolTable.GetRegister(a), new IdentifierReference(_symbolTable.GetRegister((uint)b), RKIRHKS(fun, c, szero)));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
                     case LuaHKSOps.OpSetGlobal:
                         //instructions.Add(new IR.PlaceholderInstruction(($@"Gbl[{fun.Constants[bx].ToString()}] := R({a})")));
-                        instructions.Add(new Assignment(SymbolTable.GetGlobal(fun.ConstantsHKS[bx].ToString(), (int)bx), new IdentifierReference(SymbolTable.GetRegister(a))));
+                        instructions.Add(new Assignment(_symbolTable.GetGlobal(fun.ConstantsHKS[bx].ToString(), (int)bx), new IdentifierReference(_symbolTable.GetRegister(a))));
                         break;
                     case LuaHKSOps.OpNewTable:
                         //instructions.Add(new IR.PlaceholderInstruction(($@"R({a}) := {{}} size = {b}, {c}")));
-                        assn = new Assignment(SymbolTable.GetRegister(a), new InitializerList(new List<Expression>()));
+                        assn = new Assignment(_symbolTable.GetRegister(a), new InitializerList(new List<Expression>()));
                         assn.VarargAssignmentReg = a;
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
@@ -1720,86 +1736,86 @@ namespace LuaDecompilerCore
                     
                     case LuaHKSOps.OpSelf:
                         //instructions.Add(new IR.PlaceholderInstruction(($@"R({a + 1}) := R({b})")));
-                        instructions.Add(new Assignment(SymbolTable.GetRegister(a + 1), Register((uint)b)));
+                        instructions.Add(new Assignment(_symbolTable.GetRegister(a + 1), Register((uint)b)));
                         //instructions.Add(new IR.PlaceholderInstruction(($@"R({a}) := R({b})[{RK(fun, c)}]")));
-                        instructions.Add(new Assignment(SymbolTable.GetRegister(a), new IdentifierReference(SymbolTable.GetRegister((uint)b), RKIRHKS(fun, c, szero))));
+                        instructions.Add(new Assignment(_symbolTable.GetRegister(a), new IdentifierReference(_symbolTable.GetRegister((uint)b), RKIRHKS(fun, c, szero))));
                         break;
                     case LuaHKSOps.OpAdd:
                         //instructions.Add(new IR.PlaceholderInstruction(($@"R({a}) := {RK(fun, b)} + {RK(fun, c)}")));
-                        assn = new Assignment(SymbolTable.GetRegister(a), new BinOp(Register((uint)b), RKIRHKS(fun, c, szero), BinOp.OperationType.OpAdd));
+                        assn = new Assignment(_symbolTable.GetRegister(a), new BinOp(Register((uint)b), RKIRHKS(fun, c, szero), BinOp.OperationType.OpAdd));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
                     case LuaHKSOps.OpAddBk:
                         //instructions.Add(new IR.PlaceholderInstruction(($@"R({a}) := {RK(fun, b)} + {RK(fun, c)}")));
-                        assn = new Assignment(SymbolTable.GetRegister(a), new BinOp(ToConstantIR(fun.ConstantsHKS[b], b), Register((uint)c), BinOp.OperationType.OpAdd));
+                        assn = new Assignment(_symbolTable.GetRegister(a), new BinOp(ToConstantIR(fun.ConstantsHKS[b], b), Register((uint)c), BinOp.OperationType.OpAdd));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
                     case LuaHKSOps.OpSub:
                         //instructions.Add(new IR.PlaceholderInstruction(($@"R({a}) := {RK(fun, b)} - {RK(fun, c)}")));
-                        assn = new Assignment(SymbolTable.GetRegister(a), new BinOp(Register((uint)b), RKIRHKS(fun, c, szero), BinOp.OperationType.OpSub));
+                        assn = new Assignment(_symbolTable.GetRegister(a), new BinOp(Register((uint)b), RKIRHKS(fun, c, szero), BinOp.OperationType.OpSub));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
                     case LuaHKSOps.OpSubBk:
                         //instructions.Add(new IR.PlaceholderInstruction(($@"R({a}) := {RK(fun, b)} - {RK(fun, c)}")));
-                        assn = new Assignment(SymbolTable.GetRegister(a), new BinOp(ToConstantIR(fun.ConstantsHKS[b], b), Register((uint)c), BinOp.OperationType.OpSub));
+                        assn = new Assignment(_symbolTable.GetRegister(a), new BinOp(ToConstantIR(fun.ConstantsHKS[b], b), Register((uint)c), BinOp.OperationType.OpSub));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
                     case LuaHKSOps.OpMul:
                         //instructions.Add(new IR.PlaceholderInstruction(($@"R({a}) := {RK(fun, b)} * {RK(fun, c)}")));
-                        assn = new Assignment(SymbolTable.GetRegister(a), new BinOp(Register((uint)b), RKIRHKS(fun, c, szero), BinOp.OperationType.OpMul));
+                        assn = new Assignment(_symbolTable.GetRegister(a), new BinOp(Register((uint)b), RKIRHKS(fun, c, szero), BinOp.OperationType.OpMul));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
                     case LuaHKSOps.OpMulBk:
                         //instructions.Add(new IR.PlaceholderInstruction(($@"R({a}) := {RK(fun, b)} * {RK(fun, c)}")));
-                        assn = new Assignment(SymbolTable.GetRegister(a), new BinOp(ToConstantIR(fun.ConstantsHKS[b], b), Register((uint)c), BinOp.OperationType.OpMul));
+                        assn = new Assignment(_symbolTable.GetRegister(a), new BinOp(ToConstantIR(fun.ConstantsHKS[b], b), Register((uint)c), BinOp.OperationType.OpMul));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
                     case LuaHKSOps.OpDiv:
                         //instructions.Add(new IR.PlaceholderInstruction(($@"R({a}) := {RK(fun, b)} / {RK(fun, c)}")));
-                        assn = new Assignment(SymbolTable.GetRegister(a), new BinOp(Register((uint)b), RKIRHKS(fun, c, szero), BinOp.OperationType.OpDiv));
+                        assn = new Assignment(_symbolTable.GetRegister(a), new BinOp(Register((uint)b), RKIRHKS(fun, c, szero), BinOp.OperationType.OpDiv));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
                     case LuaHKSOps.OpMod:
-                        assn = new Assignment(SymbolTable.GetRegister(a), new BinOp(Register((uint)b), RKIRHKS(fun, c, szero), BinOp.OperationType.OpMod));
+                        assn = new Assignment(_symbolTable.GetRegister(a), new BinOp(Register((uint)b), RKIRHKS(fun, c, szero), BinOp.OperationType.OpMod));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
                     case LuaHKSOps.OpPow:
                         //instructions.Add(new IR.PlaceholderInstruction(($@"R({a}) := {RK(fun, b)} ^ {RK(fun, c)}")));
-                        assn = new Assignment(SymbolTable.GetRegister(a), new BinOp(Register((uint)b), RKIRHKS(fun, c, szero), BinOp.OperationType.OpPow));
+                        assn = new Assignment(_symbolTable.GetRegister(a), new BinOp(Register((uint)b), RKIRHKS(fun, c, szero), BinOp.OperationType.OpPow));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
                     case LuaHKSOps.OpPowBk:
                         //instructions.Add(new IR.PlaceholderInstruction(($@"R({a}) := {RK(fun, b)} * {RK(fun, c)}")));
-                        assn = new Assignment(SymbolTable.GetRegister(a), new BinOp(ToConstantIR(fun.ConstantsHKS[b], b), Register((uint)c), BinOp.OperationType.OpPow));
+                        assn = new Assignment(_symbolTable.GetRegister(a), new BinOp(ToConstantIR(fun.ConstantsHKS[b], b), Register((uint)c), BinOp.OperationType.OpPow));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
                     case LuaHKSOps.OpUnm:
                         //instructions.Add(new IR.PlaceholderInstruction(($@"R({a}) := -R({b})")));
-                        assn = new Assignment(SymbolTable.GetRegister(a),
-                            new UnaryOp(new IdentifierReference(SymbolTable.GetRegister((uint)b)), UnaryOp.OperationType.OpNegate));
+                        assn = new Assignment(_symbolTable.GetRegister(a),
+                            new UnaryOp(new IdentifierReference(_symbolTable.GetRegister((uint)b)), UnaryOp.OperationType.OpNegate));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
                     case LuaHKSOps.OpNot:
                         //instructions.Add(new IR.PlaceholderInstruction(($@"R({a}) := not R({b})")));
-                        assn = new Assignment(SymbolTable.GetRegister(a),
-                            new UnaryOp(new IdentifierReference(SymbolTable.GetRegister((uint)b)), UnaryOp.OperationType.OpNot));
+                        assn = new Assignment(_symbolTable.GetRegister(a),
+                            new UnaryOp(new IdentifierReference(_symbolTable.GetRegister((uint)b)), UnaryOp.OperationType.OpNot));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
                     case LuaHKSOps.OpLen:
-                        assn = new Assignment(SymbolTable.GetRegister(a),
-                            new UnaryOp(new IdentifierReference(SymbolTable.GetRegister((uint)b)), UnaryOp.OperationType.OpLength));
+                        assn = new Assignment(_symbolTable.GetRegister(a),
+                            new UnaryOp(new IdentifierReference(_symbolTable.GetRegister((uint)b)), UnaryOp.OperationType.OpLength));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
@@ -1807,10 +1823,10 @@ namespace LuaDecompilerCore
                         args = new List<Expression>();
                         for (int arg = (int)b; arg <= c; arg++)
                         {
-                            args.Add(new IdentifierReference(SymbolTable.GetRegister((uint)arg)));
+                            args.Add(new IdentifierReference(_symbolTable.GetRegister((uint)arg)));
                         }
                         //instructions.Add(new IR.PlaceholderInstruction(($@"R({a}) := R({a})({args})")));
-                        assn = new Assignment(SymbolTable.GetRegister(a), new Concat(args));
+                        assn = new Assignment(_symbolTable.GetRegister(a), new Concat(args));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
@@ -1910,20 +1926,20 @@ namespace LuaDecompilerCore
                     case LuaHKSOps.OpSetTableS:
                     case LuaHKSOps.OpSetTable:
                         //instructions.Add(new IR.PlaceholderInstruction(($@"R({a})[{RK(fun, b)}] := R({c})")));
-                        instructions.Add(new Assignment(new IdentifierReference(SymbolTable.GetRegister(a), RKIRHKS(fun, b, false)), RKIRHKS(fun, c, false)));
+                        instructions.Add(new Assignment(new IdentifierReference(_symbolTable.GetRegister(a), RKIRHKS(fun, b, false)), RKIRHKS(fun, c, false)));
                         break;
                     case LuaHKSOps.OpTailCallI:
                         args = new List<Expression>();
                         for (int arg = (int)a + 1; arg < a + b; arg++)
                         {
-                            args.Add(new IdentifierReference(SymbolTable.GetRegister((uint)arg)));
+                            args.Add(new IdentifierReference(_symbolTable.GetRegister((uint)arg)));
                         }
                         //instructions.Add(new IR.PlaceholderInstruction(($@"R({a}) := R({a})({args})")));
-                        instructions.Add(new Return(new FunctionCall(new IdentifierReference(SymbolTable.GetRegister(a)), args)));
+                        instructions.Add(new Return(new FunctionCall(new IdentifierReference(_symbolTable.GetRegister(a)), args)));
                         break;
                     case LuaHKSOps.OpSetTableSBK:
                         //instructions.Add(new IR.PlaceholderInstruction(($@"R({a})[{RK(fun, b)}] := R({c})")));
-                        instructions.Add(new Assignment(new IdentifierReference(SymbolTable.GetRegister(a), ToConstantIR(fun.ConstantsHKS[b], b)), RKIRHKS(fun, c, false)));
+                        instructions.Add(new Assignment(new IdentifierReference(_symbolTable.GetRegister(a), ToConstantIR(fun.ConstantsHKS[b], b)), RKIRHKS(fun, c, false)));
                         break;
                     case LuaHKSOps.OpCallI:
                     case LuaHKSOps.OpCallIR1:
@@ -1932,18 +1948,18 @@ namespace LuaDecompilerCore
                         rets = new List<IdentifierReference>();
                         for (int arg = (int)a + 1; arg < a + b; arg++)
                         {
-                            args.Add(new IdentifierReference(SymbolTable.GetRegister((uint)arg)));
+                            args.Add(new IdentifierReference(_symbolTable.GetRegister((uint)arg)));
                         }
                         for (int r = (int)a; r <= a + c - 2; r++)
                         {
-                            rets.Add(new IdentifierReference(SymbolTable.GetRegister((uint)r)));
+                            rets.Add(new IdentifierReference(_symbolTable.GetRegister((uint)r)));
                         }
                         if (c == 0)
                         {
-                            rets.Add(new IdentifierReference(SymbolTable.GetRegister((uint)a)));
+                            rets.Add(new IdentifierReference(_symbolTable.GetRegister((uint)a)));
                         }
                         //instructions.Add(new IR.PlaceholderInstruction(($@"R({a}) := R({a})({args})")));
-                        var funcall = new FunctionCall(new IdentifierReference(SymbolTable.GetRegister(a)), args);
+                        var funcall = new FunctionCall(new IdentifierReference(_symbolTable.GetRegister(a)), args);
                         funcall.IsIndeterminantArgumentCount = (b == 0);
                         funcall.IsIndeterminantReturnCount = (c == 0);
                         funcall.BeginArg = a + 1;
@@ -1966,7 +1982,7 @@ namespace LuaDecompilerCore
                         {
                             for (int arg = (int)a; arg < a + b - 1; arg++)
                             {
-                                args.Add(new IdentifierReference(SymbolTable.GetRegister((uint)arg)));
+                                args.Add(new IdentifierReference(_symbolTable.GetRegister((uint)arg)));
                             }
                         }
                         var ret = new Return(args);
@@ -1985,11 +2001,11 @@ namespace LuaDecompilerCore
                             // Unsigned address?
                             addr = (uint)((sbx & 0xFFFF) + 2 + (uint)(i / 4));
                         }
-                        instructions.Add(new Assignment(new IdentifierReference(SymbolTable.GetRegister(a)), new BinOp(new IdentifierReference(SymbolTable.GetRegister(a)),
-                            new IdentifierReference(SymbolTable.GetRegister(a + 2)), BinOp.OperationType.OpAdd)));
-                        var jmp = new Jump(irfun.GetLabel(addr), new BinOp(new IdentifierReference(SymbolTable.GetRegister(a)),
-                            new IdentifierReference(SymbolTable.GetRegister(a + 1)), BinOp.OperationType.OpLoopCompare));
-                        var pta = new Assignment(SymbolTable.GetRegister(a + 3), Register((uint)a));
+                        instructions.Add(new Assignment(new IdentifierReference(_symbolTable.GetRegister(a)), new BinOp(new IdentifierReference(_symbolTable.GetRegister(a)),
+                            new IdentifierReference(_symbolTable.GetRegister(a + 2)), BinOp.OperationType.OpAdd)));
+                        var jmp = new Jump(irfun.GetLabel(addr), new BinOp(new IdentifierReference(_symbolTable.GetRegister(a)),
+                            new IdentifierReference(_symbolTable.GetRegister(a + 1)), BinOp.OperationType.OpLoopCompare));
+                        var pta = new Assignment(_symbolTable.GetRegister(a + 3), Register((uint)a));
                         pta.PropogateAlways = true;
                         jmp.PostTakenAssignment = pta;
                         instructions.Add(jmp);
@@ -1997,27 +2013,27 @@ namespace LuaDecompilerCore
                     case LuaHKSOps.OpTForLoop:
                         args = new List<Expression>();
                         rets = new List<IdentifierReference>();
-                        args.Add(new IdentifierReference(SymbolTable.GetRegister((uint)a + 1)));
-                        args.Add(new IdentifierReference(SymbolTable.GetRegister((uint)a + 2)));
+                        args.Add(new IdentifierReference(_symbolTable.GetRegister((uint)a + 1)));
+                        args.Add(new IdentifierReference(_symbolTable.GetRegister((uint)a + 2)));
                         if (c == 0)
                         {
-                            rets.Add(new IdentifierReference(SymbolTable.GetRegister((uint)a + 3)));
+                            rets.Add(new IdentifierReference(_symbolTable.GetRegister((uint)a + 3)));
                         }
                         else
                         {
                             for (int r = (int)a + 3; r <= a + c + 2; r++)
                             {
-                                rets.Add(new IdentifierReference(SymbolTable.GetRegister((uint)r)));
+                                rets.Add(new IdentifierReference(_symbolTable.GetRegister((uint)r)));
                             }
                         }
                         //instructions.Add(new IR.PlaceholderInstruction(($@"R({a}) := R({a})({args})")));
-                        var fcall = new FunctionCall(new IdentifierReference(SymbolTable.GetRegister(a)), args);
+                        var fcall = new FunctionCall(new IdentifierReference(_symbolTable.GetRegister(a)), args);
                         fcall.IsIndeterminantReturnCount = (c == 0);
                         assn = new Assignment(rets, fcall);
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         instructions.Add(new Jump(irfun.GetLabel((uint)((i / 4) + 2)), new BinOp(Register((uint)a + 3), new Constant(Constant.ConstantType.ConstNil, -1), BinOp.OperationType.OpEqual)));
-                        instructions.Add(new Assignment(SymbolTable.GetRegister(a + 2), new IdentifierReference(SymbolTable.GetRegister(a + 3))));
+                        instructions.Add(new Assignment(_symbolTable.GetRegister(a + 2), new IdentifierReference(_symbolTable.GetRegister(a + 3))));
                         break;
                     case LuaHKSOps.OpForPrep:
                         addr = (uint)((i / 4) + 2 + ((sbx << 16) >> 16));
@@ -2037,7 +2053,7 @@ namespace LuaDecompilerCore
                             // Indeterminant assignment
                             if (c == 1)
                             {
-                                assn = new Assignment(SymbolTable.GetRegister(a), Register(a + 1));
+                                assn = new Assignment(_symbolTable.GetRegister(a), Register(a + 1));
                                 assn.VarargAssignmentReg = a;
                                 assn.IsIndeterminantVararg = true;
                                 CheckLocal(assn, fun, pc);
@@ -2048,8 +2064,8 @@ namespace LuaDecompilerCore
                         {
                             for (int j = 1; j <= b; j++)
                             {
-                                assn = new Assignment(new IdentifierReference(SymbolTable.GetRegister(a), new Constant((double)(c - 1) * 32 + j, -1)),
-                                    new IdentifierReference(SymbolTable.GetRegister(a + (uint)j)));
+                                assn = new Assignment(new IdentifierReference(_symbolTable.GetRegister(a), new Constant((double)(c - 1) * 32 + j, -1)),
+                                    new IdentifierReference(_symbolTable.GetRegister(a + (uint)j)));
                                 CheckLocal(assn, fun, pc);
                                 instructions.Add(assn);
                             }
@@ -2063,11 +2079,11 @@ namespace LuaDecompilerCore
                         //    args += $@"R({arg})";
                         //}
                         //instructions.Add(new IR.PlaceholderInstruction(($@"R({a}) := closure(KPROTO[{bx}]{args})")));
-                        instructions.Add(new Assignment(SymbolTable.GetRegister(a), new Closure(irfun.LookupClosure(bx))));
+                        instructions.Add(new Assignment(_symbolTable.GetRegister(a), new Closure(irfun.LookupClosure(bx))));
                         break;
                     case LuaHKSOps.OpGetField:
                     case LuaHKSOps.OpGetFieldR1:
-                        assn = new Assignment(Register((uint)a), new IdentifierReference(SymbolTable.GetRegister((uint)b), new Constant(fun.ConstantsHKS[c].ToString(), -1)));
+                        assn = new Assignment(Register((uint)a), new IdentifierReference(_symbolTable.GetRegister((uint)b), new Constant(fun.ConstantsHKS[c].ToString(), -1)));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
@@ -2077,7 +2093,7 @@ namespace LuaDecompilerCore
                         instructions.Add(dat);
                         break;
                     case LuaHKSOps.OpSetField:
-                        assn = new Assignment(new IdentifierReference(SymbolTable.GetRegister(a), new Constant(fun.ConstantsHKS[b].ToString(), b)), Register((uint)c));
+                        assn = new Assignment(new IdentifierReference(_symbolTable.GetRegister(a), new Constant(fun.ConstantsHKS[b].ToString(), b)), Register((uint)c));
                         CheckLocal(assn, fun, pc);
                         instructions.Add(assn);
                         break;
@@ -2086,15 +2102,15 @@ namespace LuaDecompilerCore
                         var vargs = new List<IdentifierReference>();
                         for (int arg = (int)a; arg <= a + b - 1; arg++)
                         {
-                            vargs.Add(new IdentifierReference(SymbolTable.GetRegister((uint)arg)));
+                            vargs.Add(new IdentifierReference(_symbolTable.GetRegister((uint)arg)));
                         }
                         if (b != 0)
                         {
-                            assn = new Assignment(vargs, new IdentifierReference(SymbolTable.GetVarargs()));
+                            assn = new Assignment(vargs, new IdentifierReference(_symbolTable.GetVarargs()));
                         }
                         else
                         {
-                            assn = new Assignment(SymbolTable.GetRegister(a), new IdentifierReference(SymbolTable.GetVarargs()));
+                            assn = new Assignment(_symbolTable.GetRegister(a), new IdentifierReference(_symbolTable.GetVarargs()));
                             assn.IsIndeterminantVararg = true;
                             assn.VarargAssignmentReg = a;
                         }
@@ -2142,9 +2158,9 @@ namespace LuaDecompilerCore
 
              // Control flow graph construction and SSA conversion
             irfun.ConstructControlFlowGraph();
-            irfun.ResolveIndeterminantArguments(SymbolTable);
+            irfun.ResolveIndeterminantArguments(_symbolTable);
             irfun.CompleteLua51Loops();
-            irfun.ConvertToSSA(SymbolTable.GetAllRegistersInScope());
+            irfun.ConvertToSSA(_symbolTable.GetAllRegistersInScope());
 
             // Data flow passes
             irfun.EliminateDeadAssignments(true);
@@ -2174,11 +2190,14 @@ namespace LuaDecompilerCore
             // Now generate IR for all the child closures
             for (int i = 0; i < fun.ChildFunctions.Length; i++)
             {
-                {
-                    GenerateIRHKS(irfun.LookupClosure((uint)i), fun.ChildFunctions[i]);
-                }
+                if (DecompilationOptions.IncludedFunctionIds != null && 
+                    !DecompilationOptions.IncludedFunctionIds.Contains(fun.ChildFunctions[i].FunctionID))
+                    continue;
+                if (DecompilationOptions.ExcludedFunctionIds.Contains(fun.ChildFunctions[i].FunctionID))
+                    continue;
+                DecompileHksFunction(irfun.LookupClosure((uint)i), fun.ChildFunctions[i]);
             }
-            SymbolTable.EndScope();
+            _symbolTable.EndScope();
         }
     }
 }

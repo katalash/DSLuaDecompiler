@@ -52,8 +52,12 @@ namespace LuaDecompilerCore.IR
 
         private static int IndentLevel = 0;
 
-        public static int DebugIDCounter = 0;
-        public int DebugID = 0;
+        /// <summary>
+        /// Unique identifier for the function used for various purposes
+        /// </summary>
+        public int FunctionId { get; private set; }
+
+        public bool InsertDebugComments { get; set; } = false;
 
         public List<LuaFile.Local> ArgumentNames = null;
 
@@ -79,7 +83,7 @@ namespace LuaDecompilerCore.IR
         /// </summary>
         public List<Identifier> UpvalueBindings = new List<Identifier>();
 
-        public Function()
+        public Function(int functionId)
         {
             Parameters = new List<Identifier>();
             Closures = new List<Function>();
@@ -88,8 +92,7 @@ namespace LuaDecompilerCore.IR
             BlockList = new List<CFG.BasicBlock>();
             GlobalIdentifiers = new HashSet<Identifier>();
             SSAVariables = new HashSet<Identifier>();
-            DebugID = DebugIDCounter;
-            DebugIDCounter++;
+            FunctionId = functionId;
         }
 
         public void AddInstruction(IInstruction inst)
@@ -2257,7 +2260,7 @@ namespace LuaDecompilerCore.IR
                         {
                             if (live != def && live.OriginalIdentifier == def.OriginalIdentifier)
                             {
-                                Console.WriteLine($@"Warning: SSA live range interference detected in function {DebugID}. Results are probably wrong.");
+                                Console.WriteLine($@"Warning: SSA live range interference detected in function {FunctionId}. Results are probably wrong.");
                             }
                         }
                         liveNow.Remove(def);
@@ -2774,12 +2777,12 @@ namespace LuaDecompilerCore.IR
                         }
 
                         nfor.Body = node.Successors[1];
-                        nfor.Body.MarkCodegened(DebugID);
+                        nfor.Body.MarkCodegened(FunctionId);
                         if (!usedFollows.Contains(node.LoopFollow))
                         {
                             nfor.Follow = node.LoopFollow;
                             usedFollows.Add(node.LoopFollow);
-                            node.LoopFollow.MarkCodegened(DebugID);
+                            node.LoopFollow.MarkCodegened(FunctionId);
                         }
                         if (loopInitializer.Instructions[loopInitializer.Instructions.Count() - 1] is Jump)
                         {
@@ -2789,7 +2792,7 @@ namespace LuaDecompilerCore.IR
                         {
                             loopInitializer.Instructions.Add(nfor);
                         }
-                        node.MarkCodegened(DebugID);
+                        node.MarkCodegened(FunctionId);
                         // The head might be the follow of an if statement, so do this to not codegen it
                         usedFollows.Add(node);
 
@@ -2842,12 +2845,12 @@ namespace LuaDecompilerCore.IR
                         }
 
                         gfor.Body = body;
-                        gfor.Body.MarkCodegened(DebugID);
+                        gfor.Body.MarkCodegened(FunctionId);
                         if (!usedFollows.Contains(node.LoopFollow))
                         {
                             gfor.Follow = node.LoopFollow;
                             usedFollows.Add(node.LoopFollow);
-                            node.LoopFollow.MarkCodegened(DebugID);
+                            node.LoopFollow.MarkCodegened(FunctionId);
                         }
                         if (loopInitializer.Instructions[loopInitializer.Instructions.Count() - 1] is Jump)
                         {
@@ -2857,7 +2860,7 @@ namespace LuaDecompilerCore.IR
                         {
                             loopInitializer.Instructions.Add(gfor);
                         }
-                        node.MarkCodegened(DebugID);
+                        node.MarkCodegened(FunctionId);
                         // The head might be the follow of an if statement, so do this to not codegen it
                         usedFollows.Add(node);
                     }
@@ -2873,12 +2876,12 @@ namespace LuaDecompilerCore.IR
 
                         //whiles.Body = (node.Successors[0].ReversePostorderNumber > node.Successors[1].ReversePostorderNumber) ? node.Successors[0] : node.Successors[1];
                         whiles.Body = node.Successors[0];
-                        whiles.Body.MarkCodegened(DebugID);
+                        whiles.Body.MarkCodegened(FunctionId);
                         if (!usedFollows.Contains(node.LoopFollow))
                         {
                             whiles.Follow = node.LoopFollow;
                             usedFollows.Add(node.LoopFollow);
-                            node.LoopFollow.MarkCodegened(DebugID);
+                            node.LoopFollow.MarkCodegened(FunctionId);
                         }
                         // If there's a goto to this loop head, replace it with the while. Otherwise replace the last instruction of this node
                         if (loopInitializer.Successors.Count == 1)
@@ -2906,7 +2909,7 @@ namespace LuaDecompilerCore.IR
                             }
                         }
 
-                        node.MarkCodegened(DebugID);
+                        node.MarkCodegened(FunctionId);
                         // The head might be the follow of an if statement, so do this to not codegen it
                         usedFollows.Add(node);
                     }
@@ -2923,12 +2926,12 @@ namespace LuaDecompilerCore.IR
 
                         //whiles.Body = (node.Successors[0].ReversePostorderNumber > node.Successors[1].ReversePostorderNumber) ? node.Successors[0] : node.Successors[1];
                         whiles.Body = node.Successors[1];
-                        whiles.Body.MarkCodegened(DebugID);
+                        whiles.Body.MarkCodegened(FunctionId);
                         if (!usedFollows.Contains(node.LoopFollow))
                         {
                             whiles.Follow = node.LoopFollow;
                             usedFollows.Add(node.LoopFollow);
-                            node.LoopFollow.MarkCodegened(DebugID);
+                            node.LoopFollow.MarkCodegened(FunctionId);
                         }
                         // If there's a goto to this loop head, replace it with the while. Otherwise replace the last instruction of this node
                         if (loopInitializer.Successors.Count == 1)
@@ -2956,7 +2959,7 @@ namespace LuaDecompilerCore.IR
                             }
                         }
 
-                        node.MarkCodegened(DebugID);
+                        node.MarkCodegened(FunctionId);
                         // The head might be the follow of an if statement, so do this to not codegen it
                         usedFollows.Add(node);
                     }
@@ -2980,7 +2983,7 @@ namespace LuaDecompilerCore.IR
                     {
                         whiles.Follow = node.LoopFollow;
                         usedFollows.Add(node.LoopFollow);
-                        node.LoopFollow.MarkCodegened(DebugID);
+                        node.LoopFollow.MarkCodegened(FunctionId);
                     }
 
                     if (node.Predecessors.Count == 2)
@@ -3020,7 +3023,7 @@ namespace LuaDecompilerCore.IR
                         }
                     }
 
-                    node.MarkCodegened(DebugID);
+                    node.MarkCodegened(FunctionId);
                     // The head might be the follow of an if statement, so do this to not codegen it
                     usedFollows.Add(node);
                 }
@@ -3038,7 +3041,7 @@ namespace LuaDecompilerCore.IR
                     {
                         whiles.Follow = node.LoopFollow;
                         usedFollows.Add(node.LoopFollow);
-                        node.LoopFollow.MarkCodegened(DebugID);
+                        node.LoopFollow.MarkCodegened(FunctionId);
                     }
 
                     if (node.Predecessors.Count == 2)
@@ -3078,7 +3081,7 @@ namespace LuaDecompilerCore.IR
                         }
                     }
 
-                    node.MarkCodegened(DebugID);
+                    node.MarkCodegened(FunctionId);
                     // The head might be the follow of an if statement, so do this to not codegen it
                     usedFollows.Add(node);
                 }
@@ -3092,7 +3095,7 @@ namespace LuaDecompilerCore.IR
                     if (node.Successors[0] != node.Follow)
                     {
                         ifStatement.True = node.Successors[0];
-                        ifStatement.True.MarkCodegened(DebugID);
+                        ifStatement.True.MarkCodegened(FunctionId);
                         if (ifStatement.True.Instructions.Last() is Jump lj && !lj.Conditional)
                         {
                             if (ifStatement.True.IsBreakNode)
@@ -3124,7 +3127,7 @@ namespace LuaDecompilerCore.IR
                     if (node.Successors[1] != node.Follow)
                     {
                         ifStatement.False = node.Successors[1];
-                        ifStatement.False.MarkCodegened(DebugID);
+                        ifStatement.False.MarkCodegened(FunctionId);
                         if (ifStatement.False.Instructions.Last() is Jump fj && !fj.Conditional)
                         {
                             if (ifStatement.False.IsBreakNode)
@@ -3146,7 +3149,7 @@ namespace LuaDecompilerCore.IR
                     if (!usedFollows.Contains(node.Follow))
                     {
                         ifStatement.Follow = node.Follow;
-                        ifStatement.Follow.MarkCodegened(DebugID);
+                        ifStatement.Follow.MarkCodegened(FunctionId);
                         usedFollows.Add(node.Follow);
                     }
                     node.Instructions[node.Instructions.Count() - 1] = ifStatement;
@@ -3167,7 +3170,7 @@ namespace LuaDecompilerCore.IR
             {
                 if (b != BeginBlock && !b.Codegened())
                 {
-                    Console.WriteLine($@"Warning: block_{b.BlockID} in function {DebugID} was not used in code generation. THIS IS LIKELY A DECOMPILER BUG!");
+                    Console.WriteLine($@"Warning: block_{b.BlockID} in function {FunctionId} was not used in code generation. THIS IS LIKELY A DECOMPILER BUG!");
                 }
             }
 
@@ -3213,7 +3216,7 @@ namespace LuaDecompilerCore.IR
                                 }
                                 else
                                 {
-                                    ir.Identifier.Name = $@"f{DebugID}_local{localCounter}";
+                                    ir.Identifier.Name = $@"f{FunctionId}_local{localCounter}";
                                     localCounter++;
                                 }
                                 // Needed so upval uses by closures don't rename this
@@ -3275,17 +3278,17 @@ namespace LuaDecompilerCore.IR
         public string PrettyPrint(string funname = null)
         {
             string str = "";
-            if (DebugID != 0)
+            if (FunctionId != 0)
             {
                 if (funname == null)
                 {
                     //string str = $@"function {DebugID} (";
-                    str = $@"function (";
+                    str += $@"function (";
                 }
                 else
                 {
                     //str = $@"function {DebugID} {funname}(";
-                    str = $@"function {funname}(";
+                    str += $@"function {funname}(";
                 }
                 for (int i = 0; i < Parameters.Count(); i++)
                 {
@@ -3328,6 +3331,14 @@ namespace LuaDecompilerCore.IR
             }
             else if (IsAST)
             {
+                if (InsertDebugComments)
+                {
+                    for (int i = 0; i < IndentLevel; i++)
+                    {
+                        str += "    ";
+                    }
+                    str += $"-- Function ID = {FunctionId}\n";
+                }
                 str += BeginBlock.PrintBlock(IndentLevel);
                 str += "\n";
             }
@@ -3380,9 +3391,9 @@ namespace LuaDecompilerCore.IR
                     }
                 }
             }
-            IndentLevel -= 1;
-            if (DebugID != 0)
+            if (FunctionId != 0)
             {
+                IndentLevel -= 1;
                 for (int i = 0; i < IndentLevel; i++)
                 {
                     str += "    ";

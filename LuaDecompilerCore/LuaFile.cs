@@ -15,6 +15,13 @@ namespace LuaDecompilerCore
 
         public LuaVersion Version;
 
+        private int _functionCount = 0;
+
+        private int GetNextFunctionId()
+        {
+            return _functionCount++;
+        }
+
         public static string ReadLuaString(BinaryReaderEx br, LuaVersion version, bool sizeminusone=true)
         {
             ulong length;
@@ -323,6 +330,7 @@ namespace LuaDecompilerCore
             public UpvalueName[] UpvalueNames;
             public Function[] ChildFunctions;
             public byte[] Bytecode;
+            public readonly int FunctionID;
 
             private void ReadLua53Smash(LuaFile file, BinaryReaderEx br)
             {
@@ -384,6 +392,7 @@ namespace LuaDecompilerCore
 
             public Function(LuaFile file, LuaVersion version, BinaryReaderEx br)
             {
+                FunctionID = file.GetNextFunctionId();
                 if (version == LuaVersion.Lua53Smash)
                 {
                     ReadLua53Smash(file, br);

@@ -15,7 +15,8 @@ namespace DecompilerTester
         public static bool AreFileContentsEqual(string path1, byte[] bytes) =>
             File.ReadAllBytes(path1).SequenceEqual(bytes);
 
-        private static bool CompareLuaFiles(byte[] a, byte[] b, out int mismatched, out int total)
+        private static bool CompareLuaFiles(byte[] a, byte[] b, 
+            out int mismatched, out int total, out List<int> mismatchedFunctionIds)
         {
             BinaryReaderEx br1 = new BinaryReaderEx(false, a);
             BinaryReaderEx br2 = new BinaryReaderEx(false, b);
@@ -23,7 +24,9 @@ namespace DecompilerTester
             LuaFile luaFile2 = new LuaFile(br2);
             int lmismatched = 0;
             int ltotal = 0;
+            var lMismatchedFunctionIds = new List<int>();
             bool flag = CompareFunction(luaFile1.MainFunction, luaFile2.MainFunction);
+            mismatchedFunctionIds = lMismatchedFunctionIds;
             mismatched = lmismatched;
             total = ltotal;
             return flag;
@@ -34,11 +37,13 @@ namespace DecompilerTester
                 if (f1.ChildFunctions.Length != f2.ChildFunctions.Length)
                 {
                     lmismatched++;
+                    lMismatchedFunctionIds.Add(f2.FunctionID);
                     flag = false;
                 }
                 else if (!f1.Bytecode.SequenceEqual(f2.Bytecode))
                 {
                     lmismatched++;
+                    lMismatchedFunctionIds.Add(f2.FunctionID);
                     flag = false;
                 }
 
@@ -69,23 +74,27 @@ namespace DecompilerTester
             try
             {
                 LuaFile luaFile = new LuaFile(new BinaryReaderEx(false, input));
-                Function.DebugIDCounter = 0;
-                Function irfun = new Function();
+                Function irfun = new Function(luaFile.MainFunction.FunctionID);
                 bool flag = false;
+                var options = new DecompilationOptions
+                {
+                    OutputDebugComments = true
+                };
+                var decompiler = new LuaDecompiler(options);
                 if (luaFile.Version == LuaFile.LuaVersion.Lua50)
                 {
-                    LuaDisassembler.GenerateIR50(irfun, luaFile.MainFunction);
+                    decompiler.DecompileLua50Function(irfun, luaFile.MainFunction);
                     encoding = Encoding.GetEncoding("shift_jis");
                 }
                 else if (luaFile.Version == LuaFile.LuaVersion.Lua51HKS)
                 {
                     flag = true;
-                    LuaDisassembler.GenerateIRHKS(irfun, luaFile.MainFunction);
+                    decompiler.DecompileHksFunction(irfun, luaFile.MainFunction);
                     encoding = Encoding.UTF8;
                 }
                 else if (luaFile.Version == LuaFile.LuaVersion.Lua53Smash)
                 {
-                    LuaDisassembler.GenerateIR53(irfun, luaFile.MainFunction, true);
+                    decompiler.DecompileLua53Function(irfun, luaFile.MainFunction, true);
                     encoding = Encoding.UTF8;
                 }
 
@@ -110,7 +119,11 @@ namespace DecompilerTester
                 }
                 else
                 {
-                    if (CompareLuaFiles(File.ReadAllBytes(tempFileName2), input, out var mismatched, out var total))
+                    if (CompareLuaFiles(File.ReadAllBytes(tempFileName2), 
+                            input, 
+                            out var mismatched, 
+                            out var total, 
+                            out var mismatchedFunctionIds))
                     {
                         Console.ForegroundColor = ConsoleColor.Green;
                         Console.WriteLine("        Matched");
@@ -121,6 +134,9 @@ namespace DecompilerTester
                     {
                         Console.ForegroundColor = ConsoleColor.Yellow;
                         Console.WriteLine("        Mismatched ({0}/{1} matched)", total - mismatched, total);
+                        var functionIds = mismatchedFunctionIds.Aggregate("            Mismatched Function IDs: ", 
+                            (current, i) => current + $" {i}");
+                        Console.WriteLine(functionIds);
                         Console.ForegroundColor = ConsoleColor.White;
                         ++mismatches;
                         if (!Directory.Exists(dir))
