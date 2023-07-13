@@ -2,11 +2,11 @@
 
 namespace LuaDecompilerCore.IR
 {
-    public class Jump : IInstruction
+    public class Jump : Instruction
     {
         public Label Dest;
         // For debug pretty printing only
-        public CFG.BasicBlock BBDest = null;
+        public CFG.BasicBlock BlockDest = null;
         public bool Conditional;
         public Expression Condition;
 
@@ -38,38 +38,32 @@ namespace LuaDecompilerCore.IR
             }
         }
 
-        public override HashSet<Identifier> GetUses(bool regonly)
+        public override HashSet<Identifier> GetUses(bool registersOnly)
         {
             if (Conditional)
             {
-                return Condition.GetUses(regonly);
+                return Condition.GetUses(registersOnly);
             }
-            return base.GetUses(regonly);
+            return base.GetUses(registersOnly);
         }
 
-        public override void RenameUses(Identifier orig, Identifier newi)
+        public override void RenameUses(Identifier orig, Identifier newIdentifier)
         {
             if (Conditional)
             {
-                Condition.RenameUses(orig, newi);
+                Condition.RenameUses(orig, newIdentifier);
             }
         }
 
         public override bool ReplaceUses(Identifier orig, Expression sub)
         {
-            if (Conditional)
+            if (!Conditional) return false;
+            if (Expression.ShouldReplace(orig, Condition))
             {
-                if (Expression.ShouldReplace(orig, Condition))
-                {
-                    Condition = sub;
-                    return true;
-                }
-                else
-                {
-                    return Condition.ReplaceUses(orig, sub);
-                }
+                Condition = sub;
+                return true;
             }
-            return false;
+            return Condition.ReplaceUses(orig, sub);
         }
 
         public override List<Expression> GetExpressions()
@@ -84,14 +78,14 @@ namespace LuaDecompilerCore.IR
 
         public override string ToString()
         {
-            string ret = "";
+            var ret = "";
             if (Conditional)
             {
                 ret += $@"if {Condition} else ";
             }
-            if (BBDest != null)
+            if (BlockDest != null)
             {
-                ret += "goto " + BBDest;
+                ret += "goto " + BlockDest;
             }
             else
             {

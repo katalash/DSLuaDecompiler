@@ -5,7 +5,7 @@ namespace LuaDecompilerCore.IR
     /// <summary>
     /// Higher level AST node for encoding if statements
     /// </summary>
-    class IfStatement : IInstruction
+    class IfStatement : Instruction
     {
         public Expression Condition;
         public CFG.BasicBlock True = null;
@@ -32,7 +32,7 @@ namespace LuaDecompilerCore.IR
             {
                 ret += "\n";
                 // Check for elseif
-                if (False.Instructions.Count() == 1 && False.Instructions.First() is IfStatement s && s.Follow == null)
+                if (False.Instructions.Count == 1 && False.Instructions.First() is IfStatement s && s.Follow == null)
                 {
                     s.IsElseIf = true;
                     ret += False.PrintBlock(indentLevel);
@@ -59,7 +59,7 @@ namespace LuaDecompilerCore.IR
                 }
                 ret += "end";
             }
-            if (Follow != null && Follow.Instructions.Count() > 0)
+            if (Follow != null && Follow.Instructions.Count > 0)
             {
                 ret += "\n";
                 ret += Follow.PrintBlock(indentLevel);

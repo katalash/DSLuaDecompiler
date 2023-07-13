@@ -3,7 +3,7 @@ using System.Linq;
 
 namespace LuaDecompilerCore.IR
 {
-    class Return : IInstruction
+    class Return : Instruction
     {
         public List<Expression> ReturnExpressions;
         public uint BeginRet = 0;
@@ -27,28 +27,28 @@ namespace LuaDecompilerCore.IR
             ReturnExpressions.ForEach(x => x.Parenthesize());
         }
 
-        public override HashSet<Identifier> GetUses(bool regonly)
+        public override HashSet<Identifier> GetUses(bool registersOnly)
         {
             var uses = new HashSet<Identifier>();
             foreach (var exp in ReturnExpressions)
             {
-                uses.UnionWith(exp.GetUses(regonly));
+                uses.UnionWith(exp.GetUses(registersOnly));
             }
             return uses;
         }
 
-        public override void RenameUses(Identifier orig, Identifier newi)
+        public override void RenameUses(Identifier orig, Identifier newIdentifier)
         {
             foreach (var exp in ReturnExpressions)
             {
-                exp.RenameUses(orig, newi);
+                exp.RenameUses(orig, newIdentifier);
             }
         }
 
         public override bool ReplaceUses(Identifier orig, Expression sub)
         {
             bool replace = false;
-            for (int i = 0; i < ReturnExpressions.Count(); i++)
+            for (int i = 0; i < ReturnExpressions.Count; i++)
             {
                 if (Expression.ShouldReplace(orig, ReturnExpressions[i]))
                 {
@@ -80,10 +80,10 @@ namespace LuaDecompilerCore.IR
                 return "";
             }
             string ret = "return ";
-            for (int i = 0; i < ReturnExpressions.Count(); i++)
+            for (int i = 0; i < ReturnExpressions.Count; i++)
             {
                 ret += ReturnExpressions[i].ToString();
-                if (i != ReturnExpressions.Count() - 1)
+                if (i != ReturnExpressions.Count - 1)
                 {
                     ret += ", ";
                 }

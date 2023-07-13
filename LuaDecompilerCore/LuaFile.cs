@@ -501,20 +501,16 @@ namespace LuaDecompilerCore
 
             public List<Local> LocalsAt(int i)
             {
-                if (LocalMap.ContainsKey(i))
+                if (LocalMap.TryGetValue(i, out var at))
                 {
-                    return LocalMap[i];
+                    return at;
                 }
                 return null;
             }
 
             public override string ToString()
             {
-                if (Name != null && Name != "")
-                {
-                    return Name;
-                }
-                return base.ToString();
+                return !string.IsNullOrEmpty(Name) ? Name : base.ToString();
             }
         }
 

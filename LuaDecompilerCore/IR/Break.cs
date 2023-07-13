@@ -1,6 +1,6 @@
 ﻿namespace LuaDecompilerCore.IR
 {
-    public class Break : IInstruction
+    public class Break : Instruction
     {
         public override string ToString()
         {

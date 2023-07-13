@@ -9,12 +9,12 @@ namespace LuaDecompilerCore.IR
     /// </summary>
     public class Expression
     {
-        public virtual HashSet<Identifier> GetUses(bool regonly)
+        public virtual HashSet<Identifier> GetUses(bool registerOnly)
         {
             return new HashSet<Identifier>();
         }
 
-        public virtual void RenameUses(Identifier orig, Identifier newi) { }
+        public virtual void RenameUses(Identifier orig, Identifier newIdentifier) { }
 
         public static bool ShouldReplace(Identifier orig, Expression cand)
         {
@@ -27,10 +27,10 @@ namespace LuaDecompilerCore.IR
 
         public virtual List<Expression> GetExpressions()
         {
-            return new List<Expression>() { this };
+            return new List<Expression> { this };
         }
 
-        public virtual int GetLowestConstantID()
+        public virtual int GetLowestConstantId()
         {
             return -1;
         }
@@ -113,7 +113,7 @@ namespace LuaDecompilerCore.IR
             return "";
         }
 
-        public override int GetLowestConstantID()
+        public override int GetLowestConstantId()
         {
             return ConstantID;
         }
@@ -128,19 +128,20 @@ namespace LuaDecompilerCore.IR
             Function = fun;
         }
 
-        public override HashSet<Identifier> GetUses(bool regonly)
+        public override HashSet<Identifier> GetUses(bool registerOnly)
         {
-            return Function.UpvalueBindings.ToHashSet();
+            return Function.UpValueBindings.Where(
+                e => !registerOnly || e.Type == Identifier.IdentifierType.Register).ToHashSet();
         }
 
-        public override void RenameUses(Identifier orig, Identifier newi)
+        public override void RenameUses(Identifier orig, Identifier newIdentifier)
         {
-            for (int i = 0; i < Function.UpvalueBindings.Count; i++)
+            for (var i = 0; i < Function.UpValueBindings.Count; i++)
             {
-                if (Function.UpvalueBindings[i] == orig)
+                if (Function.UpValueBindings[i] == orig)
                 {
-                    Function.UpvalueBindings[i] = newi;
-                    newi.IsClosureBound = true;
+                    Function.UpValueBindings[i] = newIdentifier;
+                    newIdentifier.IsClosureBound = true;
                 }
             }
         }
@@ -180,7 +181,7 @@ namespace LuaDecompilerCore.IR
         public IdentifierReference(Identifier id, Expression index)
         {
             Identifier = id;
-            TableIndices = new List<Expression>() { index };
+            TableIndices = new List<Expression> { index };
         }
 
         public override void Parenthesize()
@@ -191,37 +192,37 @@ namespace LuaDecompilerCore.IR
             }
         }
 
-        public override HashSet<Identifier> GetUses(bool regonly)
+        public override HashSet<Identifier> GetUses(bool registerOnly)
         {
             var ret = new HashSet<Identifier>();
-            if ((!regonly || Identifier.IType == Identifier.IdentifierType.Register) && !Identifier.IsClosureBound)
+            if ((!registerOnly || Identifier.Type == Identifier.IdentifierType.Register) && !Identifier.IsClosureBound)
             {
                 ret.Add(Identifier);
             }
             foreach (var idx in TableIndices)
             {
-                ret.UnionWith(idx.GetUses(regonly));
+                ret.UnionWith(idx.GetUses(registerOnly));
             }
             return ret;
         }
 
-        public override void RenameUses(Identifier orig, Identifier newi)
+        public override void RenameUses(Identifier orig, Identifier newIdentifier)
         {
             if (Identifier == orig && !Identifier.IsClosureBound)
             {
-                Identifier = newi;
+                Identifier = newIdentifier;
                 Identifier.UseCount++;
             }
             foreach (var idx in TableIndices)
             {
-                idx.RenameUses(orig, newi);
+                idx.RenameUses(orig, newIdentifier);
             }
         }
 
         public override bool ReplaceUses(Identifier orig, Expression sub)
         {
-            bool changed = false;
-            for (int i = 0; i < TableIndices.Count; i++)
+            var changed = false;
+            for (var i = 0; i < TableIndices.Count; i++)
             {
                 if (ShouldReplace(orig, TableIndices[i]))
                 {
@@ -252,7 +253,7 @@ namespace LuaDecompilerCore.IR
 
         public override List<Expression> GetExpressions()
         {
-            var ret = new List<Expression>() { this };
+            var ret = new List<Expression> { this };
             foreach (var idx in TableIndices)
             {
                 ret.AddRange(idx.GetExpressions());
@@ -260,19 +261,19 @@ namespace LuaDecompilerCore.IR
             return ret;
         }
 
-        public override int GetLowestConstantID()
+        public override int GetLowestConstantId()
         {
-            var id = Identifier.ConstantID;
+            var id = Identifier.ConstantId;
             foreach (var idx in TableIndices)
             {
-                var nid = idx.GetLowestConstantID();
+                var nid = idx.GetLowestConstantId();
                 if (id == -1)
                 {
                     id = nid;
                 }
                 else if (nid != -1)
                 {
-                    id = Math.Min(id, idx.GetLowestConstantID());
+                    id = Math.Min(id, idx.GetLowestConstantId());
                 }
             }
             return id;
@@ -281,8 +282,8 @@ namespace LuaDecompilerCore.IR
         public override string ToString()
         {
             // Detect a Lua 5.3 global variable and don't display it as a table reference
-            bool isGlobal = (Identifier.IType == Identifier.IdentifierType.GlobalTable);
-            string ret = isGlobal ? "" : Identifier.ToString();
+            var isGlobal = (Identifier.Type == Identifier.IdentifierType.GlobalTable);
+            var ret = isGlobal ? "" : Identifier.ToString();
             foreach (var idx in TableIndices)
             {
                 if (isGlobal && idx is Constant g && g.ConstType == Constant.ConstantType.ConstString)
@@ -335,28 +336,28 @@ namespace LuaDecompilerCore.IR
             }
         }
 
-        public override HashSet<Identifier> GetUses(bool regonly)
+        public override HashSet<Identifier> GetUses(bool registerOnly)
         {
             var ret = new HashSet<Identifier>();
             foreach (var arg in Exprs)
             {
-                ret.UnionWith(arg.GetUses(regonly));
+                ret.UnionWith(arg.GetUses(registerOnly));
             }
             return ret;
         }
 
-        public override void RenameUses(Identifier orig, Identifier newi)
+        public override void RenameUses(Identifier orig, Identifier newIdentifier)
         {
             foreach (var arg in Exprs)
             {
-                arg.RenameUses(orig, newi);
+                arg.RenameUses(orig, newIdentifier);
             }
         }
 
         public override bool ReplaceUses(Identifier orig, Expression sub)
         {
-            bool replaced = false;
-            for (int i = 0; i < Exprs.Count(); i++)
+            var replaced = false;
+            for (var i = 0; i < Exprs.Count; i++)
             {
                 if (ShouldReplace(orig, Exprs[i]))
                 {
@@ -373,7 +374,7 @@ namespace LuaDecompilerCore.IR
 
         public override List<Expression> GetExpressions()
         {
-            var ret = new List<Expression>() { this };
+            var ret = new List<Expression> { this };
             foreach(var exp in Exprs)
             {
                 ret.AddRange(exp.GetExpressions());
@@ -386,15 +387,15 @@ namespace LuaDecompilerCore.IR
             HasParentheses = paren;
         }
 
-        public override int GetLowestConstantID()
+        public override int GetLowestConstantId()
         {
             var id = int.MaxValue;
             foreach (var e in Exprs)
             {
-                var nid = e.GetLowestConstantID();
+                var nid = e.GetLowestConstantId();
                 if (nid != -1)
                 {
-                    id = Math.Min(id, e.GetLowestConstantID());
+                    id = Math.Min(id, e.GetLowestConstantId());
                 }
             }
             return id != int.MaxValue ? id : -1;
@@ -402,17 +403,17 @@ namespace LuaDecompilerCore.IR
 
         public override string ToString()
         {
-            string ret = "";
+            var ret = "";
 
             // Pattern match special lua this call
             if (HasParentheses)
             {
                 ret += "(";
             }
-            for (int i = 0; i < Exprs.Count(); i++)
+            for (var i = 0; i < Exprs.Count; i++)
             {
                 ret += Exprs[i].ToString();
-                if (i != Exprs.Count() - 1)
+                if (i != Exprs.Count - 1)
                 {
                     ret += " .. ";
                 }
@@ -440,28 +441,28 @@ namespace LuaDecompilerCore.IR
             Exprs.ForEach(x => x.Parenthesize());
         }
 
-        public override HashSet<Identifier> GetUses(bool regonly)
+        public override HashSet<Identifier> GetUses(bool registerOnly)
         {
             var ret = new HashSet<Identifier>();
             foreach (var arg in Exprs)
             {
-                ret.UnionWith(arg.GetUses(regonly));
+                ret.UnionWith(arg.GetUses(registerOnly));
             }
             return ret;
         }
 
-        public override void RenameUses(Identifier orig, Identifier newi)
+        public override void RenameUses(Identifier orig, Identifier newIdentifier)
         {
             foreach (var arg in Exprs)
             {
-                arg.RenameUses(orig, newi);
+                arg.RenameUses(orig, newIdentifier);
             }
         }
 
         public override bool ReplaceUses(Identifier orig, Expression sub)
         {
-            bool replaced = false;
-            for (int i = 0; i < Exprs.Count(); i++)
+            var replaced = false;
+            for (var i = 0; i < Exprs.Count; i++)
             {
                 if (ShouldReplace(orig, Exprs[i]))
                 {
@@ -478,7 +479,7 @@ namespace LuaDecompilerCore.IR
 
         public override List<Expression> GetExpressions()
         {
-            var ret = new List<Expression>() { this };
+            var ret = new List<Expression> { this };
             foreach (var exp in Exprs)
             {
                 ret.AddRange(exp.GetExpressions());
@@ -486,15 +487,15 @@ namespace LuaDecompilerCore.IR
             return ret;
         }
 
-        public override int GetLowestConstantID()
+        public override int GetLowestConstantId()
         {
             var id = int.MaxValue;
             foreach (var e in Exprs)
             {
-                var nid = e.GetLowestConstantID();
+                var nid = e.GetLowestConstantId();
                 if (nid != -1)
                 {
-                    id = Math.Min(id, e.GetLowestConstantID());
+                    id = Math.Min(id, e.GetLowestConstantId());
                 }
             }
             return id != int.MaxValue ? id : -1;
@@ -502,17 +503,17 @@ namespace LuaDecompilerCore.IR
 
         public override string ToString()
         {
-            string ret = "{";
+            var ret = "{";
 
             // Pattern match special lua this call
-            for (int i = 0; i < Exprs.Count(); i++)
+            for (var i = 0; i < Exprs.Count; i++)
             {
                 if (Assignments != null)
                 {
                     ret += Assignments[i].String + " = ";
                 }
                 ret += Exprs[i].ToString();
-                if (i != Exprs.Count() - 1)
+                if (i != Exprs.Count - 1)
                 {
                     ret += ", ";
                 }
@@ -553,7 +554,7 @@ namespace LuaDecompilerCore.IR
         public Expression Right;
         public OperationType Operation;
 
-        private bool HasParentheses = false;
+        private bool _hasParentheses = false;
 
         public BinOp(Expression left, Expression right, OperationType op)
         {
@@ -649,31 +650,22 @@ namespace LuaDecompilerCore.IR
             }
 
             // If we're a comparison op, we may need to swap the left and right if they both refer to constants
-            int leftConstID = Left.GetLowestConstantID();
-            int rightConstID = Right.GetLowestConstantID();
+            var leftConstId = Left.GetLowestConstantId();
+            var rightConstId = Right.GetLowestConstantId();
 
-            if (IsCompare() && Operation != OperationType.OpLoopCompare && leftConstID != -1 && rightConstID != -1 && leftConstID > rightConstID)
+            if (IsCompare() && Operation != OperationType.OpLoopCompare && 
+                leftConstId != -1 && rightConstId != -1 && leftConstId > rightConstId)
             {
                 // We need to swap the left and right to keep matching recompiles
-                var tmp = Right;
-                Right = Left;
-                Left = tmp;
-                if (Operation == OperationType.OpLessThan)
+                (Right, Left) = (Left, Right);
+                Operation = Operation switch
                 {
-                    Operation = OperationType.OpGreaterThan;
-                }
-                else if (Operation == OperationType.OpGreaterThan)
-                {
-                    Operation = OperationType.OpLessThan;
-                }
-                else if (Operation == OperationType.OpLessEqual)
-                {
-                    Operation = OperationType.OpGreaterEqual;
-                }
-                else if (Operation == OperationType.OpGreaterEqual)
-                {
-                    Operation = OperationType.OpLessEqual;
-                }
+                    OperationType.OpLessThan => OperationType.OpGreaterThan,
+                    OperationType.OpGreaterThan => OperationType.OpLessThan,
+                    OperationType.OpLessEqual => OperationType.OpGreaterEqual,
+                    OperationType.OpGreaterEqual => OperationType.OpLessEqual,
+                    _ => Operation
+                };
             }
 
             Left.Parenthesize();
@@ -696,23 +688,23 @@ namespace LuaDecompilerCore.IR
             return false;
         }
 
-        public override HashSet<Identifier> GetUses(bool regonly)
+        public override HashSet<Identifier> GetUses(bool registerOnly)
         {
             var ret = new HashSet<Identifier>();
-            ret.UnionWith(Left.GetUses(regonly));
-            ret.UnionWith(Right.GetUses(regonly));
+            ret.UnionWith(Left.GetUses(registerOnly));
+            ret.UnionWith(Right.GetUses(registerOnly));
             return ret;
         }
 
-        public override void RenameUses(Identifier orig, Identifier newi)
+        public override void RenameUses(Identifier orig, Identifier newIdentifier)
         {
-            Left.RenameUses(orig, newi);
-            Right.RenameUses(orig, newi);
+            Left.RenameUses(orig, newIdentifier);
+            Right.RenameUses(orig, newIdentifier);
         }
 
         public override bool ReplaceUses(Identifier orig, Expression sub)
         {
-            bool replaced = false;
+            var replaced = false;
             if (ShouldReplace(orig, Left))
             {
                 Left = sub;
@@ -720,7 +712,7 @@ namespace LuaDecompilerCore.IR
             }
             else
             {
-                replaced = replaced || Left.ReplaceUses(orig, sub);
+                replaced = Left.ReplaceUses(orig, sub);
             }
             if (ShouldReplace(orig, Right))
             {
@@ -736,16 +728,16 @@ namespace LuaDecompilerCore.IR
 
         public override List<Expression> GetExpressions()
         {
-            var ret = new List<Expression>() { this };
+            var ret = new List<Expression> { this };
             ret.AddRange(Left.GetExpressions());
             ret.AddRange(Right.GetExpressions());
             return ret;
         }
 
-        public override int GetLowestConstantID()
+        public override int GetLowestConstantId()
         {
-            int left = Left.GetLowestConstantID();
-            int right = Right.GetLowestConstantID();
+            var left = Left.GetLowestConstantId();
+            var right = Right.GetLowestConstantId();
             if (left == -1)
             {
                 return right;
@@ -759,80 +751,38 @@ namespace LuaDecompilerCore.IR
 
         public override string ToString()
         {
-            string op = "";
-            switch (Operation)
+            var op = Operation switch
             {
-                case OperationType.OpAdd:
-                    op = "+";
-                    break;
-                case OperationType.OpDiv:
-                    op = "/";
-                    break;
-                case OperationType.OpFloorDiv:
-                    op = "//";
-                    break;
-                case OperationType.OpMod:
-                    op = "%";
-                    break;
-                case OperationType.OpMul:
-                    op = "*";
-                    break;
-                case OperationType.OpPow:
-                    op = "^";
-                    break;
-                case OperationType.OpSub:
-                    op = "-";
-                    break;
-                case OperationType.OpEqual:
-                    op = "==";
-                    break;
-                case OperationType.OpNotEqual:
-                    op = "~=";
-                    break;
-                case OperationType.OpLessThan:
-                    op = "<";
-                    break;
-                case OperationType.OpLessEqual:
-                    op = "<=";
-                    break;
-                case OperationType.OpGreaterThan:
-                    op = ">";
-                    break;
-                case OperationType.OpGreaterEqual:
-                    op = ">=";
-                    break;
-                case OperationType.OpAnd:
-                    op = "and";
-                    break;
-                case OperationType.OpOr:
-                    op = "or";
-                    break;
-                case OperationType.OpBAnd:
-                    op = "&";
-                    break;
-                case OperationType.OpBOr:
-                    op = "|";
-                    break;
-                case OperationType.OpBXOr:
-                    op = "~";
-                    break;
-                case OperationType.OpShiftRight:
-                    op = ">>";
-                    break;
-                case OperationType.OpShiftLeft:
-                    op = "<<";
-                    break;
-                case OperationType.OpLoopCompare:
-                    op = ">?=";
-                    break;
-            }
-            string ret = "";
-            if (HasParentheses)
+                OperationType.OpAdd => "+",
+                OperationType.OpDiv => "/",
+                OperationType.OpFloorDiv => "//",
+                OperationType.OpMod => "%",
+                OperationType.OpMul => "*",
+                OperationType.OpPow => "^",
+                OperationType.OpSub => "-",
+                OperationType.OpEqual => "==",
+                OperationType.OpNotEqual => "~=",
+                OperationType.OpLessThan => "<",
+                OperationType.OpLessEqual => "<=",
+                OperationType.OpGreaterThan => ">",
+                OperationType.OpGreaterEqual => ">=",
+                OperationType.OpAnd => "and",
+                OperationType.OpOr => "or",
+                OperationType.OpBAnd => "&",
+                OperationType.OpBOr => "|",
+                OperationType.OpBXOr => "~",
+                OperationType.OpShiftRight => ">>",
+                OperationType.OpShiftLeft => "<<",
+                OperationType.OpLoopCompare => ">?=",
+                _ => ""
+            };
+            var ret = "";
+            if (_hasParentheses)
             {
                 ret += "(";
             }
             ret += $@"{Left} {op} {Right}";
-            if (HasParentheses)
+            if (_hasParentheses)
             {
                 ret += ")";
             }
@@ -841,7 +791,7 @@ namespace LuaDecompilerCore.IR
 
         public void SetHasParentheses(bool paren)
         {
-            HasParentheses = paren;
+            _hasParentheses = paren;
         }
     }
 
@@ -858,7 +808,7 @@ namespace LuaDecompilerCore.IR
         public Expression Exp;
         public OperationType Operation;
 
-        private bool HasParentheses = false;
+        private bool _hasParentheses = false;
 
         public UnaryOp(Expression exp, OperationType op)
         {
@@ -866,16 +816,16 @@ namespace LuaDecompilerCore.IR
             Operation = op;
         }
 
-        public override HashSet<Identifier> GetUses(bool regonly)
+        public override HashSet<Identifier> GetUses(bool registerOnly)
         {
             var ret = new HashSet<Identifier>();
-            ret.UnionWith(Exp.GetUses(regonly));
+            ret.UnionWith(Exp.GetUses(registerOnly));
             return ret;
         }
 
-        public override void RenameUses(Identifier orig, Identifier newi)
+        public override void RenameUses(Identifier orig, Identifier newIdentifier)
         {
-            Exp.RenameUses(orig, newi);
+            Exp.RenameUses(orig, newIdentifier);
         }
 
         public override bool ReplaceUses(Identifier orig, Expression sub)
@@ -885,48 +835,38 @@ namespace LuaDecompilerCore.IR
                 Exp = sub;
                 return true;
             }
-            else
-            {
-                return Exp.ReplaceUses(orig, sub);
-            }
+
+            return Exp.ReplaceUses(orig, sub);
         }
 
         public override List<Expression> GetExpressions()
         {
-            var ret = new List<Expression>() { this };
+            var ret = new List<Expression> { this };
             ret.AddRange(Exp.GetExpressions());
             return ret;
         }
 
-        public override int GetLowestConstantID()
+        public override int GetLowestConstantId()
         {
-            return Exp.GetLowestConstantID();
+            return Exp.GetLowestConstantId();
         }
         public override string ToString()
         {
-            string op = "";
-            switch (Operation)
+            var op = Operation switch
             {
-                case OperationType.OpNegate:
-                    op = "-";
-                    break;
-                case OperationType.OpNot:
-                    op = "not ";
-                    break;
-                case OperationType.OpBNot:
-                    op = "~";
-                    break;
-                case OperationType.OpLength:
-                    op = "#";
-                    break;
-            }
-            string ret = "";
-            if (HasParentheses)
+                OperationType.OpNegate => "-",
+                OperationType.OpNot => "not ",
+                OperationType.OpBNot => "~",
+                OperationType.OpLength => "#",
+                _ => ""
+            };
+            var ret = "";
+            if (_hasParentheses)
             {
                 ret += "(";
             }
             ret += $@"{op}{Exp}";
-            if (HasParentheses)
+            if (_hasParentheses)
             {
                 ret += ")";
             }
@@ -949,7 +889,7 @@ namespace LuaDecompilerCore.IR
 
         public void SetHasParentheses(bool paren)
         {
-            HasParentheses = paren;
+            _hasParentheses = paren;
         }
     }
 
@@ -958,10 +898,19 @@ namespace LuaDecompilerCore.IR
         public Expression Function;
         public List<Expression> Args;
 
-        // Lua memes
         public uint BeginArg = 0;
-        public bool IsIndeterminantReturnCount = false;
-        public bool IsIndeterminantArgumentCount = false;
+        
+        /// <summary>
+        /// Set to true if the number of values returned from this call isn't explicitly stated in the opcode and
+        /// needs analysis to resolve.
+        /// </summary>
+        public bool HasAmbiguousReturnCount = false;
+        
+        /// <summary>
+        /// Set to true if the number of arguments for this call isn't explicitly stated in the opcode and
+        /// needs analysis to resolve.
+        /// </summary>
+        public bool HasAmbiguousArgumentCount = false;
 
         /// <summary>
         /// Index of where the function def register was originally defined. Used to help decide what expressions to inline
@@ -980,30 +929,30 @@ namespace LuaDecompilerCore.IR
             Args.ForEach(x => x.Parenthesize());
         }
 
-        public override HashSet<Identifier> GetUses(bool regonly)
+        public override HashSet<Identifier> GetUses(bool registerOnly)
         {
             var ret = new HashSet<Identifier>();
             foreach (var arg in Args)
             {
-                ret.UnionWith(arg.GetUses(regonly));
+                ret.UnionWith(arg.GetUses(registerOnly));
             }
-            ret.UnionWith(Function.GetUses(regonly));
+            ret.UnionWith(Function.GetUses(registerOnly));
             return ret;
         }
 
-        public override void RenameUses(Identifier orig, Identifier newi)
+        public override void RenameUses(Identifier orig, Identifier newIdentifier)
         {
-            Function.RenameUses(orig, newi);
+            Function.RenameUses(orig, newIdentifier);
             foreach (var arg in Args)
             {
-                arg.RenameUses(orig, newi);
+                arg.RenameUses(orig, newIdentifier);
             }
         }
 
         public override bool ReplaceUses(Identifier orig, Expression sub)
         {
-            bool replaced = false;
-            if (ShouldReplace(orig, Function) && (sub is IdentifierReference || sub is Constant))
+            bool replaced;
+            if (ShouldReplace(orig, Function) && sub is IdentifierReference or Constant)
             {
                 Function = sub;
                 replaced = true;
@@ -1012,7 +961,7 @@ namespace LuaDecompilerCore.IR
             {
                 replaced = Function.ReplaceUses(orig, sub);
             }
-            for (int i = 0; i < Args.Count(); i++)
+            for (var i = 0; i < Args.Count; i++)
             {
                 if (ShouldReplace(orig, Args[i]))
                 {
@@ -1029,7 +978,7 @@ namespace LuaDecompilerCore.IR
 
         public override List<Expression> GetExpressions()
         {
-            var ret = new List<Expression>() { this };
+            var ret = new List<Expression> { this };
             foreach (var exp in Args)
             {
                 ret.AddRange(exp.GetExpressions());
@@ -1038,19 +987,19 @@ namespace LuaDecompilerCore.IR
             return ret;
         }
 
-        public override int GetLowestConstantID()
+        public override int GetLowestConstantId()
         {
-            var id = Function.GetLowestConstantID();
+            var id = Function.GetLowestConstantId();
             foreach (var idx in Args)
             {
-                var nid = idx.GetLowestConstantID();
+                var nid = idx.GetLowestConstantId();
                 if (id == -1)
                 {
                     id = nid;
                 }
                 else if (nid != -1)
                 {
-                    id = Math.Min(id, idx.GetLowestConstantID());
+                    id = Math.Min(id, idx.GetLowestConstantId());
                 }
             }
             return id;
@@ -1058,42 +1007,45 @@ namespace LuaDecompilerCore.IR
 
         public override string ToString()
         {
-            string ret = "";
+            var ret = "";
 
             // Pattern match special lua this call
-            int beginarg = 0;
+            var beginArg = 0;
             if (Function is IdentifierReference ir && ir.TableIndices.Count == 1 &&
-                ir.TableIndices[0] is Constant c && c.ConstType == Constant.ConstantType.ConstString &&
-                ir.Identifier.IType != Identifier.IdentifierType.GlobalTable)
+                ir.TableIndices[0] is Constant { ConstType: Constant.ConstantType.ConstString } c &&
+                ir.Identifier.Type != Identifier.IdentifierType.GlobalTable)
             {
-                if (Args.Count() >= 1 && Args[0] is IdentifierReference thisir && thisir.TableIndices.Count == 0 && thisir.Identifier == ir.Identifier)
+                if (Args.Count >= 1 && Args[0] is IdentifierReference thisIdentifier && 
+                    thisIdentifier.TableIndices.Count == 0 && thisIdentifier.Identifier == ir.Identifier)
                 {
-                    ret += $@"{ir.Identifier.ToString()}:{c.String}(";
-                    beginarg = 1;
+                    ret += $@"{ir.Identifier}:{c.String}(";
+                    beginArg = 1;
                 }
                 else
                 {
-                    ret += $@"{ir.Identifier.ToString()}.{c.String}(";
+                    ret += $@"{ir.Identifier}.{c.String}(";
                 }
             }
             else if (Function is IdentifierReference ir2 && ir2.TableIndices.Count == 2 &&
-                ir2.Identifier.IType == Identifier.IdentifierType.GlobalTable &&
-                ir2.TableIndices[1] is Constant c2 && c2.ConstType == Constant.ConstantType.ConstString &&
-                ir2.TableIndices[0] is Constant c3 && c3.ConstType == Constant.ConstantType.ConstString &&
-                Args.Count() >= 1 && Args[0] is IdentifierReference thisir && thisir.TableIndices.Count == 1 && thisir.Identifier == ir2.Identifier &&
-                ir2.TableIndices[0] is Constant c4 && c4.ConstType == Constant.ConstantType.ConstString && c3.String == c4.String)
+                     ir2.Identifier.Type == Identifier.IdentifierType.GlobalTable &&
+                     ir2.TableIndices[1] is Constant { ConstType: Constant.ConstantType.ConstString } c2 &&
+                     ir2.TableIndices[0] is Constant { ConstType: Constant.ConstantType.ConstString } c3 &&
+                     Args.Count >= 1 && Args[0] is IdentifierReference thisIdentifier && 
+                     thisIdentifier.TableIndices.Count == 1 && thisIdentifier.Identifier == ir2.Identifier && 
+                     ir2.TableIndices[0] is Constant { ConstType: Constant.ConstantType.ConstString } c4 && 
+                     c3.String == c4.String)
             {
                 ret += $@"{c3.String}:{c2.String}(";
-                beginarg = 1;
+                beginArg = 1;
             }
             else
             {
-                ret += Function.ToString() + "(";
+                ret += Function + "(";
             }
-            for (int i = beginarg; i < Args.Count(); i++)
+            for (var i = beginArg; i < Args.Count; i++)
             {
                 ret += Args[i].ToString();
-                if (i != Args.Count() - 1)
+                if (i != Args.Count - 1)
                 {
                     ret += ", ";
                 }

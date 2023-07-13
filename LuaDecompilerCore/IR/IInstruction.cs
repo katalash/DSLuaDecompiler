@@ -3,9 +3,10 @@
 namespace LuaDecompilerCore.IR
 {
     /// <summary>
-    /// A single instruction or statement, initially translated from a Lua opcode, but can be simplified into more powerful "instructions"
+    /// A single instruction or statement, initially translated from a Lua opcode,
+    /// but can be simplified into more powerful "instructions"
     /// </summary>
-    public abstract class IInstruction
+    public abstract class Instruction
     {
         /// <summary>
         /// The original lua bytecode op within the function that generated this instruction
@@ -13,9 +14,9 @@ namespace LuaDecompilerCore.IR
         public int OpLocation = 0;
 
         /// <summary>
-        /// The instruction index in a basic block before propogation is done
+        /// The instruction index in a basic block before propagation is done
         /// </summary>
-        public int PrePropogationIndex = 0;
+        public int PrePropagationIndex = 0;
 
         /// <summary>
         /// Backpointer to the containing block. Used for some analysis
@@ -28,7 +29,7 @@ namespace LuaDecompilerCore.IR
         /// Gets all the identifiers that are defined by this instruction
         /// </summary>
         /// <returns></returns>
-        public virtual HashSet<Identifier> GetDefines(bool regonly)
+        public virtual HashSet<Identifier> GetDefines(bool registersOnly)
         {
             return new HashSet<Identifier>();
         }
@@ -37,7 +38,7 @@ namespace LuaDecompilerCore.IR
         /// Gets all the identifiers that are used (but not defined) by this instruction
         /// </summary>
         /// <returns></returns>
-        public virtual HashSet<Identifier> GetUses(bool regonly)
+        public virtual HashSet<Identifier> GetUses(bool registersOnly)
         {
             return new HashSet<Identifier>();
         }
@@ -47,9 +48,9 @@ namespace LuaDecompilerCore.IR
             return new List<Expression>();
         }
 
-        public virtual void RenameDefines(Identifier orig, Identifier newi) { }
+        public virtual void RenameDefines(Identifier orig, Identifier newIdentifier) { }
 
-        public virtual void RenameUses(Identifier orig, Identifier newi) { }
+        public virtual void RenameUses(Identifier orig, Identifier newIdentifier) { }
 
         public virtual bool ReplaceUses(Identifier orig, Expression sub) { return false; }
 

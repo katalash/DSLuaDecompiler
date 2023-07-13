@@ -8,7 +8,7 @@ namespace LuaDecompilerCore.IR
     ///     something
     /// end
     /// </summary>
-    public class GenericFor : IInstruction
+    public class GenericFor : Instruction
     {
         public Assignment Iterator;
 
@@ -32,7 +32,7 @@ namespace LuaDecompilerCore.IR
                 ret += "    ";
             }
             ret += "end";
-            if (Follow != null && Follow.Instructions.Count() > 0)
+            if (Follow != null && Follow.Instructions.Count > 0)
             {
                 ret += "\n";
                 ret += Follow.PrintBlock(indentLevel);

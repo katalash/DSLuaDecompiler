@@ -1,6 +1,6 @@
 ﻿namespace LuaDecompilerCore.IR
 {
-    public class Continue : IInstruction
+    public class Continue : Instruction
     {
         public override string ToString()
         {

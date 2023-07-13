@@ -3,7 +3,7 @@
     /// <summary>
     /// A label that represents a jump target
     /// </summary>
-    public class Label : IInstruction
+    public class Label : Instruction
     {
         /// <summary>
         /// Used to generate unique label names

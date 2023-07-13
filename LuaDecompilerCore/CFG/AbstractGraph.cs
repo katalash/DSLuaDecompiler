@@ -106,7 +106,7 @@ namespace LuaDecompilerCore.CFG
         public void LabelReversePostorderNumbers()
         {
             var postorder = PostorderTraversal(true);
-            for (int i = 0; i < postorder.Count(); i++)
+            for (int i = 0; i < postorder.Count; i++)
             {
                 postorder[i].ReversePostorderNumber = i;
             }
@@ -117,7 +117,7 @@ namespace LuaDecompilerCore.CFG
         {
             Intervals = new Dictionary<Node, HashSet<Node>>();
             var headers = new HashSet<Node> { BeginNode };
-            while (headers.Count() > 0)
+            while (headers.Count > 0)
             {
                 var h = headers.First();
                 headers.Remove(h);
@@ -157,7 +157,7 @@ namespace LuaDecompilerCore.CFG
             {
                 CalculateIntervals();
             }
-            if (Intervals.Count() == Nodes.Count() || Intervals.Values.All(i => i.Count == 1))
+            if (Intervals.Count == Nodes.Count || Intervals.Values.All(i => i.Count == 1))
             {
                 return null;
             }
@@ -198,7 +198,7 @@ namespace LuaDecompilerCore.CFG
                     succ.Predecessors.Add(entry);
                 }
             }
-            cfg.BeginNode = cfg.Nodes.First(x => x.Predecessors.Count() == 0);
+            cfg.BeginNode = cfg.Nodes.First(x => x.Predecessors.Count == 0);
             cfg.LabelReversePostorderNumbers();
             cfg.CalculateIntervals();
             return cfg;

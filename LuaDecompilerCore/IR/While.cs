@@ -2,7 +2,7 @@
 
 namespace LuaDecompilerCore.IR
 {
-    public class While : IInstruction
+    public class While : Instruction
     {
         public Expression Condition;
 
@@ -38,7 +38,7 @@ namespace LuaDecompilerCore.IR
             {
                 ret += "end";
             }
-            if (Follow != null && Follow.Instructions.Count() > 0)
+            if (Follow != null && Follow.Instructions.Count > 0)
             {
                 ret += "\n";
                 ret += Follow.PrintBlock(indentLevel);

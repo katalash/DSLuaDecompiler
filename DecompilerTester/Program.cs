@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Text;
 using LuaDecompilerCore;
 using LuaDecompilerCore.IR;
+using LuaDecompilerCore.LanguageDecompilers;
 using LuaDecompilerCore.Utilities;
 
 namespace DecompilerTester
@@ -81,21 +82,21 @@ namespace DecompilerTester
                     OutputDebugComments = true
                 };
                 var decompiler = new LuaDecompiler(options);
-                if (luaFile.Version == LuaFile.LuaVersion.Lua50)
+                switch (luaFile.Version)
                 {
-                    decompiler.DecompileLua50Function(irfun, luaFile.MainFunction);
-                    encoding = Encoding.GetEncoding("shift_jis");
-                }
-                else if (luaFile.Version == LuaFile.LuaVersion.Lua51HKS)
-                {
-                    flag = true;
-                    decompiler.DecompileHksFunction(irfun, luaFile.MainFunction);
-                    encoding = Encoding.UTF8;
-                }
-                else if (luaFile.Version == LuaFile.LuaVersion.Lua53Smash)
-                {
-                    decompiler.DecompileLua53Function(irfun, luaFile.MainFunction, true);
-                    encoding = Encoding.UTF8;
+                    case LuaFile.LuaVersion.Lua50:
+                        decompiler.DecompileLuaFunction(new Lua50Decompiler(), irfun, luaFile.MainFunction);
+                        encoding = Encoding.GetEncoding("shift_jis");
+                        break;
+                    case LuaFile.LuaVersion.Lua51HKS:
+                        flag = true;
+                        decompiler.DecompileLuaFunction(new HksDecompiler(), irfun, luaFile.MainFunction);
+                        encoding = Encoding.UTF8;
+                        break;
+                    case LuaFile.LuaVersion.Lua53Smash:
+                        decompiler.DecompileLuaFunction(new Lua53Decompiler(), irfun, luaFile.MainFunction);
+                        encoding = Encoding.UTF8;
+                        break;
                 }
 
                 string tempFileName1 = Path.GetTempFileName();

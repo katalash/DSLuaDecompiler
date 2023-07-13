@@ -5,13 +5,14 @@ using System.Globalization;
 using System.Text;
 using LuaDecompilerCore;
 using LuaDecompilerCore.IR;
+using LuaDecompilerCore.LanguageDecompilers;
 using LuaDecompilerCore.Utilities;
 
 namespace DSLuaDecompiler
 {
     internal static class Program
     {
-        internal class DecompilationOptionsBinder : BinderBase<DecompilationOptions>
+        private class DecompilationOptionsBinder : BinderBase<DecompilationOptions>
         {
             private readonly Option<int[]?> _includedFunctionIds;
             private readonly Option<int[]> _excludedFunctionIds;
@@ -97,30 +98,34 @@ namespace DSLuaDecompiler
                 var br = new BinaryReaderEx(false, stream);
                 var lua = new LuaFile(br);
                 var main = new Function(lua.MainFunction.FunctionID);
-                if (lua.Version == LuaFile.LuaVersion.Lua50)
+                string passOutput;
+                switch (lua.Version)
                 {
-                    decompiler.DecompileLua50Function(main, lua.MainFunction);
-                    outEncoding = Encoding.GetEncoding("shift_jis");
-                }
-                else if (lua.Version == LuaFile.LuaVersion.Lua51HKS)
-                {
-                    decompiler.DecompileHksFunction(main, lua.MainFunction);
-                    outEncoding = Encoding.UTF8;
-                }
-                else if (lua.Version == LuaFile.LuaVersion.Lua53Smash)
-                {
-                    decompiler.DecompileLua53Function(main, lua.MainFunction, true);
-                    outEncoding = Encoding.UTF8;
+                    case LuaFile.LuaVersion.Lua50:
+                        passOutput = decompiler.DecompileLuaFunction(new Lua50Decompiler(), main, lua.MainFunction);
+                        outEncoding = Encoding.GetEncoding("shift_jis");
+                        break;
+                    case LuaFile.LuaVersion.Lua51HKS:
+                        passOutput = decompiler.DecompileLuaFunction(new HksDecompiler(), main, lua.MainFunction);
+                        outEncoding = Encoding.UTF8;
+                        break;
+                    case LuaFile.LuaVersion.Lua53Smash:
+                        passOutput = decompiler.DecompileLuaFunction(new Lua53Decompiler(), main, lua.MainFunction);
+                        outEncoding = Encoding.UTF8;
+                        break;
+                    default:
+                        throw new ArgumentOutOfRangeException();
                 }
 
+                var toWrite = passOutput ?? main.ToString();
                 var outputFile = output ?? Path.GetFileNameWithoutExtension(file) + ".dec.lua";
                 if (!console)
                 {
-                    File.WriteAllText(outputFile, main.ToString(), outEncoding);
+                    File.WriteAllText(outputFile, toWrite, outEncoding);
                 }
                 else
                 {
-                    Console.WriteLine(main.ToString());
+                    Console.WriteLine(toWrite);
                 }
             }, fileArgument, 
                 outputOption, 

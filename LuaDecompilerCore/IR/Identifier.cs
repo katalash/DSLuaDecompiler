@@ -24,7 +24,7 @@
             Closure,
         }
 
-        public IdentifierType IType;
+        public IdentifierType Type;
         public ValueType VType;
         public bool StackUpvalue = false; // For lua 5.3
         public string Name;
@@ -32,13 +32,13 @@
         public Identifier OriginalIdentifier = null;
 
         // Some stuff to help with analysis
-        public uint Regnum = 0;
-        public IInstruction DefiningInstruction = null;
+        public uint RegNum = 0;
+        public Instruction DefiningInstruction = null;
         public int UseCount = 0;
         public int PhiUseCount = 0;
 
         // Used to help reorder some expressions
-        public int ConstantID = 0;
+        public int ConstantId = 0;
 
         public bool UpvalueResolved = false;
 
@@ -47,7 +47,7 @@
 
         public override string ToString()
         {
-            if (IType == IdentifierType.Varargs)
+            if (Type == IdentifierType.Varargs)
             {
                 return "...";
             }

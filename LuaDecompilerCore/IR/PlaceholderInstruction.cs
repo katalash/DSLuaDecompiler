@@ -3,7 +3,7 @@
     /// <summary>
     /// Simple string based placeholder until IR is implemented
     /// </summary>
-    class PlaceholderInstruction : IInstruction
+    class PlaceholderInstruction : Instruction
     {
         public string Placeholder;
         

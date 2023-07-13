@@ -9,12 +9,10 @@ namespace LuaDecompilerCore.CFG
     /// </summary>
     public class BasicBlock
     {
-        private static int BlockIDCounter = 0;
-
         public int BlockID;
         public List<BasicBlock> Predecessors;
         public List<BasicBlock> Successors;
-        public List<IR.IInstruction> Instructions;
+        public List<IR.Instruction> Instructions;
         public Dictionary<IR.Identifier, IR.PhiFunction> PhiFunctions;
 
         public HashSet<IR.Identifier> PhiMerged = new HashSet<IR.Identifier>();
@@ -69,13 +67,12 @@ namespace LuaDecompilerCore.CFG
         /// </summary>
         public HashSet<BasicBlock> DominanceFrontier;
 
-        public BasicBlock()
+        public BasicBlock(int blockId)
         {
-            BlockID = BlockIDCounter;
-            BlockIDCounter++;
+            BlockID = blockId;
             Predecessors = new List<BasicBlock>();
             Successors = new List<BasicBlock>();
-            Instructions = new List<IR.IInstruction>();
+            Instructions = new List<IR.Instruction>();
             PhiFunctions = new Dictionary<IR.Identifier, IR.PhiFunction>();
             Dominance = new HashSet<BasicBlock>();
             DominanceFrontier = new HashSet<BasicBlock>();
@@ -88,7 +85,7 @@ namespace LuaDecompilerCore.CFG
         /// <summary>
         /// Get an instruction by index with bounds checking.
         /// </summary>
-        public IR.IInstruction GetInstruction(int index)
+        public IR.Instruction GetInstruction(int index)
         {
             if (index >= 0 && index < Instructions.Count)
                 return Instructions[index];
@@ -102,7 +99,7 @@ namespace LuaDecompilerCore.CFG
         {
             // Use BFS to encounter the closest dominating node guaranteed
             Queue<BasicBlock> queue = new Queue<BasicBlock>(Predecessors);
-            while (queue.Count() != 0)
+            while (queue.Count != 0)
             {
                 var b = queue.Dequeue();
                 if (Dominance.Contains(b))
@@ -128,7 +125,7 @@ namespace LuaDecompilerCore.CFG
         public HashSet<IR.Identifier> ComputeKilledAndUpwardExposed()
         {
             var globals = new HashSet<IR.Identifier>();
-            var instructions = new List<IR.IInstruction>(PhiFunctions.Values);
+            var instructions = new List<IR.Instruction>(PhiFunctions.Values);
             instructions.AddRange(Instructions);
             foreach (var inst in instructions)
             {
@@ -165,11 +162,6 @@ namespace LuaDecompilerCore.CFG
             return IsCodegened;
         }
 
-        public static void ResetCounter()
-        {
-            BlockIDCounter = 0;
-        }
-
         public string GetName()
         {
             return $@"basicblock_{BlockID}";
@@ -180,7 +172,7 @@ namespace LuaDecompilerCore.CFG
             string ret = "";
             //ret += $@"basicblock_{BlockID}:";
             //ret += "\n";
-            int count = (IsInfiniteLoop && !infloopprint) ? 1 : Instructions.Count();
+            int count = (IsInfiniteLoop && !infloopprint) ? 1 : Instructions.Count;
             int begin = (IsInfiniteLoop && infloopprint) ? 1 : 0;
             for (int j = begin; j < count; j++)
             {
@@ -190,7 +182,7 @@ namespace LuaDecompilerCore.CFG
                     ret += "    ";
                 }
                 ret += inst.WriteLua(indentLevel);
-                if (!(inst is IR.IfStatement) && j != Instructions.Count() - 1)
+                if (!(inst is IR.IfStatement) && j != Instructions.Count - 1)
                 {
                     ret += "\n";
                 }
@@ -201,10 +193,10 @@ namespace LuaDecompilerCore.CFG
         public string ToStringWithDF()
         {
             var ret = $@"basicblock_{BlockID}: (DF = {{ ";
-            for (int i = 0; i < DominanceFrontier.Count(); i++)
+            for (int i = 0; i < DominanceFrontier.Count; i++)
             {
                 ret += DominanceFrontier.ToArray()[i].GetName();
-                if (i != DominanceFrontier.Count() - 1)
+                if (i != DominanceFrontier.Count - 1)
                 {
                     ret += ", ";
                 }
@@ -216,10 +208,10 @@ namespace LuaDecompilerCore.CFG
         public string ToStringWithUpwardExposed()
         {
             var ret = $@"basicblock_{BlockID}: (DF = {{ ";
-            for (int i = 0; i < UpwardExposedIdentifiers.Count(); i++)
+            for (int i = 0; i < UpwardExposedIdentifiers.Count; i++)
             {
                 ret += UpwardExposedIdentifiers.ToArray()[i].ToString();
-                if (i != UpwardExposedIdentifiers.Count() - 1)
+                if (i != UpwardExposedIdentifiers.Count - 1)
                 {
                     ret += ", ";
                 }
@@ -231,10 +223,10 @@ namespace LuaDecompilerCore.CFG
         public string ToStringWithLiveOut()
         {
             var ret = $@"basicblock_{BlockID}: (LiveOut = {{ ";
-            for (int i = 0; i < LiveOut.Count(); i++)
+            for (int i = 0; i < LiveOut.Count; i++)
             {
                 ret += LiveOut.ToArray()[i].ToString();
-                if (i != LiveOut.Count() - 1)
+                if (i != LiveOut.Count - 1)
                 {
                     ret += ", ";
                 }
@@ -251,10 +243,10 @@ namespace LuaDecompilerCore.CFG
                 ret += $@" (Follow: {Follow})";
             }
             ret += $@" (Dominance tree: {{";
-            for (int i = 0; i < DominanceTreeSuccessors.Count(); i++)
+            for (int i = 0; i < DominanceTreeSuccessors.Count; i++)
             {
                 ret += DominanceTreeSuccessors[i].ToString();
-                if (i != DominanceTreeSuccessors.Count() - 1)
+                if (i != DominanceTreeSuccessors.Count - 1)
                 {
                     ret += ", ";
                 }

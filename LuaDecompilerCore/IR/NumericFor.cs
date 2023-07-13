@@ -8,7 +8,7 @@ namespace LuaDecompilerCore.IR
     ///     something
     /// end
     /// </summary>
-    public class NumericFor : IInstruction
+    public class NumericFor : Instruction
     {
         public Assignment Initial;
         public Expression Limit;
@@ -33,7 +33,7 @@ namespace LuaDecompilerCore.IR
                 ret += "    ";
             }
             ret += "end";
-            if (Follow != null && Follow.Instructions.Count() > 0)
+            if (Follow != null && Follow.Instructions.Count > 0)
             {
                 ret += "\n";
                 ret += Follow.PrintBlock(indentLevel);

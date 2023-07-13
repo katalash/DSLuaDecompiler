@@ -7,7 +7,7 @@ namespace LuaDecompilerCore.IR
     /// IL for an assignment operation
     /// Identifier := Expr
     /// </summary>
-    public class Assignment : IInstruction
+    public class Assignment : Instruction
     {
         /// <summary>
         /// Functions can have multiple returns
@@ -82,13 +82,13 @@ namespace LuaDecompilerCore.IR
             }
         }
 
-        public override HashSet<Identifier> GetDefines(bool regonly)
+        public override HashSet<Identifier> GetDefines(bool registersOnly)
         {
             var defines = new HashSet<Identifier>();
             foreach (var id in Left)
             {
                 // If the reference is not an indirect one (i.e. not an array access), then it is a definition
-                if (!id.HasIndex && (!regonly || id.Identifier.IType == Identifier.IdentifierType.Register))
+                if (!id.HasIndex && (!registersOnly || id.Identifier.Type == Identifier.IdentifierType.Register))
                 {
                     defines.Add(id.Identifier);
                 }
@@ -96,53 +96,53 @@ namespace LuaDecompilerCore.IR
             return defines;
         }
 
-        public override HashSet<Identifier> GetUses(bool regonly)
+        public override HashSet<Identifier> GetUses(bool registersOnly)
         {
             var uses = new HashSet<Identifier>();
             foreach (var id in Left)
             {
                 // If the reference is an indirect one (i.e. an array access), then it is a use
-                if (id.HasIndex && (!regonly || id.Identifier.IType == Identifier.IdentifierType.Register))
+                if (id.HasIndex && (!registersOnly || id.Identifier.Type == Identifier.IdentifierType.Register))
                 {
-                    uses.UnionWith(id.GetUses(regonly));
+                    uses.UnionWith(id.GetUses(registersOnly));
                 }
                 // Indices are also uses
                 if (id.HasIndex)
                 {
                     foreach (var idx in id.TableIndices)
                     {
-                        uses.UnionWith(idx.GetUses(regonly));
+                        uses.UnionWith(idx.GetUses(registersOnly));
                     }
                 }
             }
-            uses.UnionWith(Right.GetUses(regonly));
+            uses.UnionWith(Right.GetUses(registersOnly));
             return uses;
         }
 
-        public override void RenameDefines(Identifier orig, Identifier newi)
+        public override void RenameDefines(Identifier orig, Identifier newIdentifier)
         {
             foreach (var id in Left)
             {
                 // If the reference is not an indirect one (i.e. not an array access), then it is a definition
                 if (!id.HasIndex && id.Identifier == orig)
                 {
-                    id.Identifier = newi;
+                    id.Identifier = newIdentifier;
                     id.Identifier.DefiningInstruction = this;
                 }
             }
         }
 
-        public override void RenameUses(Identifier orig, Identifier newi)
+        public override void RenameUses(Identifier orig, Identifier newIdentifier)
         {
             foreach (var id in Left)
             {
                 // If the reference is an indirect one (i.e. an array access), then it is a use
                 if (id.HasIndex)
                 {
-                    id.RenameUses(orig, newi);
+                    id.RenameUses(orig, newIdentifier);
                 }
             }
-            Right.RenameUses(orig, newi);
+            Right.RenameUses(orig, newIdentifier);
         }
 
         public override bool ReplaceUses(Identifier orig, Expression sub)
@@ -183,23 +183,23 @@ namespace LuaDecompilerCore.IR
             {
                 ret = "local ";
             }
-            if (Left.Count() == 1 && !Left[0].HasIndex && !Left[0].DotNotation && Left[0].Identifier.IType == Identifier.IdentifierType.Global && Right is Closure c)
+            if (Left.Count == 1 && !Left[0].HasIndex && !Left[0].DotNotation && Left[0].Identifier.Type == Identifier.IdentifierType.Global && Right is Closure c)
             {
                 return c.Function.PrettyPrint(Left[0].Identifier.Name);
             }
-            if (Left.Count() > 0)
+            if (Left.Count > 0)
             {
-                if (Left.Count() == 1 && Left[0].HasIndex && Right is Closure)
+                if (Left.Count == 1 && Left[0].HasIndex && Right is Closure)
                 {
                     Left[0].DotNotation = true;
                     ret = Left[0] + assignmentOp + Right;
                 }
                 else
                 {
-                    for (int i = 0; i < Left.Count(); i++)
+                    for (int i = 0; i < Left.Count; i++)
                     {
                         ret += Left[i].ToString();
-                        if (i != Left.Count() - 1)
+                        if (i != Left.Count - 1)
                         {
                             ret += ", ";
                         }

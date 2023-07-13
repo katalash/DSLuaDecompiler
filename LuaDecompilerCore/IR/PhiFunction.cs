@@ -3,7 +3,7 @@ using System.Linq;
 
 namespace LuaDecompilerCore.IR
 {
-    public class PhiFunction : IInstruction
+    public class PhiFunction : Instruction
     {
         public Identifier Left;
         public List<Identifier> Right;
@@ -14,12 +14,12 @@ namespace LuaDecompilerCore.IR
             Right = right;
         }
 
-        public override HashSet<Identifier> GetDefines(bool regonly)
+        public override HashSet<Identifier> GetDefines(bool registersOnly)
         {
-            return new HashSet<Identifier>(new List<Identifier>() { Left });
+            return new HashSet<Identifier>(new List<Identifier> { Left });
         }
 
-        public override HashSet<Identifier> GetUses(bool regonly)
+        public override HashSet<Identifier> GetUses(bool registersOnly)
         {
             var uses = new HashSet<Identifier>();
             foreach (var id in Right)
@@ -29,17 +29,17 @@ namespace LuaDecompilerCore.IR
             return uses;
         }
 
-        public override void RenameDefines(Identifier orig, Identifier newi)
+        public override void RenameDefines(Identifier orig, Identifier newIdentifier)
         {
             if (Left == orig)
             {
-                Left = newi;
+                Left = newIdentifier;
             }
         }
 
-        public override void RenameUses(Identifier orig, Identifier newi)
+        public override void RenameUses(Identifier orig, Identifier newIdentifier)
         {
-            for (int i = 0; i < Right.Count(); i++)
+            for (int i = 0; i < Right.Count; i++)
             {
                 if (Right[i] == orig)
                 {
@@ -47,10 +47,10 @@ namespace LuaDecompilerCore.IR
                     {
                         orig.UseCount--;
                     }
-                    Right[i] = newi;
-                    if (newi != null)
+                    Right[i] = newIdentifier;
+                    if (newIdentifier != null)
                     {
-                        newi.UseCount++;
+                        newIdentifier.UseCount++;
                     }
                 }
             }
@@ -59,7 +59,7 @@ namespace LuaDecompilerCore.IR
         public override string ToString()
         {
             string ret = $@"{Left} = phi(";
-            for (int i = 0; i < Right.Count(); i++)
+            for (int i = 0; i < Right.Count; i++)
             {
                 if (Right[i] != null)
                 {
@@ -69,7 +69,7 @@ namespace LuaDecompilerCore.IR
                 {
                     ret += "undefined";
                 }
-                if (i != Right.Count() - 1)
+                if (i != Right.Count - 1)
                 {
                     ret += ", ";
                 }
