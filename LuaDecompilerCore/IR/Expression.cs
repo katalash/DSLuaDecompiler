@@ -7,7 +7,7 @@ namespace LuaDecompilerCore.IR
     /// <summary>
     /// Base class for an expression, which can basically do anything expressive
     /// </summary>
-    public class Expression
+    public class Expression : IIrNode
     {
         public virtual HashSet<Identifier> GetUses(bool registerOnly)
         {
@@ -33,6 +33,11 @@ namespace LuaDecompilerCore.IR
         public virtual int GetLowestConstantId()
         {
             return -1;
+        }
+
+        public virtual void Accept(IIrVisitor visitor)
+        {
+            visitor.VisitExpression(this);
         }
     }
 
@@ -91,31 +96,14 @@ namespace LuaDecompilerCore.IR
             ConstantID = id;
         }
 
-        public override string ToString()
-        {
-            switch (ConstType)
-            {
-                case ConstantType.ConstNumber:
-                    return Number.ToString();
-                case ConstantType.ConstInteger:
-                    return Integer.ToString();
-                case ConstantType.ConstString:
-                    return "\"" + String + "\"";
-                case ConstantType.ConstBool:
-                    return Boolean ? "true" : "false";
-                case ConstantType.ConstTable:
-                    return "{}";
-                case ConstantType.ConstVarargs:
-                    return "...";
-                case ConstantType.ConstNil:
-                    return "nil";
-            }
-            return "";
-        }
-
         public override int GetLowestConstantId()
         {
             return ConstantID;
+        }
+
+        public override void Accept(IIrVisitor visitor)
+        {
+            visitor.VisitConstant(this);
         }
     }
 
@@ -146,21 +134,9 @@ namespace LuaDecompilerCore.IR
             }
         }
 
-        public override string ToString()
+        public override void Accept(IIrVisitor visitor)
         {
-            /*string ret = "[";
-
-            // Debug closure bindings
-            for (int i = 0; i < UpvalueBindings.Count(); i++)
-            {
-                ret += UpvalueBindings[i].ToString();
-                if (i != UpvalueBindings.Count() - 1)
-                {
-                    ret += ", ";
-                }
-            }
-            ret += "] -> ";*/
-            return Function.ToString();
+            visitor.VisitClosure(this);
         }
     }
 
@@ -279,28 +255,9 @@ namespace LuaDecompilerCore.IR
             return id;
         }
 
-        public override string ToString()
+        public override void Accept(IIrVisitor visitor)
         {
-            // Detect a Lua 5.3 global variable and don't display it as a table reference
-            var isGlobal = (Identifier.Type == Identifier.IdentifierType.GlobalTable);
-            var ret = isGlobal ? "" : Identifier.ToString();
-            foreach (var idx in TableIndices)
-            {
-                if (isGlobal && idx is Constant g && g.ConstType == Constant.ConstantType.ConstString)
-                {
-                    ret += g.String;
-                    isGlobal = false;
-                }
-                else if (/*DotNotation && */idx is Constant c && c.ConstType == Constant.ConstantType.ConstString)
-                {
-                    ret += "." + c.String;
-                }
-                else
-                {
-                    ret += $@"[{idx.ToString()}]";
-                }
-            }
-            return ret;
+            visitor.VisitIdentifierReference(this);
         }
     }
 
@@ -313,7 +270,7 @@ namespace LuaDecompilerCore.IR
     public class Concat : Expression, IOperator
     {
         public List<Expression> Exprs;
-        private bool HasParentheses = false;
+        public bool HasParentheses = false;
 
         public Concat(List<Expression> expr)
         {
@@ -401,28 +358,9 @@ namespace LuaDecompilerCore.IR
             return id != int.MaxValue ? id : -1;
         }
 
-        public override string ToString()
+        public override void Accept(IIrVisitor visitor)
         {
-            var ret = "";
-
-            // Pattern match special lua this call
-            if (HasParentheses)
-            {
-                ret += "(";
-            }
-            for (var i = 0; i < Exprs.Count; i++)
-            {
-                ret += Exprs[i].ToString();
-                if (i != Exprs.Count - 1)
-                {
-                    ret += " .. ";
-                }
-            }
-            if (HasParentheses)
-            {
-                ret += ")";
-            }
-            return ret;
+            visitor.VisitConcat(this);
         }
     }
 
@@ -501,25 +439,9 @@ namespace LuaDecompilerCore.IR
             return id != int.MaxValue ? id : -1;
         }
 
-        public override string ToString()
+        public override void Accept(IIrVisitor visitor)
         {
-            var ret = "{";
-
-            // Pattern match special lua this call
-            for (var i = 0; i < Exprs.Count; i++)
-            {
-                if (Assignments != null)
-                {
-                    ret += Assignments[i].String + " = ";
-                }
-                ret += Exprs[i].ToString();
-                if (i != Exprs.Count - 1)
-                {
-                    ret += ", ";
-                }
-            }
-            ret += "}";
-            return ret;
+            visitor.VisitInitializerList(this);
         }
     }
 
@@ -554,7 +476,7 @@ namespace LuaDecompilerCore.IR
         public Expression Right;
         public OperationType Operation;
 
-        private bool _hasParentheses = false;
+        public bool HasParentheses { get; private set; }
 
         public BinOp(Expression left, Expression right, OperationType op)
         {
@@ -749,49 +671,14 @@ namespace LuaDecompilerCore.IR
             return Math.Min(left, right);
         }
 
-        public override string ToString()
+        public override void Accept(IIrVisitor visitor)
         {
-            var op = Operation switch
-            {
-                OperationType.OpAdd => "+",
-                OperationType.OpDiv => "/",
-                OperationType.OpFloorDiv => "//",
-                OperationType.OpMod => "%",
-                OperationType.OpMul => "*",
-                OperationType.OpPow => "^",
-                OperationType.OpSub => "-",
-                OperationType.OpEqual => "==",
-                OperationType.OpNotEqual => "~=",
-                OperationType.OpLessThan => "<",
-                OperationType.OpLessEqual => "<=",
-                OperationType.OpGreaterThan => ">",
-                OperationType.OpGreaterEqual => ">=",
-                OperationType.OpAnd => "and",
-                OperationType.OpOr => "or",
-                OperationType.OpBAnd => "&",
-                OperationType.OpBOr => "|",
-                OperationType.OpBXOr => "~",
-                OperationType.OpShiftRight => ">>",
-                OperationType.OpShiftLeft => "<<",
-                OperationType.OpLoopCompare => ">?=",
-                _ => ""
-            };
-            var ret = "";
-            if (_hasParentheses)
-            {
-                ret += "(";
-            }
-            ret += $@"{Left} {op} {Right}";
-            if (_hasParentheses)
-            {
-                ret += ")";
-            }
-            return ret;
+            visitor.VisitBinOp(this);
         }
 
         public void SetHasParentheses(bool paren)
         {
-            _hasParentheses = paren;
+            HasParentheses = paren;
         }
     }
 
@@ -808,7 +695,7 @@ namespace LuaDecompilerCore.IR
         public Expression Exp;
         public OperationType Operation;
 
-        private bool _hasParentheses = false;
+        public bool HasParentheses { get; private set; }
 
         public UnaryOp(Expression exp, OperationType op)
         {
@@ -850,27 +737,10 @@ namespace LuaDecompilerCore.IR
         {
             return Exp.GetLowestConstantId();
         }
-        public override string ToString()
+
+        public override void Accept(IIrVisitor visitor)
         {
-            var op = Operation switch
-            {
-                OperationType.OpNegate => "-",
-                OperationType.OpNot => "not ",
-                OperationType.OpBNot => "~",
-                OperationType.OpLength => "#",
-                _ => ""
-            };
-            var ret = "";
-            if (_hasParentheses)
-            {
-                ret += "(";
-            }
-            ret += $@"{op}{Exp}";
-            if (_hasParentheses)
-            {
-                ret += ")";
-            }
-            return ret;
+            visitor.VisitUnaryOp(this);
         }
 
         public int GetPrecedence()
@@ -889,7 +759,7 @@ namespace LuaDecompilerCore.IR
 
         public void SetHasParentheses(bool paren)
         {
-            _hasParentheses = paren;
+            HasParentheses = paren;
         }
     }
 
@@ -1005,53 +875,9 @@ namespace LuaDecompilerCore.IR
             return id;
         }
 
-        public override string ToString()
+        public override void Accept(IIrVisitor visitor)
         {
-            var ret = "";
-
-            // Pattern match special lua this call
-            var beginArg = 0;
-            if (Function is IdentifierReference ir && ir.TableIndices.Count == 1 &&
-                ir.TableIndices[0] is Constant { ConstType: Constant.ConstantType.ConstString } c &&
-                ir.Identifier.Type != Identifier.IdentifierType.GlobalTable)
-            {
-                if (Args.Count >= 1 && Args[0] is IdentifierReference thisIdentifier && 
-                    thisIdentifier.TableIndices.Count == 0 && thisIdentifier.Identifier == ir.Identifier)
-                {
-                    ret += $@"{ir.Identifier}:{c.String}(";
-                    beginArg = 1;
-                }
-                else
-                {
-                    ret += $@"{ir.Identifier}.{c.String}(";
-                }
-            }
-            else if (Function is IdentifierReference ir2 && ir2.TableIndices.Count == 2 &&
-                     ir2.Identifier.Type == Identifier.IdentifierType.GlobalTable &&
-                     ir2.TableIndices[1] is Constant { ConstType: Constant.ConstantType.ConstString } c2 &&
-                     ir2.TableIndices[0] is Constant { ConstType: Constant.ConstantType.ConstString } c3 &&
-                     Args.Count >= 1 && Args[0] is IdentifierReference thisIdentifier && 
-                     thisIdentifier.TableIndices.Count == 1 && thisIdentifier.Identifier == ir2.Identifier && 
-                     ir2.TableIndices[0] is Constant { ConstType: Constant.ConstantType.ConstString } c4 && 
-                     c3.String == c4.String)
-            {
-                ret += $@"{c3.String}:{c2.String}(";
-                beginArg = 1;
-            }
-            else
-            {
-                ret += Function + "(";
-            }
-            for (var i = beginArg; i < Args.Count; i++)
-            {
-                ret += Args[i].ToString();
-                if (i != Args.Count - 1)
-                {
-                    ret += ", ";
-                }
-            }
-            ret += ")";
-            return ret;
+            visitor.VisitFunctionCall(this);
         }
     }
 }

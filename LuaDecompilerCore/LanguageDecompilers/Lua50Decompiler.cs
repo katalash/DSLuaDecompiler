@@ -343,10 +343,10 @@ public class Lua50Decompiler : ILanguageDecompiler
                     break;
                 case Lua50Ops.OpGetUpVal:
                     var up = irFunction.GetUpValue(b);
-                    if (function.UpvalueNames.Length > 0 && !up.UpvalueResolved)
+                    if (function.UpvalueNames.Length > 0 && !up.UpValueResolved)
                     {
                         up.Name = function.UpvalueNames[b].Name;
-                        up.UpvalueResolved = true;
+                        up.UpValueResolved = true;
                     }
                     else
                     {
@@ -383,10 +383,10 @@ public class Lua50Decompiler : ILanguageDecompiler
                     break;
                 case Lua50Ops.OpSetUpVal:
                     var up2 = irFunction.GetUpValue(b);
-                    if (function.UpvalueNames.Length > 0 && !up2.UpvalueResolved)
+                    if (function.UpvalueNames.Length > 0 && !up2.UpValueResolved)
                     {
                         up2.Name = function.UpvalueNames[b].Name;
-                        up2.UpvalueResolved = true;
+                        up2.UpValueResolved = true;
                     }
                     else
                     {

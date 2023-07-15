@@ -66,30 +66,17 @@ namespace LuaDecompilerCore.IR
             return Condition.ReplaceUses(orig, sub);
         }
 
+        public override void Accept(IIrVisitor visitor)
+        {
+            visitor.VisitJump(this);
+        }
+
         public override List<Expression> GetExpressions()
         {
             var ret = new List<Expression>();
             if (Conditional)
             {
                 ret = Condition.GetExpressions();
-            }
-            return ret;
-        }
-
-        public override string ToString()
-        {
-            var ret = "";
-            if (Conditional)
-            {
-                ret += $@"if {Condition} else ";
-            }
-            if (BlockDest != null)
-            {
-                ret += "goto " + BlockDest;
-            }
-            else
-            {
-                ret += "goto " + Dest;
             }
             return ret;
         }

@@ -41,7 +41,9 @@ public class PassManager
     /// <returns>String representation of the first function after each specified pass runs</returns>
     public string RunOnFunctions(DecompilationContext context, IReadOnlyList<Function> functions)
     {
-        var output = new StringBuilder();
+        var printPassCount = _dumpAllIrPasses ? _passes.Count : _dumpIrPasses.Count;
+        var output = new StringBuilder(printPassCount * 1024 * 1024);
+        var printer = new FunctionPrinter();
         foreach (var pass in _passes)
         {
             foreach (var f in functions)
@@ -53,7 +55,7 @@ public class PassManager
             if (!_dumpAllIrPasses && !_dumpIrPasses.Contains(pass.Name)) continue;
 
             output.AppendLine($"-- Begin pass {pass.Name} --");
-            output.AppendLine(functions[0].ToString());
+            printer.PrintFunctionToStringBuilder(functions[0], output);
             output.AppendLine($"-- End pass {pass.Name} --");
             output.AppendLine();
         }

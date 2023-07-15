@@ -150,10 +150,10 @@ public class Lua53Decompiler : ILanguageDecompiler
             up.StackUpvalue = true;
         }
 
-        if (function.UpvalueNames.Length > 0 && !up.UpvalueResolved)
+        if (function.UpvalueNames.Length > 0 && !up.UpValueResolved)
         {
             up.Name = function.UpvalueNames[upValueId].Name;
-            up.UpvalueResolved = true;
+            up.UpValueResolved = true;
         }
 
         return up;
@@ -311,10 +311,10 @@ public class Lua53Decompiler : ILanguageDecompiler
                     break;
                 case Lua53Ops.OpSetUpVal:
                     var up2 = UpValue53(irFunction, function, b);
-                    if (function.UpvalueNames.Length > 0 && !up2.UpvalueResolved)
+                    if (function.UpvalueNames.Length > 0 && !up2.UpValueResolved)
                     {
                         up2.Name = function.UpvalueNames[b].Name;
-                        up2.UpvalueResolved = true;
+                        up2.UpValueResolved = true;
                     }
 
                     instructions.Add(new Assignment(up2, new IdentifierReference(irFunction.GetRegister(a))));

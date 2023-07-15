@@ -15,29 +15,9 @@ namespace LuaDecompilerCore.IR
         public CFG.BasicBlock Body;
         public CFG.BasicBlock Follow;
 
-        public override string WriteLua(int indentLevel)
+        public override void Accept(IIrVisitor visitor)
         {
-            string ret = "";
-            if (Iterator is Assignment a)
-            {
-                a.IsLocalDeclaration = false;
-                a.IsGenericForAssignment = true;
-            }
-            ret = $@"for {Iterator} do" + "\n";
-
-            ret += Body.PrintBlock(indentLevel + 1);
-            ret += "\n";
-            for (int i = 0; i < indentLevel; i++)
-            {
-                ret += "    ";
-            }
-            ret += "end";
-            if (Follow != null && Follow.Instructions.Count > 0)
-            {
-                ret += "\n";
-                ret += Follow.PrintBlock(indentLevel);
-            }
-            return ret;
+            visitor.VisitGenericFor(this);
         }
     }
 }

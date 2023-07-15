@@ -56,26 +56,9 @@ namespace LuaDecompilerCore.IR
             }
         }
 
-        public override string ToString()
+        public override void Accept(IIrVisitor visitor)
         {
-            string ret = $@"{Left} = phi(";
-            for (int i = 0; i < Right.Count; i++)
-            {
-                if (Right[i] != null)
-                {
-                    ret += Right[i].ToString();
-                }
-                else
-                {
-                    ret += "undefined";
-                }
-                if (i != Right.Count - 1)
-                {
-                    ret += ", ";
-                }
-            }
-            ret += ")";
-            return ret;
+            visitor.VisitPhiFunction(this);
         }
     }
 }

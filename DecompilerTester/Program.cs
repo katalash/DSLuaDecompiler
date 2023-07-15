@@ -100,7 +100,8 @@ namespace DecompilerTester
                 }
 
                 string tempFileName1 = Path.GetTempFileName();
-                File.WriteAllText(tempFileName1, irfun.ToString(), encoding);
+                var printer = new FunctionPrinter();
+                File.WriteAllText(tempFileName1,  printer.PrintFunction(irfun), encoding);
                 string tempFileName2 = Path.GetTempFileName();
                 Process process = new Process();
                 process.StartInfo.FileName = flag ? "hksc.exe" : "luac-5.0.2.exe";

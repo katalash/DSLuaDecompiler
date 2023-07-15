@@ -2,9 +2,9 @@
 {
     public class Break : Instruction
     {
-        public override string ToString()
+        public override void Accept(IIrVisitor visitor)
         {
-            return "break";
+            visitor.VisitBreak(this);
         }
     }
 }

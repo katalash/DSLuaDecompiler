@@ -12,38 +12,9 @@ namespace LuaDecompilerCore.IR
         public bool IsPostTested = false;
         public bool IsBlockInlined = false;
 
-        public override string WriteLua(int indentLevel)
+        public override void Accept(IIrVisitor visitor)
         {
-            string ret = "";
-            if (IsPostTested)
-            {
-                ret = $@"repeat" + "\n";
-            }
-            else
-            {
-                ret = $@"while {Condition} do" + "\n";
-            }
-
-            ret += Body.PrintBlock(indentLevel + 1, IsBlockInlined);
-            ret += "\n";
-            for (int i = 0; i < indentLevel; i++)
-            {
-                ret += "    ";
-            }
-            if (IsPostTested)
-            {
-                ret += $@"until {Condition}";
-            }
-            else
-            {
-                ret += "end";
-            }
-            if (Follow != null && Follow.Instructions.Count > 0)
-            {
-                ret += "\n";
-                ret += Follow.PrintBlock(indentLevel);
-            }
-            return ret;
+            visitor.VisitWhile(this);
         }
     }
 }

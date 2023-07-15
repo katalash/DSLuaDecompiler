@@ -3,7 +3,7 @@ using System.Linq;
 
 namespace LuaDecompilerCore.IR
 {
-    class Return : Instruction
+    public class Return : Instruction
     {
         public List<Expression> ReturnExpressions;
         public uint BeginRet = 0;
@@ -63,30 +63,17 @@ namespace LuaDecompilerCore.IR
             return replace;
         }
 
+        public override void Accept(IIrVisitor visitor)
+        {
+            visitor.VisitReturn(this);
+        }
+
         public override List<Expression> GetExpressions()
         {
             var ret = new List<Expression>();
             foreach (var r in ReturnExpressions)
             {
                 ret.AddRange(r.GetExpressions());
-            }
-            return ret;
-        }
-
-        public override string ToString()
-        {
-            if (IsImplicit)
-            {
-                return "";
-            }
-            string ret = "return ";
-            for (int i = 0; i < ReturnExpressions.Count; i++)
-            {
-                ret += ReturnExpressions[i].ToString();
-                if (i != ReturnExpressions.Count - 1)
-                {
-                    ret += ", ";
-                }
             }
             return ret;
         }

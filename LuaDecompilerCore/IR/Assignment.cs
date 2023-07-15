@@ -164,6 +164,11 @@ namespace LuaDecompilerCore.IR
             return replaced;
         }
 
+        public override void Accept(IIrVisitor visitor)
+        {
+            visitor.VisitAssignment(this);
+        }
+
         public override List<Expression> GetExpressions()
         {
             var ret = new List<Expression>();
@@ -172,48 +177,6 @@ namespace LuaDecompilerCore.IR
                 ret.AddRange(left.GetExpressions());
             }
             ret.AddRange(Right.GetExpressions());
-            return ret;
-        }
-
-        public override string ToString()
-        {
-            var ret = "";
-            var assignmentOp = IsGenericForAssignment ? " in " : " = ";
-            if (IsLocalDeclaration)
-            {
-                ret = "local ";
-            }
-            if (Left.Count == 1 && !Left[0].HasIndex && !Left[0].DotNotation && Left[0].Identifier.Type == Identifier.IdentifierType.Global && Right is Closure c)
-            {
-                return c.Function.PrettyPrint(Left[0].Identifier.Name);
-            }
-            if (Left.Count > 0)
-            {
-                if (Left.Count == 1 && Left[0].HasIndex && Right is Closure)
-                {
-                    Left[0].DotNotation = true;
-                    ret = Left[0] + assignmentOp + Right;
-                }
-                else
-                {
-                    for (int i = 0; i < Left.Count; i++)
-                    {
-                        ret += Left[i].ToString();
-                        if (i != Left.Count - 1)
-                        {
-                            ret += ", ";
-                        }
-                    }
-                    if (Right != null)
-                    {
-                        ret += assignmentOp + Right;
-                    }
-                }
-            }
-            else
-            {
-                ret = Right.ToString();
-            }
             return ret;
         }
     }

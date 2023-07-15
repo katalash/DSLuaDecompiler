@@ -6,7 +6,7 @@ namespace LuaDecompilerCore.IR
     /// A single instruction or statement, initially translated from a Lua opcode,
     /// but can be simplified into more powerful "instructions"
     /// </summary>
-    public abstract class Instruction
+    public abstract class Instruction : IIrNode
     {
         /// <summary>
         /// The original lua bytecode op within the function that generated this instruction
@@ -58,5 +58,7 @@ namespace LuaDecompilerCore.IR
         {
             return ToString();
         }
+
+        public abstract void Accept(IIrVisitor visitor);
     }
 }

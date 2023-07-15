@@ -12,5 +12,10 @@ namespace LuaDecompilerCore.IR
         /// Lua locals are often defined at the last data instruction
         /// </summary>
         public List<LuaFile.Local> Locals = null;
+
+        public override void Accept(IIrVisitor visitor)
+        {
+            visitor.VisitData(this);
+        }
     }
 }

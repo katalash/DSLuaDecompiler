@@ -117,7 +117,8 @@ namespace DSLuaDecompiler
                         throw new ArgumentOutOfRangeException();
                 }
 
-                var toWrite = passOutput ?? main.ToString();
+                var printer = new FunctionPrinter();
+                var toWrite = passOutput ?? printer.PrintFunction(main);
                 var outputFile = output ?? Path.GetFileNameWithoutExtension(file) + ".dec.lua";
                 if (!console)
                 {

@@ -3,9 +3,9 @@
     /// <summary>
     /// Simple string based placeholder until IR is implemented
     /// </summary>
-    class PlaceholderInstruction : Instruction
+    public class PlaceholderInstruction : Instruction
     {
-        public string Placeholder;
+        public readonly string Placeholder;
         
         public PlaceholderInstruction(string place)
         {
@@ -15,6 +15,11 @@
         public override string ToString()
         {
             return Placeholder;
+        }
+
+        public override void Accept(IIrVisitor visitor)
+        {
+            visitor.VisitPlaceholderInstruction(this);
         }
     }
 }

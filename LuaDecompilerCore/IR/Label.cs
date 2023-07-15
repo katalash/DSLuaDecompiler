@@ -23,9 +23,9 @@
             LabelCount++;
         }
 
-        public override string ToString()
+        public override void Accept(IIrVisitor visitor)
         {
-            return $@"{LabelName}:";
+            visitor.VisitLabel(this);
         }
     }
 }

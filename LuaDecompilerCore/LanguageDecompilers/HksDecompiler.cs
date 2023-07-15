@@ -345,20 +345,20 @@ public class HksDecompiler : ILanguageDecompiler
                     break;
                 case LuaHksOps.OpGetUpVal:
                     var up = irFunction.GetUpValue((uint)b);
-                    if (function.UpvalueNames.Length > 0 && !up.UpvalueResolved)
+                    if (function.UpvalueNames.Length > 0 && !up.UpValueResolved)
                     {
                         up.Name = function.UpvalueNames[b].Name;
-                        up.UpvalueResolved = true;
+                        up.UpValueResolved = true;
                     }
 
                     instructions.Add(new Assignment(irFunction.GetRegister(a), new IdentifierReference(up)));
                     break;
                 case LuaHksOps.OpSetUpVal:
                     var up2 = irFunction.GetUpValue((uint)b);
-                    if (function.UpvalueNames.Length > 0 && !up2.UpvalueResolved)
+                    if (function.UpvalueNames.Length > 0 && !up2.UpValueResolved)
                     {
                         up2.Name = function.UpvalueNames[b].Name;
-                        up2.UpvalueResolved = true;
+                        up2.UpValueResolved = true;
                     }
                     else
                     {

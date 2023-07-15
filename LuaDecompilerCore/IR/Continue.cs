@@ -2,9 +2,9 @@
 {
     public class Continue : Instruction
     {
-        public override string ToString()
+        public override void Accept(IIrVisitor visitor)
         {
-            return "continue";
+            visitor.VisitContinue(this);
         }
     }
 }

@@ -9,7 +9,7 @@ namespace LuaDecompilerCore.IR
     /// <summary>
     /// A Lua function. A function contains a CFG, a list of instructions, and child functions used for closures
     /// </summary>
-    public class Function
+    public class Function : IIrNode
     {
         public List<Identifier> Parameters { get; private set; }
         public List<Function> Closures { get; }
@@ -350,128 +350,9 @@ namespace LuaDecompilerCore.IR
             }
         }
 
-        public string PrettyPrint(string functionName = null)
+        public void Accept(IIrVisitor visitor)
         {
-            var str = "";
-            if (FunctionId != 0)
-            {
-                if (functionName == null)
-                {
-                    //string str = $@"function {DebugID} (";
-                    str += $@"function (";
-                }
-                else
-                {
-                    //str = $@"function {DebugID} {funname}(";
-                    str += $@"function {functionName}(";
-                }
-                for (var i = 0; i < Parameters.Count; i++)
-                {
-                    str += Parameters[i].ToString();
-                    if (i != Parameters.Count - 1)
-                    {
-                        str += ", ";
-                    }
-                }
-                if (IsVarargs)
-                {
-                    if (Parameters.Count > 0)
-                    {
-                        str += ", ...";
-                    }
-                    else
-                    {
-                        str += "...";
-                    }
-                }
-                str += ")\n";
-                _indentLevel += 1;
-            }
-            if (IsAst)
-            {
-                if (InsertDebugComments)
-                {
-                    for (var i = 0; i < _indentLevel; i++)
-                    {
-                        str += "    ";
-                    }
-                    str += $"-- Function ID = {FunctionId}\n";
-                }
-                str += BeginBlock.PrintBlock(_indentLevel);
-                str += "\n";
-            }
-            else
-            {
-                // Traverse the basic blocks ordered by their ID
-                foreach (var b in BlockList.OrderBy(a => a.BlockID))
-                {
-                    if (b == EndBlock)
-                    {
-                        continue;
-                    }
-                    for (var i = 0; i < _indentLevel; i++)
-                    {
-                        if (i == _indentLevel - 1)
-                        {
-                            str += "  ";
-                            continue;
-                        }
-                        str += "    ";
-                    }
-                    str += b.ToStringWithLoop() + "\n";
-                    foreach (var inst in b.PhiFunctions.Values)
-                    {
-                        for (var i = 0; i < _indentLevel; i++)
-                        {
-                            str += "    ";
-                        }
-                        str += inst + "\n";
-                    }
-                    foreach (var inst in b.Instructions)
-                    {
-                        for (var i = 0; i < _indentLevel; i++)
-                        {
-                            if (inst is Label && i == _indentLevel - 1)
-                            {
-                                str += "  ";
-                                continue;
-                            }
-                            str += "    ";
-                        }
-                        str += inst + "\n";
-                    }
-
-                    // Insert an implicit goto for fallthrough blocks if the destination isn't actually the next block
-                    var lastInstruction = (b.Instructions.Count > 0) ? b.Instructions.Last() : null;
-                    if (lastInstruction != null && 
-                        ((lastInstruction is Jump { Conditional: true } && 
-                          b.Successors[0].BlockID != b.BlockID + 1) ||
-                        (lastInstruction is not Jump && lastInstruction is not Return && 
-                         b.Successors[0].BlockID != (b.BlockID + 1))))
-                    {
-                        for (var i = 0; i < _indentLevel; i++)
-                        {
-                            str += "    ";
-                        }
-                        str += "(goto " + b.Successors[0] + ")" + "\n";
-                    }
-                }
-            }
-            if (FunctionId != 0)
-            {
-                _indentLevel -= 1;
-                for (var i = 0; i < _indentLevel; i++)
-                {
-                    str += "    ";
-                }
-                str += "end\n";
-            }
-            return str;
-        }
-
-        public override string ToString()
-        {
-            return PrettyPrint();
+            visitor.VisitFunction(this);
         }
     }
 }

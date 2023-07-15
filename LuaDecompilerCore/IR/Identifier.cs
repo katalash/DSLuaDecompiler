@@ -3,7 +3,7 @@
     /// <summary>
     /// An Identifier tracked by the symbol table. Should be unique per scope/closure
     /// </summary>
-    public class Identifier
+    public class Identifier : IIrNode
     {
         public enum IdentifierType
         {
@@ -40,18 +40,14 @@
         // Used to help reorder some expressions
         public int ConstantId = 0;
 
-        public bool UpvalueResolved = false;
+        public bool UpValueResolved = false;
 
         // If this identifier is used by a closure and therefore can't be inlined
         public bool IsClosureBound = false;
 
-        public override string ToString()
+        public void Accept(IIrVisitor visitor)
         {
-            if (Type == IdentifierType.Varargs)
-            {
-                return "...";
-            }
-            return Name;
+            visitor.VisitIdentifier(this);
         }
     }
 }

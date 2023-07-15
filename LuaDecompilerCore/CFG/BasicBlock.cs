@@ -1,13 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using LuaDecompilerCore.IR;
 
 namespace LuaDecompilerCore.CFG
 {
     /// <summary>
     /// A block of instructions in which control flow only enters at the beginning and leaves at the end
     /// </summary>
-    public class BasicBlock
+    public class BasicBlock : IIrNode
     {
         public int BlockID;
         public List<BasicBlock> Predecessors;
@@ -308,6 +309,11 @@ namespace LuaDecompilerCore.CFG
         public override string ToString()
         {
             return $@"basicblock_{BlockID}:";
+        }
+
+        public void Accept(IIrVisitor visitor)
+        {
+            visitor.VisitBasicBlock(this);
         }
     }
 }
