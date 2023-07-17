@@ -8,6 +8,7 @@
     </PropertyGroup>
 
     <ItemGroup>
+      <ProjectReference Include="..\LuaCompiler\LuaCompiler.csproj" />
       <ProjectReference Include="..\LuaDecompilerCore\LuaDecompilerCore.csproj" />
       <ProjectReference Include="..\SoulsFormats\SoulsFormats\SoulsFormats.csproj" />
     </ItemGroup>

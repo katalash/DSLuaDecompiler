@@ -35,7 +35,7 @@ public class ExpressionPropagationPass : IPass
                     if (defs.Count == 1)
                     {
                         defines.Add(defs.First(), i);
-                        if (b.Instructions[i] is Assignment a2 && a2.IsSelfAssignment)
+                        if (b.Instructions[i] is Assignment { IsSelfAssignment: true })
                         {
                             selfs.Add(defs.First());
                         }
@@ -150,7 +150,7 @@ public class ExpressionPropagationPass : IPass
                     // Self instructions have a lot of information because they always use the next available temp registers. This
                     // means that any pending uses below us that haven't been redefined yet are actually locals. Note that the SELF
                     // op actually translates to two IR ops with two registers used, so we account for that
-                    if (b.Instructions[i] is Assignment self && self.IsSelfAssignment)
+                    if (b.Instructions[i] is Assignment { IsSelfAssignment: true })
                     {
                         var def1 = defines.First();
                         var def2 = b.Instructions[i + 1].GetDefines(true).First(); // Second instruction
@@ -255,7 +255,7 @@ public class ExpressionPropagationPass : IPass
                     if (!f.LocalVariables.Contains(def) && !def.Renamed && !def.IsClosureBound)
                     {
                         firstTempDef = (int)def.OriginalIdentifier.RegNum;
-                        if (inst is Assignment self && self.IsSelfAssignment)
+                        if (inst is Assignment { IsSelfAssignment: true })
                         {
                             // Again a SELF op generates two assignments-the second one being the lower reg number
                             firstTempDef--;
@@ -296,11 +296,14 @@ public class ExpressionPropagationPass : IPass
                             !a.Left[0].Identifier.IsClosureBound)
                         {
                             // Don't substitute if this use's define was defined before the code gen for the function call even began
-                            if (!a.PropogateAlways && inst is Assignment a3 && a3.Right is FunctionCall fc && (use.DefiningInstruction.PrePropagationIndex < fc.FunctionDefIndex))
+                            if (!a.PropogateAlways && inst is Assignment { Right: FunctionCall fc } && 
+                                use.DefiningInstruction.PrePropagationIndex < fc.FunctionDefIndex)
                             {
                                 continue;
                             }
-                            if (!a.PropogateAlways && inst is Return r && r.ReturnExpressions.Count == 1 && r.ReturnExpressions[0] is FunctionCall fc2 && (use.DefiningInstruction.PrePropagationIndex < fc2.FunctionDefIndex))
+                            if (!a.PropogateAlways && inst is Return r && r.ReturnExpressions.Count == 1 && 
+                                r.ReturnExpressions[0] is FunctionCall fc2 && 
+                                use.DefiningInstruction.PrePropagationIndex < fc2.FunctionDefIndex)
                             {
                                 continue;
                             }
