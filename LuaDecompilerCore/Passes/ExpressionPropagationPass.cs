@@ -132,32 +132,33 @@ public class ExpressionPropagationPass : IPass
 
                 var defines = b.Instructions[i].GetDefines(true);
 
-                switch (defines.Count)
+                // If this is a multi-assignment then these variables are almost certainly locals
+                if (defines.Count > 1)
                 {
-                    // If this is a multi-assignment then these variables are almost certainly locals
-                    case > 1:
+                    foreach (var def in defines)
                     {
-                        foreach (var def in defines)
+                        // Unfortunately this pretty much kills any previous def of this in scope's chances to actually be a local
+                        Debug.Assert(def.OriginalIdentifier != null);
+                        if (recentlyUsed.ContainsKey(def.OriginalIdentifier))
                         {
-                            // Unfortunately this pretty much kills any previous def of this in scope's chances to actually be a local
-                            Debug.Assert(def.OriginalIdentifier != null);
                             recentlyUsed.Remove(def.OriginalIdentifier);
                             f.LocalVariables.Add(def);
                             thisLocalRegs.Add(def.OriginalIdentifier);
                         }
-
-                        break;
                     }
-                    // This is more interesting
+                }
+                // This is more interesting
+                else if (defines.Count == 1)
+                {
                     // Self instructions have a lot of information because they always use the next available temp registers. This
                     // means that any pending uses below us that haven't been redefined yet are actually locals. Note that the SELF
                     // op actually translates to two IR ops with two registers used, so we account for that
-                    case 1 when b.Instructions[i] is Assignment { IsSelfAssignment: true }:
+                    if (b.Instructions[i] is Assignment { IsSelfAssignment: true })
                     {
                         var def1 = defines.First();
                         var def2 = b.Instructions[i + 1].GetDefines(true).First(); // Second instruction
                         Debug.Assert(def2.OriginalIdentifier != null);
-                        
+
                         foreach (var k in recentlyUsed.Keys)
                         {
                             // If the reg number is less than the second define then it's a local
@@ -167,55 +168,54 @@ public class ExpressionPropagationPass : IPass
                                 thisLocalRegs.Add(k);
                             }
                         }
+
                         recentlyUsed.Clear();
                         i++;
                         continue;
                     }
+                    
+                    var def = defines.First();
+
+                    // Skip upvalue
+                    if (def.IsClosureBound || def.Renamed)
+                    {
+                        continue;
+                    }
+
+                    // Move on if it's a known local
+                    Debug.Assert(def.OriginalIdentifier != null);
+                    if (thisLocalRegs.Contains(def.OriginalIdentifier))
+                    {
+                        // Make sure the def is marked as local
+                        f.LocalVariables.Add(def);
+                        continue;
+                    }
+
+                    // Add the new def to the unused defs until it's used otherwise
+                    unusedDefines.Add(def);
+
+                    // Otherwise a quick redefine is likely a temp. Mark below as locals and above as temps
+                    if (recentlyUsed.ContainsKey(def.OriginalIdentifier))
+                    {
+                        foreach (var k in recentlyUsed.Keys)
+                        {
+                            // If the reg number is less than the second define then it's a local
+                            if (k.RegNum < def.OriginalIdentifier.RegNum)
+                            {
+                                f.LocalVariables.Add(recentlyUsed[k]);
+                                thisLocalRegs.Add(k);
+                            }
+                        }
+
+                        recentlyUsed.Clear();
+                        continue;
+                    }
+                    
                     // We're now seeing a new register defined. Anything left in recently used is probably a local
                     /*foreach (var ru in recentlyUsed)
                     {
                         definitelyLocal.Add()
                     }*/
-                    case 1:
-                    {
-                        var def = defines.First();
-
-                        // Skip upvalue
-                        if (def.IsClosureBound || def.Renamed)
-                        {
-                            continue;
-                        }
-
-                        // Move on if it's a known local
-                        Debug.Assert(def.OriginalIdentifier != null);
-                        if (thisLocalRegs.Contains(def.OriginalIdentifier))
-                        {
-                            // Make sure the def is marked as local
-                            f.LocalVariables.Add(def);
-                            continue;
-                        }
-
-                        // Add the new def to the unused defs until it's used otherwise
-                        unusedDefines.Add(def);
-
-                        // Otherwise a quick redefine is likely a temp. Mark below as locals and above as temps
-                        if (recentlyUsed.ContainsKey(def.OriginalIdentifier))
-                        {
-                            foreach (var k in recentlyUsed.Keys)
-                            {
-                                // If the reg number is less than the second define then it's a local
-                                if (k.RegNum < def.OriginalIdentifier.RegNum)
-                                {
-                                    f.LocalVariables.Add(recentlyUsed[k]);
-                                    thisLocalRegs.Add(k);
-                                }
-                            }
-                            recentlyUsed.Clear();
-                            continue;
-                        }
-
-                        break;
-                    }
                 }
             }
 

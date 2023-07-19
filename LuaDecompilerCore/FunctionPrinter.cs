@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
 using System.Text;
@@ -12,6 +13,15 @@ public class FunctionPrinter
     private StringBuilder _builder = new StringBuilder();
     private int _indentLevel;
 
+    [DebuggerDisplay("Hello")]
+    internal class ExpressionDebugView
+    {
+        public ExpressionDebugView(Expression expression)
+        {
+            
+        }
+    }
+    
     public string PrintFunction(Function function)
     {
         _builder = new StringBuilder();

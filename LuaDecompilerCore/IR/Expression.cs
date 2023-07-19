@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 
 namespace LuaDecompilerCore.IR
@@ -7,6 +8,7 @@ namespace LuaDecompilerCore.IR
     /// <summary>
     /// Base class for an expression, which can basically do anything expressive
     /// </summary>
+    [DebuggerTypeProxy(typeof(FunctionPrinter.ExpressionDebugView))]
     public abstract class Expression
     {
         public virtual HashSet<Identifier> GetUses(bool registerOnly)
