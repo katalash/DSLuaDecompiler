@@ -14,7 +14,7 @@ public class CleanupHavokInstructionsPass : IPass
     {
         foreach (var b in f.BlockList)
         {
-            for (int i = b.Instructions.Count - 1; i > 0; i--)
+            for (var i = b.Instructions.Count - 1; i > 0; i--)
             {
                 if (b.Instructions[i] is Data d1)
                 {

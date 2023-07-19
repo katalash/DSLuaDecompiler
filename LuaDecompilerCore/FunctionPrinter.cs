@@ -1,5 +1,4 @@
 ﻿using System;
-using System.CodeDom.Compiler;
 using System.Globalization;
 using System.Linq;
 using System.Text;
@@ -8,18 +7,10 @@ using LuaDecompilerCore.IR;
 
 namespace LuaDecompilerCore;
 
-public class FunctionPrinter : IIrVisitor
+public class FunctionPrinter
 {
-    private StringBuilder _builder;
-    private int _indentLevel = 0;
-
-    private bool _printInfiniteLoop = false;
-    private string _functionName = null;
-    
-    public FunctionPrinter()
-    {
-        
-    }
+    private StringBuilder _builder = new StringBuilder();
+    private int _indentLevel;
 
     public string PrintFunction(Function function)
     {
@@ -34,120 +25,203 @@ public class FunctionPrinter : IIrVisitor
         VisitFunction(function);
     }
 
-    private void Indent()
+    private void Append(char value)
+    {
+        _builder.Append(value);
+    }
+
+    private void Append(string value)
+    {
+        _builder.Append(value);
+    }
+    
+    private void NewLine()
+    {
+        Append('\n');
+    }
+
+    private void PushIndent()
+    {
+        _indentLevel++;
+    }
+
+    private void PopIndent()
+    {
+        _indentLevel--;
+    }
+
+    private void Indent(bool half = false)
     {
         for (var i = 0; i < _indentLevel; i++)
         { 
-            _builder.Append("    ");
+            if (half && i == _indentLevel - 1)
+            {
+                Append("  ");
+                break;
+            }
+            Append("    ");
         }
     }
-    
-    public void VisitFunction(Function function)
+
+    private void VisitExpression(Expression? expression)
+    {
+        if (expression == null)
+            return;
+        switch (expression)
+        {
+            case EmptyExpression emptyExpression:
+                VisitEmptyExpression(emptyExpression);
+                break;
+            case Constant constant:
+                VisitConstant(constant);
+                break;
+            case Closure closure:
+                VisitClosure(closure);
+                break;
+            case IdentifierReference identifierReference:
+                VisitIdentifierReference(identifierReference);
+                break;
+            case Concat concat:
+                VisitConcat(concat);
+                break;
+            case InitializerList initializerList:
+                VisitInitializerList(initializerList);
+                break;
+            case BinOp binOp:
+                VisitBinOp(binOp);
+                break;
+            case UnaryOp unaryOp:
+                VisitUnaryOp(unaryOp);
+                break;
+            case FunctionCall functionCall:
+                VisitFunctionCall(functionCall);
+                break;
+            default:
+                throw new Exception($"Could not match expression {expression}");
+        }
+    }
+
+    private void VisitInstruction(Instruction instruction)
+    {
+        switch (instruction)
+        {
+            case Assignment assignment:
+                VisitAssignment(assignment);
+                break;
+            case Break @break:
+                VisitBreak(@break);
+                break;
+            case Continue @continue:
+                VisitContinue(@continue);
+                break;
+            case Data data:
+                VisitData(data);
+                break;
+            case GenericFor genericFor:
+                VisitGenericFor(genericFor);
+                break;
+            case IfStatement ifStatement:
+                VisitIfStatement(ifStatement);
+                break;
+            case Jump jump:
+                VisitJump(jump);
+                break;
+            case Label label:
+                VisitLabel(label);
+                break;
+            case NumericFor numericFor:
+                VisitNumericFor(numericFor);
+                break;
+            case PhiFunction phiFunction:
+                VisitPhiFunction(phiFunction);
+                break;
+            case PlaceholderInstruction placeholderInstruction:
+                VisitPlaceholderInstruction(placeholderInstruction);
+                break;
+            case Return @return:
+                VisitReturn(@return);
+                break;
+            case While @while:
+                VisitWhile(@while);
+                break;
+            default:
+                throw new Exception($"Could not match instruction {instruction}");
+        }
+    }
+
+    private void VisitFunction(Function function, string? name = null)
     {
         if (function.FunctionId != 0)
         {
-            if (_functionName == null)
-            {
-                //string str = $@"function {DebugID} (";
-                _builder.Append(@"function (");
-            }
-            else
-            {
-                //str = $@"function {DebugID} {funname}(";
-                _builder.Append($@"function {_functionName}(");
-            }
+            Append(name == null ? @"function (" : $@"function {name}(");
             for (var i = 0; i < function.Parameters.Count; i++)
             {
-                function.Parameters[i].Accept(this);
+                VisitIdentifier(function.Parameters[i]);
                 if (i != function.Parameters.Count - 1)
                 {
-                    _builder.Append(", ");
+                    Append(", ");
                 }
             }
             if (function.IsVarargs)
             {
-                if (function.Parameters.Count > 0)
-                {
-                    _builder.Append(", ...");
-                }
-                else
-                {
-                    _builder.Append("...");
-                }
+                Append(function.Parameters.Count > 0 ? ", ..." : "...");
             }
-            _builder.Append(")\n");
+            Append(')');
+            NewLine();
             _indentLevel += 1;
         }
         if (function.IsAst)
         {
             if (function.InsertDebugComments)
             {
-                for (var i = 0; i < _indentLevel; i++)
-                {
-                    _builder.Append("    ");
-                }
-                _builder.Append($"-- Function ID = {function.FunctionId}\n");
+                Indent();
+                Append($"-- Function ID = {function.FunctionId}");
+                NewLine();
             }
-            function.BeginBlock.Accept(this);
-            _builder.Append('\n');
+            VisitBasicBlock(function.BeginBlock);
         }
         else
         {
             // Traverse the basic blocks ordered by their ID
-            foreach (var b in function.BlockList.OrderBy(a => a.BlockID))
+            foreach (var b in function.BlockList.OrderBy(a => a.BlockId))
             {
                 if (b == function.EndBlock && b != function.BeginBlock)
                 {
                     continue;
                 }
-                for (var i = 0; i < _indentLevel; i++)
-                {
-                    if (i == _indentLevel - 1)
-                    {
-                        _builder.Append("  ");
-                        continue;
-                    }
-                    _builder.Append("    ");
-                }
-                _builder.Append(b.ToStringWithLoop() + "\n");
+                Indent(true);
+                Append(b.ToStringWithLoop());
+                NewLine();
                 foreach (var inst in b.PhiFunctions.Values)
                 {
                     Indent();
-                    inst.Accept(this);
-                    _builder.Append('\n');
+                    VisitPhiFunction(inst);
+                    NewLine();
                 }
                 foreach (var inst in b.Instructions)
                 {
-                    for (var i = 0; i < _indentLevel; i++)
-                    {
-                        if (inst is Label && i == _indentLevel - 1)
-                        {
-                            _builder.Append("  ");
-                            continue;
-                        }
-                        _builder.Append("    ");
-                    }
-
-                    inst.Accept(this);
-                    _builder.Append('\n');
+                    Indent(inst is Label);
+                    VisitInstruction(inst);
+                    NewLine();
                 }
 
                 // Insert an implicit goto for fallthrough blocks if the destination isn't actually the next block
-                var lastInstruction = (b.Instructions.Count > 0) ? b.Instructions.Last() : null;
+                var lastInstruction = b.Instructions.Count > 0 ? b.Instructions.Last() : null;
                 if (lastInstruction != null && 
                     ((lastInstruction is Jump { Conditional: true } && 
-                      b.Successors[0].BlockID != b.BlockID + 1) ||
+                      b.Successors[0].BlockId != b.BlockId + 1) ||
                      (lastInstruction is not Jump && lastInstruction is not Return && 
-                      b.Successors[0].BlockID != (b.BlockID + 1))))
+                      b.Successors[0].BlockId != (b.BlockId + 1))))
                 {
                     for (var i = 0; i < _indentLevel; i++)
                     {
-                        _builder.Append("    ");
+                        Append("    ");
                     }
 
-                    _builder.Append("(goto ");
-                    _builder.Append(b.Successors[0]);
-                    _builder.Append(")\n");
+                    Append("(goto ");
+                    Append(b.Successors[0].Name);
+                    Append(')');
+                    NewLine();
                 }
             }
         }
@@ -156,149 +230,153 @@ public class FunctionPrinter : IIrVisitor
             _indentLevel -= 1;
             for (var i = 0; i < _indentLevel; i++)
             {
-                _builder.Append("    ");
+                Append("    ");
             }
-            _builder.Append("end\n");
+            Append("end");
         }
-
-        _functionName = null;
     }
 
-    public void VisitBasicBlock(BasicBlock basicBlock)
+    private void VisitBasicBlock(BasicBlock basicBlock, bool printInfiniteLoop = false)
     {
-        var count = basicBlock.IsInfiniteLoop && !_printInfiniteLoop ? 1 : basicBlock.Instructions.Count;
-        var begin = basicBlock.IsInfiniteLoop && _printInfiniteLoop ? 1 : 0;
+        var count = basicBlock.IsInfiniteLoop && !printInfiniteLoop ? 1 : basicBlock.Instructions.Count;
+        var begin = basicBlock.IsInfiniteLoop && printInfiniteLoop ? 1 : 0;
         for (var j = begin; j < count; j++)
         {
             var inst = basicBlock.Instructions[j];
-            Indent();
-            inst.Accept(this);
-            if (inst is not IfStatement && j != basicBlock.Instructions.Count - 1)
+            if (j != begin && (basicBlock.Instructions[j].HasClosure ||
+                               basicBlock.Instructions[j - 1].HasClosure))
             {
-                _builder.Append('\n');
+                // Insert new lines before and after anything with a closure
+                NewLine();
+            }
+            Indent();
+            VisitInstruction(inst);
+            if (inst is not IfStatement)
+            {
+                NewLine();
             }
         }
-
-        _printInfiniteLoop = false;
     }
 
-    public void VisitExpression(Expression expression)
+    private void VisitEmptyExpression(EmptyExpression expression)
     {
         
     }
 
-    public void VisitConstant(Constant constant)
+    private void VisitConstant(Constant constant)
     {
         switch (constant.ConstType)
         {
             case Constant.ConstantType.ConstNumber:
-                _builder.Append(constant.Number.ToString(CultureInfo.InvariantCulture));
+                Append(constant.Number.ToString(CultureInfo.InvariantCulture));
                 break;
             case Constant.ConstantType.ConstInteger:
                 _builder.Append(constant.Integer);
                 break;
             case Constant.ConstantType.ConstString:
-                _builder.Append("\"" + constant.String + "\"");
+                Append("\"" + constant.String + "\"");
                 break;
             case Constant.ConstantType.ConstBool:
-                _builder.Append(constant.Boolean ? "true" : "false");
+                Append(constant.Boolean ? "true" : "false");
                 break;
             case Constant.ConstantType.ConstTable:
-                _builder.Append("{}");
+                Append("{}");
                 break;
             case Constant.ConstantType.ConstVarargs:
-                _builder.Append("...");
+                Append("...");
                 break;
             case Constant.ConstantType.ConstNil:
-                _builder.Append("nil");
+                Append("nil");
                 break;
             default:
-                throw new ArgumentOutOfRangeException();
+                throw new Exception("Unhandled constant type");
         }
     }
 
-    public void VisitClosure(Closure closure)
+    private void VisitClosure(Closure closure)
     {
-        closure.Function.Accept(this);
+        VisitFunction(closure.Function);
     }
 
-    public void VisitIdentifier(Identifier identifier)
+    private void VisitIdentifier(Identifier identifier)
     {
         if (identifier.Type == Identifier.IdentifierType.Varargs)
         {
-            _builder.Append("...");
+            Append("...");
             return;
         }
-        _builder.Append(identifier.Name);
+        Append(identifier.Name);
     }
 
-    public void VisitIdentifierReference(IdentifierReference identifierReference)
+    private void VisitIdentifierReference(IdentifierReference identifierReference)
     {
         // Detect a Lua 5.3 global variable and don't display it as a table reference
         var isGlobal = identifierReference.Identifier.Type == Identifier.IdentifierType.GlobalTable;
         if (!isGlobal) 
-            identifierReference.Identifier.Accept(this);
+            VisitIdentifier(identifierReference.Identifier);
         foreach (var idx in identifierReference.TableIndices)
         {
             if (isGlobal && idx is Constant { ConstType: Constant.ConstantType.ConstString } g)
             {
-                _builder.Append(g.String);
+                Append(g.String);
                 isGlobal = false;
             }
             else if (/*DotNotation && */idx is Constant { ConstType: Constant.ConstantType.ConstString } c)
             {
-                _builder.Append("." + c.String);
+                Append("." + c.String);
             }
             else
             {
-                _builder.Append($@"[{idx}]");
+                Append('[');
+                VisitExpression(idx);
+                Append(']');
             }
         }
     }
 
-    public void VisitConcat(Concat concat)
+    private void VisitConcat(Concat concat)
     {
         // Pattern match special lua this call
         if (concat.HasParentheses)
         {
-            _builder.Append('(');
+            Append('(');
         }
-        for (var i = 0; i < concat.Exprs.Count; i++)
+        for (var i = 0; i < concat.Expressions.Count; i++)
         {
-            concat.Exprs[i].Accept(this);
-            if (i != concat.Exprs.Count - 1)
+            VisitExpression(concat.Expressions[i]);
+            if (i != concat.Expressions.Count - 1)
             {
-                _builder.Append(" .. ");
+                Append(" .. ");
             }
         }
         if (concat.HasParentheses)
         {
-            _builder.Append(')');
+            Append(')');
         }
     }
 
-    public void VisitInitializerList(InitializerList initializerList)
+    private void VisitInitializerList(InitializerList initializerList)
     {
-        _builder.Append('{');
+        Append('{');
 
         // Pattern match special lua this call
-        for (var i = 0; i < initializerList.Exprs.Count; i++)
+        for (var i = 0; i < initializerList.Expressions.Count; i++)
         {
             if (initializerList.Assignments != null)
             {
-                _builder.Append(initializerList.Assignments[i].String + " = ");
+                Append(initializerList.Assignments[i].String + " = ");
             }
-            initializerList.Exprs[i].Accept(this);
-            if (i != initializerList.Exprs.Count - 1)
+            VisitExpression(initializerList.Expressions[i]);
+            if (i != initializerList.Expressions.Count - 1)
             {
-                _builder.Append( ", ");
+                Append( ", ");
             }
         }
 
-        _builder.Append('}');
+        Append('}');
     }
 
-    public void VisitBinOp(BinOp binOp)
+    private void VisitBinOp(BinOp binOp)
     {
         var op = binOp.Operation switch
         {
@@ -319,7 +397,7 @@ public class FunctionPrinter : IIrVisitor
             BinOp.OperationType.OpOr => "or",
             BinOp.OperationType.OpBAnd => "&",
             BinOp.OperationType.OpBOr => "|",
-            BinOp.OperationType.OpBXOr => "~",
+            BinOp.OperationType.OpBxOr => "~",
             BinOp.OperationType.OpShiftRight => ">>",
             BinOp.OperationType.OpShiftLeft => "<<",
             BinOp.OperationType.OpLoopCompare => ">?=",
@@ -327,18 +405,18 @@ public class FunctionPrinter : IIrVisitor
         };
         if (binOp.HasParentheses)
         {
-            _builder.Append('(');
+            Append('(');
         }
-        binOp.Left.Accept(this);
-        _builder.Append($" {op} ");
-        binOp.Right.Accept(this);
+        VisitExpression(binOp.Left);
+        Append($" {op} ");
+        VisitExpression(binOp.Right);
         if (binOp.HasParentheses)
         {
-            _builder.Append(')');
+            Append(')');
         }
     }
 
-    public void VisitUnaryOp(UnaryOp unaryOp)
+    private void VisitUnaryOp(UnaryOp unaryOp)
     {
         var op = unaryOp.Operation switch
         {
@@ -350,16 +428,17 @@ public class FunctionPrinter : IIrVisitor
         };
         if (unaryOp.HasParentheses)
         {
-            _builder.Append('(');
+            Append('(');
         }
-        _builder.Append($@"{op}{unaryOp.Exp}");
+        Append($@"{op}");
+        VisitExpression(unaryOp.Expression);
         if (unaryOp.HasParentheses)
         {
-            _builder.Append(')');
+            Append(')');
         }
     }
 
-    public void VisitFunctionCall(FunctionCall functionCall)
+    private void VisitFunctionCall(FunctionCall functionCall)
     {
         // Pattern match special lua this call
         var beginArg = 0;
@@ -367,17 +446,16 @@ public class FunctionPrinter : IIrVisitor
             ir.TableIndices[0] is Constant { ConstType: Constant.ConstantType.ConstString } c &&
             ir.Identifier.Type != Identifier.IdentifierType.GlobalTable)
         {
+            VisitIdentifier(ir.Identifier);
             if (functionCall.Args.Count >= 1 && functionCall.Args[0] is IdentifierReference thisIdentifier && 
                 thisIdentifier.TableIndices.Count == 0 && thisIdentifier.Identifier == ir.Identifier)
             {
-                ir.Identifier.Accept(this);
-                _builder.Append($@":{c.String}(");
+                Append($@":{c.String}(");
                 beginArg = 1;
             }
             else
             {
-                ir.Identifier.Accept(this);
-                _builder.Append($@".{c.String}(");
+                Append($@".{c.String}(");
             }
         }
         else if (functionCall.Function is IdentifierReference ir2 && ir2.TableIndices.Count == 2 &&
@@ -389,87 +467,81 @@ public class FunctionPrinter : IIrVisitor
                  ir2.TableIndices[0] is Constant { ConstType: Constant.ConstantType.ConstString } c4 && 
                  c3.String == c4.String)
         {
-            _builder.Append($@"{c3.String}:{c2.String}(");
+            Append($@"{c3.String}:{c2.String}(");
             beginArg = 1;
         }
         else
         {
-            functionCall.Function.Accept(this);
-            _builder.Append('(');
+            VisitExpression(functionCall.Function);
+            Append('(');
         }
         for (var i = beginArg; i < functionCall.Args.Count; i++)
         {
-            functionCall.Args[i].Accept(this);
+            VisitExpression(functionCall.Args[i]);
             if (i != functionCall.Args.Count - 1)
             {
-                _builder.Append(", ");
+                Append(", ");
             }
         }
-        _builder.Append(')');
+        Append(')');
     }
 
-    public void VisitAssignment(Assignment assignment)
+    private void VisitAssignment(Assignment assignment)
     {
         var assignmentOp = assignment.IsGenericForAssignment ? " in " : " = ";
         if (assignment.IsLocalDeclaration)
         {
-            _builder.Append("local ");
+            Append("local ");
         }
-        if (assignment.Left.Count == 1 && !assignment.Left[0].HasIndex && !assignment.Left[0].DotNotation && 
-            assignment.Left[0].Identifier.Type == Identifier.IdentifierType.Global && assignment.Right is Closure c)
+        if (assignment is { IsFunctionDeclaration: true, Right: Closure c })
         {
-            _functionName = assignment.Left[0].Identifier.Name;
-            c.Function.Accept(this);
+            VisitFunction(c.Function, assignment.Left.Identifier.Name);
             return;
         }
-        if (assignment.Left.Count > 0)
+        //if (assignment.IsSingleAssignment && assignment.Left.HasIndex && assignment.Right is Closure)
+        if (assignment is { IsSingleAssignment: true, Left.HasIndex: true, Right: Closure })
         {
-            if (assignment.Left.Count == 1 && assignment.Left[0].HasIndex && assignment.Right is Closure)
+            VisitIdentifierReference(assignment.Left);
+            Append(assignmentOp);
+        }
+        else if (assignment.LeftList.Count > 0)
+        {
+            for (var i = 0; i < assignment.LeftList.Count; i++)
             {
-                assignment.Left[0].DotNotation = true;
-                assignment.Left[0].Accept(this);
-                _builder.Append(assignmentOp);
-                assignment.Right.Accept(this);
+                VisitIdentifierReference(assignment.LeftList[i]);
+                if (i != assignment.LeftList.Count - 1)
+                {
+                    Append(", ");
+                }
             }
-            else
+            if (assignment.Right != null)
             {
-                for (int i = 0; i < assignment.Left.Count; i++)
-                {
-                    assignment.Left[i].Accept(this);
-                    if (i != assignment.Left.Count - 1)
-                    {
-                        _builder.Append(", ");
-                    }
-                }
-                if (assignment.Right != null)
-                {
-                    _builder.Append(assignmentOp);
-                    assignment.Right.Accept(this);
-                }
+                Append(assignmentOp);
             }
         }
-        else
+
+        if (assignment.Right != null)
         {
-            assignment.Right.Accept(this);
+            VisitExpression(assignment.Right);
         }
     }
 
-    public void VisitBreak(Break @break)
+    private void VisitBreak(Break @break)
     {
-        _builder.Append("break");
+        Append("break");
     }
 
-    public void VisitContinue(Continue @continue)
+    private void VisitContinue(Continue @continue)
     {
-        _builder.Append("continue");
+        Append("continue");
     }
 
-    public void VisitData(Data data)
+    private void VisitData(Data data)
     {
-        _builder.Append("data");
+        Append("data");
     }
 
-    public void VisitGenericFor(GenericFor genericFor)
+    private void VisitGenericFor(GenericFor genericFor)
     {
         if (genericFor.Iterator is { } a)
         {
@@ -477,211 +549,201 @@ public class FunctionPrinter : IIrVisitor
             a.IsGenericForAssignment = true;
         }
 
-        _builder.Append(@"for ");
-        genericFor.Iterator.Accept(this);
-        _builder.Append(" do\n");
+        Append(@"for ");
+        VisitAssignment(genericFor.Iterator);
+        Append(" do");
+        NewLine();
 
-        _indentLevel += 1;
-        genericFor.Body.Accept(this);
-        _indentLevel -= 1;
-        _builder.Append('\n');
+        PushIndent();
+        VisitBasicBlock(genericFor.Body);
+        PopIndent();
         Indent();
-        _builder.Append("end");
-        if (genericFor.Follow != null && genericFor.Follow.Instructions.Count > 0)
+        Append("end");
+        
+        if (genericFor.Follow is { HasInstructions: true })
         {
-            _builder.Append('\n');
-            genericFor.Follow.Accept(this);
+            NewLine();
+            VisitBasicBlock(genericFor.Follow);
         }
     }
 
-    public void VisitIfStatement(IfStatement ifStatement)
+    private void VisitIfStatement(IfStatement ifStatement)
     {
-        if (ifStatement.IsElseIf)
-        {
-            _builder.Append(@"elseif ");
-            ifStatement.Condition.Accept(this); 
-            _builder.Append(" then\n");
-        }
-        else
-        {
-            _builder.Append(@"if ");
-            ifStatement.Condition.Accept(this);
-            _builder.Append(" then\n");
-        }
+        Append(ifStatement.IsElseIf ? "elseif " : "if ");
+        VisitExpression(ifStatement.Condition);
+        Append(" then");
+        NewLine();
+
         if (ifStatement.True != null)
         {
-            _indentLevel++;
-            ifStatement.True.Accept(this);
-            _indentLevel--;
+            PushIndent();
+            VisitBasicBlock(ifStatement.True);
+            PopIndent();
         }
         if (ifStatement.False != null)
         {
-            _builder.Append('\n');
             // Check for elseif
             if (ifStatement.False.Instructions.Count == 1 && 
                 ifStatement.False.Instructions.First() is IfStatement { Follow: null } s)
             {
                 s.IsElseIf = true;
-                ifStatement.False.Accept(this);
+                VisitBasicBlock(ifStatement.False);
             }
             else
             {
                 Indent();
-                _builder.Append("else\n");
-                _indentLevel++;
-                ifStatement.False.Accept(this);
-                _indentLevel--;
+                Append("else");
+                NewLine();
+                PushIndent();
+                VisitBasicBlock(ifStatement.False);
+                PopIndent();
             }
         }
         if (!ifStatement.IsElseIf)
         {
-            _builder.Append('\n');
-        }
-        if (!ifStatement.IsElseIf)
-        {
             Indent();
-            _builder.Append("end");
+            Append("end");
+            NewLine();
         }
-        if (ifStatement.Follow != null && ifStatement.Follow.Instructions.Count > 0)
+        if (ifStatement.Follow is { HasInstructions: true })
         {
-            _builder.Append('\n');
-            ifStatement.Follow.Accept(this);
+            VisitBasicBlock(ifStatement.Follow);
         }
     }
 
-    public void VisitJump(Jump jump)
+    private void VisitJump(Jump jump)
     {
         if (jump.Conditional)
         {
-            _builder.Append(@"if ");
-            jump.Condition.Accept(this);
-            _builder.Append(" else ");
+            Append(@"if ");
+            VisitExpression(jump.Condition);
+            Append(" else ");
         }
         if (jump.BlockDest != null)
         {
-            _builder.Append("goto ");
-            _builder.Append(jump.BlockDest.ToString());
+            Append("goto ");
+            Append(jump.BlockDest.Name);
         }
         else
         {
-            _builder.Append("goto ");
-            jump.Dest.Accept(this);
+            Append("goto ");
+            VisitLabel(jump.Dest);
         }
     }
 
-    public void VisitLabel(Label label)
+    private void VisitLabel(Label label)
     {
-        _builder.Append($@"{label.LabelName}:");
+        Append($@"{label.LabelName}:");
     }
 
-    public void VisitNumericFor(NumericFor numericFor)
+    private void VisitNumericFor(NumericFor numericFor)
     {
         if (numericFor.Initial is { } a)
         {
             a.IsLocalDeclaration = false;
         }
 
-        _builder.Append($@"for ");
+        Append(@"for ");
         if (numericFor.Initial != null)
-            numericFor.Initial.Accept(this);
-        _builder.Append(", ");
-        numericFor.Limit.Accept(this);
-        _builder.Append(", ");
-        numericFor.Increment.Accept(this);
-        _builder.Append(" do\n");
+            VisitAssignment(numericFor.Initial);
+        Append(", ");
+        VisitExpression(numericFor.Limit);
+        Append(", ");
+        VisitExpression(numericFor.Increment);
+        Append(" do");
+        NewLine();
 
-        _indentLevel++;
-        numericFor.Body.Accept(this);
-        _indentLevel--;
+        PushIndent();
+        VisitBasicBlock(numericFor.Body);
+        PopIndent();
         
-        _builder.Append('\n');
         Indent();
-        _builder.Append("end");
-        if (numericFor.Follow != null && numericFor.Follow.Instructions.Count > 0)
-        {
-            _builder.Append('\n');
-            numericFor.Follow.Accept(this);
+        Append("end");
+        if (numericFor.Follow is { HasInstructions: true })
+        { 
+            NewLine();
+            VisitBasicBlock(numericFor.Follow);
         }
     }
 
-    public void VisitPhiFunction(PhiFunction phiFunction)
+    private void VisitPhiFunction(PhiFunction phiFunction)
     {
-        phiFunction.Left.Accept(this);
-        _builder.Append(" = phi(");
+        VisitIdentifier(phiFunction.Left);
+        Append(" = phi(");
         for (var i = 0; i < phiFunction.Right.Count; i++)
         {
-            if (phiFunction.Right[i] != null)
+            if (phiFunction.Right[i] is { } right)
             {
-                phiFunction.Right[i].Accept(this);
+                VisitIdentifier(right);
             }
             else
             {
-                _builder.Append("undefined");
+                Append("undefined");
             }
             if (i != phiFunction.Right.Count - 1)
             {
-                _builder.Append(", ");
+                Append(", ");
             }
         }
-        _builder.Append(')');
+        Append(')');
     }
 
-    public void VisitPlaceholderInstruction(PlaceholderInstruction placeholderInstruction)
+    private void VisitPlaceholderInstruction(PlaceholderInstruction placeholderInstruction)
     {
-        _builder.Append(placeholderInstruction.Placeholder);
+        Append(placeholderInstruction.Placeholder);
     }
 
-    public void VisitReturn(Return @return)
+    private void VisitReturn(Return @return)
     {
         if (@return.IsImplicit)
         {
             return;
         }
-        _builder.Append("return ");
+        Append("return");
         for (var i = 0; i < @return.ReturnExpressions.Count; i++)
         {
-            @return.ReturnExpressions[i].Accept(this);
+            if (i == 0) Append(' ');
+            VisitExpression(@return.ReturnExpressions[i]);
             if (i != @return.ReturnExpressions.Count - 1)
             {
-                _builder.Append(", ");
+                Append(", ");
             }
         }
     }
 
-    public void VisitWhile(While @while)
+    private void VisitWhile(While @while)
     {
         if (@while.IsPostTested)
         {
-            _builder.Append(@"repeat\n");
+            Append(@"repeat");
+            NewLine();
         }
         else
         {
-            _builder.Append(@"while ");
-            @while.Condition.Accept(this);
-            _builder.Append(" do\n");
+            Append(@"while ");
+            VisitExpression(@while.Condition);
+            Append(" do");
+            NewLine();
         }
 
-        _indentLevel++;
-        if (@while.IsBlockInlined)
-            _printInfiniteLoop = true;
-        @while.Body.Accept(this);
-        _indentLevel--;
+        PushIndent();
+        VisitBasicBlock(@while.Body, @while.IsBlockInlined);
+        PopIndent();
         
-        _builder.Append('\n');
         Indent();
         if (@while.IsPostTested)
         {
-            _builder.Append($@"until ");
-            @while.Condition.Accept(this);
+            Append(@"until ");
+            VisitExpression(@while.Condition);
         }
         else
         {
-            _builder.Append("end");
+            Append("end");
         }
-        if (@while.Follow != null && @while.Follow.Instructions.Count > 0)
-        {
-            _builder.Append('\n');
-            @while.Follow.Accept(this);
+        if (@while.Follow is { HasInstructions: true })
+        { 
+            NewLine();
+            VisitBasicBlock(@while.Follow);
         }
     }
 }

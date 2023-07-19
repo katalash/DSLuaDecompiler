@@ -40,13 +40,13 @@ namespace DecompilerTester
                 if (f1.ChildFunctions.Length != f2.ChildFunctions.Length)
                 {
                     lmismatched++;
-                    lMismatchedFunctionIds.Add(f2.FunctionID);
+                    lMismatchedFunctionIds.Add(f2.FunctionId);
                     flag = false;
                 }
                 else if (!f1.Bytecode.SequenceEqual(f2.Bytecode))
                 {
                     lmismatched++;
-                    lMismatchedFunctionIds.Add(f2.FunctionID);
+                    lMismatchedFunctionIds.Add(f2.FunctionId);
                     flag = false;
                 }
 
@@ -76,7 +76,7 @@ namespace DecompilerTester
             try
             {
                 var luaFile = new LuaFile(new BinaryReaderEx(false, input));
-                var irFunction = new Function(luaFile.MainFunction.FunctionID);
+                var irFunction = new Function(luaFile.MainFunction.FunctionId);
                 var options = new DecompilationOptions
                 {
                     OutputDebugComments = true
@@ -88,7 +88,7 @@ namespace DecompilerTester
                 ILanguageDecompiler languageDecompiler = luaFile.Version switch
                 {
                     LuaFile.LuaVersion.Lua50 => new Lua50Decompiler(),
-                    LuaFile.LuaVersion.Lua51HKS => new HksDecompiler(),
+                    LuaFile.LuaVersion.Lua51Hks => new HksDecompiler(),
                     LuaFile.LuaVersion.Lua53Smash => new Lua53Decompiler(),
                     _ => throw new Exception()
                 };
@@ -156,7 +156,7 @@ namespace DecompilerTester
                     ICompiler compiler = luaFile.Version switch
                     {
                         LuaFile.LuaVersion.Lua50 => new Lua50Compiler(),
-                        LuaFile.LuaVersion.Lua51HKS => new LuaHavokScriptCompiler(),
+                        LuaFile.LuaVersion.Lua51Hks => new LuaHavokScriptCompiler(),
                         LuaFile.LuaVersion.Lua53Smash => throw new Exception("Lua 5.3 not supported yet"),
                         _ => throw new Exception()
                     };
@@ -221,10 +221,8 @@ namespace DecompilerTester
             Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
             Console.OutputEncoding = Encoding.UTF8;
             Console.ForegroundColor = ConsoleColor.White;
-            var list1 = Directory.GetFileSystemEntries(args[0], "*.luabnd.dcx")
-                .ToList();
-            List<string> list2 =
-                Directory.GetFileSystemEntries(args[0], "*.hks").ToList();
+            var list1 = Directory.GetFileSystemEntries(args[0], "*.luabnd.dcx").ToList();
+            var list2 = Directory.GetFileSystemEntries(args[0], "*.hks").ToList();
             var num = 0;
             var fails = 0;
             var compilefails = 0;

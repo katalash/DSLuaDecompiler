@@ -22,7 +22,6 @@ namespace LuaDecompilerCore.IR
             var regi = new Identifier
             {
                 Type = Identifier.IdentifierType.Global,
-                VType = Identifier.ValueType.Unknown,
                 Name = global,
                 ConstantId = constantId
             };
@@ -36,7 +35,6 @@ namespace LuaDecompilerCore.IR
             var regi = new Identifier
             {
                 Type = Identifier.IdentifierType.Varargs,
-                VType = Identifier.ValueType.Unknown,
                 Name = "$VARARGS"
             };
             _symbols.Add(regi.Name, regi);

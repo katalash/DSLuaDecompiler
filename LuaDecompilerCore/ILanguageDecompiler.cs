@@ -54,7 +54,7 @@ public interface ILanguageDecompiler
     /// </summary>
     /// <param name="function">The function to disassemble</param>
     /// <returns>The disassembled function in text form, or null if disassembly is not supported</returns>
-    public string Disassemble(LuaFile.Function function);
+    public string? Disassemble(LuaFile.Function function);
 
     /// <summary>
     /// Decode the bytecode function and generate IR into the irFunction

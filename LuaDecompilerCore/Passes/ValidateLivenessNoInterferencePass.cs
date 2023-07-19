@@ -29,7 +29,7 @@ public class ValidateLivenessNoInterferencePass : IPass
             {
                 foreach (var r in phi.Right)
                 {
-                    if (phi.Left != null && globalLiveness[phi.Left] != globalLiveness[r])
+                    if (phi.Left != null && r != null && globalLiveness[phi.Left] != globalLiveness[r])
                     {
                         globalLiveness[phi.Left].UnionWith(globalLiveness[r]);
                         globalLiveness[r] = globalLiveness[phi.Left];
@@ -41,7 +41,7 @@ public class ValidateLivenessNoInterferencePass : IPass
         foreach (var b in f.BlockList)
         {
             var liveNow = new HashSet<Identifier>(b.LiveOut);
-            for (int i = b.Instructions.Count - 1; i >= 0; i--)
+            for (var i = b.Instructions.Count - 1; i >= 0; i--)
             {
                 var defs = b.Instructions[i].GetDefines(true);
                 foreach (var def in defs)

@@ -1,13 +1,12 @@
 ﻿using System.Collections.Generic;
-using System.Linq;
 
 namespace LuaDecompilerCore.IR
 {
-    public class Return : Instruction
+    public sealed class Return : Instruction
     {
-        public List<Expression> ReturnExpressions;
+        public readonly List<Expression> ReturnExpressions;
         public uint BeginRet = 0;
-        public bool IsIndeterminantReturnCount = false;
+        public bool IsAmbiguousReturnCount = false;
         public bool IsImplicit = false;
         public bool IsTailReturn = false;
 
@@ -18,8 +17,7 @@ namespace LuaDecompilerCore.IR
 
         public Return(Expression expr)
         {
-            ReturnExpressions = new List<Expression>();
-            ReturnExpressions.Add(expr);
+            ReturnExpressions = new List<Expression> { expr };
         }
 
         public override void Parenthesize()
@@ -37,18 +35,18 @@ namespace LuaDecompilerCore.IR
             return uses;
         }
 
-        public override void RenameUses(Identifier orig, Identifier newIdentifier)
+        public override void RenameUses(Identifier original, Identifier newIdentifier)
         {
             foreach (var exp in ReturnExpressions)
             {
-                exp.RenameUses(orig, newIdentifier);
+                exp.RenameUses(original, newIdentifier);
             }
         }
 
         public override bool ReplaceUses(Identifier orig, Expression sub)
         {
-            bool replace = false;
-            for (int i = 0; i < ReturnExpressions.Count; i++)
+            var replace = false;
+            for (var i = 0; i < ReturnExpressions.Count; i++)
             {
                 if (Expression.ShouldReplace(orig, ReturnExpressions[i]))
                 {
@@ -61,11 +59,6 @@ namespace LuaDecompilerCore.IR
                 }
             }
             return replace;
-        }
-
-        public override void Accept(IIrVisitor visitor)
-        {
-            visitor.VisitReturn(this);
         }
 
         public override List<Expression> GetExpressions()

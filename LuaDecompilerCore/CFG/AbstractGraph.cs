@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 
 namespace LuaDecompilerCore.CFG
@@ -7,41 +8,41 @@ namespace LuaDecompilerCore.CFG
     /// <summary>
     /// A minimalist graph for encoding control flow graphs. Intended to be used for interval analysis
     /// </summary>
-    public class AbstractGraph
+    public sealed class AbstractGraph
     {
-        public Node BeginNode = null;
-        public List<Node> Nodes = new List<Node>();
-        public Dictionary<Node, HashSet<Node>> Intervals = null;
+        public required Node BeginNode;
+        public List<Node> Nodes = new();
+        public Dictionary<Node, HashSet<Node>>? Intervals = null;
 
-        public Dictionary<Node, Node> LoopHeads = new Dictionary<Node, Node>();
-        public Dictionary<Node, List<Node>> LoopLatches = new Dictionary<Node, List<Node>>();
-        public Dictionary<Node, Node> LoopFollows = new Dictionary<Node, Node>();
-        public Dictionary<Node, LoopType> LoopTypes = new Dictionary<Node, LoopType>();
+        public readonly Dictionary<Node, Node?> LoopHeads = new();
+        public readonly Dictionary<Node, List<Node>> LoopLatches = new();
+        public readonly Dictionary<Node, Node?> LoopFollows = new();
+        public readonly Dictionary<Node, LoopType> LoopTypes = new();
 
         public class Node : IComparable<Node>
         {
-            public List<Node> Successors = new List<Node>();
-            public List<Node> Predecessors = new List<Node>();
+            public readonly List<Node> Successors = new List<Node>();
+            public readonly List<Node> Predecessors = new List<Node>();
 
             /// <summary>
             /// Child in the successor graph. Only set if this is an interval graph head
             /// </summary>
-            public Node IntervalGraphChild = null;
+            public Node? IntervalGraphChild = null;
 
             /// <summary>
             /// The interval head in the parent graph that collapses into this node
             /// </summary>
-            public Node IntervalGraphParent = null;
+            public Node? IntervalGraphParent = null;
 
             /// <summary>
             /// Pointer to the interval set this node belongs to
             /// </summary>
-            public HashSet<Node> Interval = null;
+            public HashSet<Node>? Interval = null;
 
             /// <summary>
             /// The basic block that this node ultimately maps to
             /// </summary>
-            public BasicBlock OriginalBlock = null;
+            public required BasicBlock OriginalBlock;
 
             /// <summary>
             /// Node is marked as being part of a loop
@@ -55,6 +56,7 @@ namespace LuaDecompilerCore.CFG
             /// </summary>
             public bool IsTerminal = false;
 
+            // ReSharper disable once InvalidXmlDocComment
             /// <summary>
             /// The node that's the predecessor to the loop follow
             /// </summary>
@@ -65,18 +67,17 @@ namespace LuaDecompilerCore.CFG
             /// </summary>
             public int ReversePostorderNumber = 0;
 
-            public int CompareTo(Node other)
+            public int CompareTo(Node? other)
             {
-                if (other.ReversePostorderNumber > ReversePostorderNumber)
+                if (other != null && other.ReversePostorderNumber > ReversePostorderNumber)
                     return -1;
-                else if (other.ReversePostorderNumber == ReversePostorderNumber)
+                if (other != null && other.ReversePostorderNumber == ReversePostorderNumber)
                     return 0;
-                else
-                    return 1;
+                return 1;
             }
         }
 
-        public List<Node> PostorderTraversal(bool reverse)
+        private List<Node> PostorderTraversal(bool reverse)
         {
             var ret = new List<Node>();
             var visited = new HashSet<Node>();
@@ -84,11 +85,11 @@ namespace LuaDecompilerCore.CFG
             void Visit(Node b)
             {
                 visited.Add(b);
-                foreach (var succ in b.Successors.OrderByDescending(n => n.OriginalBlock.BlockID))
+                foreach (var successor in b.Successors.OrderByDescending(n => n.OriginalBlock.BlockId))
                 {
-                    if (!visited.Contains(succ))
+                    if (!visited.Contains(successor))
                     {
-                        Visit(succ);
+                        Visit(successor);
                     }
                 }
                 ret.Add(b);
@@ -106,7 +107,7 @@ namespace LuaDecompilerCore.CFG
         public void LabelReversePostorderNumbers()
         {
             var postorder = PostorderTraversal(true);
-            for (int i = 0; i < postorder.Count; i++)
+            for (var i = 0; i < postorder.Count; i++)
             {
                 postorder[i].ReversePostorderNumber = i;
             }
@@ -124,25 +125,24 @@ namespace LuaDecompilerCore.CFG
                 var interval = new HashSet<Node> { h };
                 Intervals.Add(h, interval);
                 h.Interval = interval;
-                int lastCount = 0;
+                var lastCount = 0;
                 while (lastCount != interval.Count)
                 {
                     lastCount = interval.Count;
                     foreach (var start in interval.ToList())
                     {
-                        foreach (var cand in start.Successors)
+                        foreach (var candidate in start.Successors
+                                     .Where(candidate => candidate.Predecessors
+                                         .All(n => interval.Contains(n)) && !Intervals.ContainsKey(candidate)))
                         {
-                            if (cand.Predecessors.All(n => interval.Contains(n)) && !Intervals.ContainsKey(cand))
-                            {
-                                interval.Add(cand);
-                                cand.Interval = interval;
-                            }
+                            interval.Add(candidate);
+                            candidate.Interval = interval;
                         }
                     }
                 }
-                foreach (var cand in interval)
+                foreach (var candidate in interval)
                 {
-                    headers.UnionWith(cand.Successors.Except(interval).Except(Intervals.Keys));
+                    headers.UnionWith(candidate.Successors.Except(interval).Except(Intervals.Keys));
                 }
             }
         }
@@ -151,28 +151,34 @@ namespace LuaDecompilerCore.CFG
         /// Get a collapsed version of the graph where interval heads become nodes
         /// </summary>
         /// <returns>A new collapsed graph</returns>
-        public AbstractGraph GetIntervalSubgraph()
+        public AbstractGraph? GetIntervalSubgraph()
         {
             if (Intervals == null)
             {
                 CalculateIntervals();
+                Debug.Assert(Intervals != null);
             }
+            
             if (Intervals.Count == Nodes.Count || Intervals.Values.All(i => i.Count == 1))
             {
                 return null;
             }
-
-            AbstractGraph cfg = new AbstractGraph();
+            
+            var nodes = new List<Node>();
             foreach (var n in Intervals.Keys)
             {
-                var node = new Node();
+                var node = new Node
+                {
+                    IntervalGraphParent = n,
+                    OriginalBlock = n.OriginalBlock
+                };
                 n.IntervalGraphChild = node;
-                node.IntervalGraphParent = n;
-                node.OriginalBlock = n.OriginalBlock;
-                cfg.Nodes.Add(node);
+                nodes.Add(node);
             }
 
-            var header = Intervals.SelectMany(e => e.Value.Select(i => (i, e.Key))).ToDictionary(i => i.i, i => i.Key);
+            var header = Intervals
+                .SelectMany(e => e.Value.Select(i => (i, e.Key)))
+                .ToDictionary(i => i.i, i => i.Key);
             foreach (var entry in Nodes)
             {
                 if (!header.ContainsKey(entry))
@@ -180,28 +186,35 @@ namespace LuaDecompilerCore.CFG
                     continue;
                 }
                 var h1 = header[entry];
-                var hnode = h1.IntervalGraphChild;
-                //hnode.Successors.UnionWith(entry.Successors.Select(n => header[n]).Where(h => h != h1).Select(n => n.IntervalGraphChild));
-                var nodestoadd = entry.Successors.Select(n => header[n]).Where(h => h != h1).Select(n => n.IntervalGraphChild);
-                foreach (var n in nodestoadd)
+                var headerNode = header[entry].IntervalGraphChild ?? throw new Exception();
+                var nodesToAdd = entry.Successors
+                    .Select(n => header[n])
+                    .Where(h => h != h1)
+                    .Select(n => n.IntervalGraphChild ?? throw new Exception());
+                foreach (var n in nodesToAdd)
                 {
-                    if (!hnode.Successors.Contains(n))
+                    if (!headerNode.Successors.Contains(n))
                     {
-                        hnode.Successors.Add(n);
+                        headerNode.Successors.Add(n);
                     }
                 }
             }
-            foreach (var entry in cfg.Nodes)
+            foreach (var entry in nodes)
             {
-                foreach (var succ in entry.Successors)
+                foreach (var successor in entry.Successors)
                 {
-                    succ.Predecessors.Add(entry);
+                    successor.Predecessors.Add(entry);
                 }
             }
-            cfg.BeginNode = cfg.Nodes.First(x => x.Predecessors.Count == 0);
-            cfg.LabelReversePostorderNumbers();
-            cfg.CalculateIntervals();
-            return cfg;
+
+            var subgraph = new AbstractGraph
+            {
+                Nodes = nodes,
+                BeginNode = nodes.First(x => x.Predecessors.Count == 0)
+            };
+            subgraph.LabelReversePostorderNumbers();
+            subgraph.CalculateIntervals();
+            return subgraph;
         }
     }
 }

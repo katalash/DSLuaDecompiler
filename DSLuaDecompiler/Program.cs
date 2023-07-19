@@ -97,15 +97,15 @@ namespace DSLuaDecompiler
                 using var stream = File.OpenRead(file);
                 var br = new BinaryReaderEx(false, stream);
                 var lua = new LuaFile(br);
-                var main = new Function(lua.MainFunction.FunctionID);
-                string passOutput;
+                var main = new Function(lua.MainFunction.FunctionId);
+                string? passOutput;
                 switch (lua.Version)
                 {
                     case LuaFile.LuaVersion.Lua50:
                         passOutput = decompiler.DecompileLuaFunction(new Lua50Decompiler(), main, lua.MainFunction);
                         outEncoding = Encoding.GetEncoding("shift_jis");
                         break;
-                    case LuaFile.LuaVersion.Lua51HKS:
+                    case LuaFile.LuaVersion.Lua51Hks:
                         passOutput = decompiler.DecompileLuaFunction(new HksDecompiler(), main, lua.MainFunction);
                         outEncoding = Encoding.UTF8;
                         break;

@@ -25,7 +25,7 @@ public class DetectLocalVariablesPass : IPass
             // Go through the graph and mark declared nodes
             foreach (var inst in b.Instructions)
             {
-                if (inst is Assignment a && a.Left.Count > 0)
+                if (inst is Assignment { IsSingleAssignment: true } a)
                 {
                     foreach (var def in a.GetDefines(true))
                     {
@@ -43,9 +43,9 @@ public class DetectLocalVariablesPass : IPass
             // Visit and merge the children in the dominance heirarchy
             var inherited = new Dictionary<Identifier, List<Assignment>>();
             var phiInduced = new HashSet<Identifier>();
-            foreach (var succ in b.DominanceTreeSuccessors)
+            foreach (var successor in b.DominanceTreeSuccessors)
             {
-                var cDeclared = Visit(succ, newDeclared);
+                var cDeclared = Visit(successor, newDeclared);
                 foreach (var entry in cDeclared)
                 {
                     if (!inherited.ContainsKey(entry.Key))
@@ -57,19 +57,19 @@ public class DetectLocalVariablesPass : IPass
                         inherited[entry.Key].AddRange(entry.Value);
                     }
                 }
-                phiInduced.UnionWith(succ.PhiMerged);
+                phiInduced.UnionWith(successor.PhiMerged);
             }
             foreach (var entry in inherited)
             {
                 if (entry.Value.Count > 1 && phiInduced.Contains(entry.Key))
                 {
                     // Multiple incoming declarations that all have the same use need to be merged
-                    var assn = new Assignment(entry.Key, null)
+                    var assignment = new Assignment(entry.Key, null)
                     {
                         IsLocalDeclaration = true
                     };
-                    b.Instructions.Insert(b.Instructions.Count - 1, assn);
-                    declaredAssignments.Add(entry.Key, new List<Assignment> { assn });
+                    b.Instructions.Insert(b.Instructions.Count - 1, assignment);
+                    declaredAssignments.Add(entry.Key, new List<Assignment> { assignment });
                     foreach (var e in entry.Value)
                     {
                         e.IsLocalDeclaration = false;

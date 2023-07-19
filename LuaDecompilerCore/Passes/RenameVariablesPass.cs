@@ -17,9 +17,9 @@ public class RenameVariablesPass : IPass
         for (var i = 0; i < f.Parameters.Count; i++)
         {
             renamed.Add(f.Parameters[i]);
-            if (f.ArgumentNames != null && f.ArgumentNames.Count > i)
+            if (f.ArgumentNames != null && f.ArgumentNames.Count > i && f.ArgumentNames[i].Name is { } n)
             {
-                f.Parameters[i].Name = f.ArgumentNames[i].Name;
+                f.Parameters[i].Name = n;
             }
             else
             {
@@ -36,15 +36,16 @@ public class RenameVariablesPass : IPass
                 if (i is Assignment a)
                 {
                     var ll = 0;
-                    foreach (var l in a.Left)
+                    foreach (var l in a.LeftList)
                     {
                         if (l is { HasIndex: false } && l.Identifier.Type == Identifier.IdentifierType.Register && 
                             !renamed.Contains(l.Identifier) && !l.Identifier.Renamed)
                         {
                             renamed.Add(l.Identifier);
-                            if (a.LocalAssignments != null && ll < a.LocalAssignments.Count)
+                            if (a.LocalAssignments != null && ll < a.LocalAssignments.Count &&
+                                a.LocalAssignments[ll].Name is { } n)
                             {
-                                l.Identifier.Name = a.LocalAssignments[ll].Name;
+                                l.Identifier.Name = n;
                             }
                             else
                             {

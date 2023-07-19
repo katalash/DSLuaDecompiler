@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using LuaDecompilerCore.IR;
 
@@ -71,28 +72,26 @@ public class DetectLoopsPass : IPass
                 // Heuristic: make the follow any loop successor node with a post-order number larger than the latch
                 follows = loopNodes.SelectMany(loopNode => loopNode.Successors.Where(next => next.ReversePostorderNumber > latch.ReversePostorderNumber)).ToList();
             }
-            CFG.AbstractGraph.Node follow;
-            if (follows.Count == 0)
+            
+            if (follows.Count == 0 && type != CFG.LoopType.LoopEndless)
             {
-                if (type != CFG.LoopType.LoopEndless)
-                {
-                    throw new Exception("No follow for loop found");
-                }
-                follow = null;
+                throw new Exception("No follow for loop found");
             }
-            else
-            {
-                follow = follows.OrderBy(cand => cand.ReversePostorderNumber).First(); 
-            }
-            graph.LoopFollows[head] = follow;
+            
+            graph.LoopFollows[head] = follows.Count > 0 ? 
+                follows.OrderBy(candidate => candidate.ReversePostorderNumber).First() : null;
         }
     }
 
     private void DetectLoopsForIntervalLevel(CFG.AbstractGraph graph)
     {
+        Debug.Assert(graph.Intervals != null);
         foreach (var (head, intervalNodes) in graph.Intervals)
         {
-            var latches = head.Predecessors.Where(p => intervalNodes.Contains(p)).OrderBy(p => p.ReversePostorderNumber).ToList();
+            var latches = head.Predecessors
+                .Where(p => intervalNodes.Contains(p))
+                .OrderBy(p => p.ReversePostorderNumber)
+                .ToList();
             foreach (var latch in latches)
             {
                 AddLoopLatch(graph, head, latch, intervalNodes);
@@ -104,11 +103,16 @@ public class DetectLoopsPass : IPass
             DetectLoopsForIntervalLevel(subgraph);
             foreach (var entry in subgraph.LoopLatches)
             {
-                var parentInterval = entry.Key.IntervalGraphParent.Interval;
+                var parentInterval = entry.Key.IntervalGraphParent?.Interval ?? throw new Exception();
                 foreach (var head in entry.Value)
                 {
-                    var latches = head.IntervalGraphParent.Predecessors.Where(p => parentInterval.Contains(p)).ToList();
-                    var headersInLoop = subgraph.LoopHeads.Where(e => e.Value == head).Select(e => e.Key.IntervalGraphParent).ToList();
+                    var latches = head.IntervalGraphParent?.Predecessors
+                        .Where(p => parentInterval.Contains(p))
+                        .ToList() ?? throw new Exception();
+                    var headersInLoop = subgraph.LoopHeads
+                        .Where(e => e.Value == head)
+                        .Select(e => e.Key.IntervalGraphParent)
+                        .ToList();
                     var intervalsInLoop = new HashSet<CFG.AbstractGraph.Node>(graph.Intervals.Where(e => (headersInLoop.Contains(e.Key)/* || e.Value == parentInterval*/)).SelectMany(e => e.Value));
                     foreach (var latch in latches)
                     {
@@ -122,35 +126,34 @@ public class DetectLoopsPass : IPass
     public void RunOnFunction(DecompilationContext context, Function f)
     {
         // Build an abstract graph to analyze with
-        var blockIDMap = new Dictionary<CFG.BasicBlock, int>();
+        var blockIdMap = new Dictionary<CFG.BasicBlock, int>();
         var abstractNodes = new List<CFG.AbstractGraph.Node>();
-        for (int i = 0; i < f.BlockList.Count; i++)
+        for (var i = 0; i < f.BlockList.Count; i++)
         {
-            blockIDMap.Add(f.BlockList[i], i);
-            var node = new CFG.AbstractGraph.Node();
-            node.OriginalBlock = f.BlockList[i];
-            if (i == f.BlockList.Count - 1)
+            blockIdMap.Add(f.BlockList[i], i);
+            var node = new CFG.AbstractGraph.Node
             {
-                node.IsTerminal = true;
-            }
+                OriginalBlock = f.BlockList[i],
+                IsTerminal = i == f.BlockList.Count - 1
+            };
             abstractNodes.Add(node);
         }
-        foreach (var b in blockIDMap)
+        foreach (var b in blockIdMap)
         {
             foreach (var pred in b.Key.Predecessors)
             {
-                abstractNodes[b.Value].Predecessors.Add(abstractNodes[blockIDMap[pred]]);
+                abstractNodes[b.Value].Predecessors.Add(abstractNodes[blockIdMap[pred]]);
             }
-            foreach (var succ in b.Key.Successors)
+            foreach (var successor in b.Key.Successors)
             {
-                abstractNodes[b.Value].Successors.Add(abstractNodes[blockIDMap[succ]]);
+                abstractNodes[b.Value].Successors.Add(abstractNodes[blockIdMap[successor]]);
             }
         }
 
         // Calculate intervals and the graph sequence in preperation for loop detection
         var headGraph = new CFG.AbstractGraph
         {
-            BeginNode = abstractNodes[blockIDMap[f.BeginBlock]],
+            BeginNode = abstractNodes[blockIdMap[f.BeginBlock]],
             Nodes = abstractNodes
         };
         headGraph.CalculateIntervals();
@@ -168,7 +171,7 @@ public class DetectLoopsPass : IPass
                 b.LoopType = headGraph.LoopTypes[head];
                 if(headGraph.LoopFollows[head] == null)
                     continue;
-                b.LoopFollow = headGraph.LoopFollows[head].OriginalBlock;
+                b.LoopFollow = headGraph.LoopFollows[head]?.OriginalBlock ?? throw new Exception();
                 latch.Key.OriginalBlock.IsLoopLatch = true;
             }
         }

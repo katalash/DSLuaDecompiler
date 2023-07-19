@@ -148,9 +148,9 @@ public class BuildControlFlowGraphPass : IPass
             }
             if (f.BlockList[b].Predecessors.Count == 0)
             {
-                foreach (var succ in f.BlockList[b].Successors)
+                foreach (var successor in f.BlockList[b].Successors)
                 {
-                    succ.Predecessors.Remove(f.BlockList[b]);
+                    successor.Predecessors.Remove(f.BlockList[b]);
                 }
                 f.BlockList.RemoveAt(b);
                 b--;
@@ -168,29 +168,29 @@ public class BuildControlFlowGraphPass : IPass
                     (f.BlockList[b].Instructions.Last() is Jump ||
                      (b + 1 < f.BlockList.Count && f.BlockList[b].Successors[0] == f.BlockList[b + 1])))
                 {
-                    var curr = f.BlockList[b];
-                    var succ = f.BlockList[b].Successors[0];
+                    var current = f.BlockList[b];
+                    var successor = f.BlockList[b].Successors[0];
                     if (f.BlockList[b].Instructions.Last() is Jump)
                     {
-                        curr.Instructions.RemoveAt(curr.Instructions.Count - 1);
+                        current.Instructions.RemoveAt(current.Instructions.Count - 1);
                     }
-                    foreach (var inst in succ.Instructions)
+                    foreach (var inst in successor.Instructions)
                     {
-                        inst.Block = curr;
+                        inst.Block = current;
                     }
-                    curr.Instructions.AddRange(succ.Instructions);
-                    curr.Successors = succ.Successors;
-                    foreach (var s in succ.Successors)
+                    current.Instructions.AddRange(successor.Instructions);
+                    current.Successors = successor.Successors;
+                    foreach (var s in successor.Successors)
                     {
                         for (int p = 0; p < s.Predecessors.Count; p++)
                         {
-                            if (s.Predecessors[p] == succ)
+                            if (s.Predecessors[p] == successor)
                             {
-                                s.Predecessors[p] = curr;
+                                s.Predecessors[p] = current;
                             }
                         }
                     }
-                    f.BlockList.Remove(succ);
+                    f.BlockList.Remove(successor);
                     b = Math.Max(0, b - 2);
                     changed = true;
                 }

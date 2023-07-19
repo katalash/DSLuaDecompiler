@@ -14,7 +14,7 @@ public class ResolveAmbiguousCallArguments : IPass
     {
         foreach (var b in f.BlockList)
         {
-            Identifier lastAmbiguousReturn = null;
+            Identifier? lastAmbiguousReturn = null;
             foreach (var i in b.Instructions)
             {
                 switch (i)
@@ -23,16 +23,16 @@ public class ResolveAmbiguousCallArguments : IPass
                         throw new Exception("Error: Ambiguous argument function call without preceding ambiguous return function call");
                     case Assignment { Right: FunctionCall { HasAmbiguousArgumentCount: true } fc2 }:
                     {
-                        for (uint r = fc2.BeginArg; r <= lastAmbiguousReturn.RegNum; r++)
+                        for (var r = fc2.BeginArg; r <= lastAmbiguousReturn.RegNum; r++)
                         {
                             fc2.Args.Add(new IdentifierReference(f.GetRegister(r)));
                         }
                         lastAmbiguousReturn = null;
                         break;
                     }
-                    case Return { IsIndeterminantReturnCount: true } ret when lastAmbiguousReturn == null:
+                    case Return { IsAmbiguousReturnCount: true } when lastAmbiguousReturn == null:
                         throw new Exception("Error: Ambiguous return without preceding ambiguous return function call");
-                    case Return { IsIndeterminantReturnCount: true } ret:
+                    case Return { IsAmbiguousReturnCount: true } ret:
                     {
                         for (var r = ret.BeginRet; r <= lastAmbiguousReturn.RegNum; r++)
                         {
@@ -43,12 +43,14 @@ public class ResolveAmbiguousCallArguments : IPass
                     }
                 }
 
-                if (i is Assignment a && a.Left.Count == 1 && !a.Left[0].HasIndex && a.Right is FunctionCall
-                    {
-                        HasAmbiguousReturnCount: true
-                    })
+                if (i is Assignment 
+                    { 
+                        IsSingleAssignment: true, 
+                        Left.HasIndex: false, 
+                        Right: FunctionCall { HasAmbiguousReturnCount: true }
+                    } a)
                 {
-                    lastAmbiguousReturn = a.Left[0].Identifier;
+                    lastAmbiguousReturn = a.LeftList[0].Identifier;
                 }
             }
         }

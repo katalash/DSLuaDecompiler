@@ -17,7 +17,7 @@ public class CompleteLua51LoopsPass : IPass
             if (b.Instructions.Count > 0 && b.Instructions.Last() is Jump { PostTakenAssignment: not null } jmp)
             {
                 b.Successors[1].Instructions.Insert(0, jmp.PostTakenAssignment);
-                jmp.PostTakenAssignment.PropogateAlways = true;
+                jmp.PostTakenAssignment.PropagateAlways = true;
                 jmp.PostTakenAssignment.Block = b.Successors[1];
                 jmp.PostTakenAssignment = null;
             }

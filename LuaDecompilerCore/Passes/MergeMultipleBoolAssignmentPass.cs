@@ -1,4 +1,5 @@
-﻿using LuaDecompilerCore.IR;
+﻿using System.Diagnostics;
+using LuaDecompilerCore.IR;
 
 namespace LuaDecompilerCore.Passes;
 
@@ -17,20 +18,29 @@ public class MergeMultipleBoolAssignmentPass : IPass
     {
         foreach (var b in f.BlockList)
         {
-            for (int i = 0; i < b.Instructions.Count - 2; i++)
+            for (var i = 0; i < b.Instructions.Count - 2; i++)
             {
-                if (b.Instructions[i] is Assignment a1 && a1.Left.Count > 0 && !a1.Left[0].HasIndex &&
-                    a1.Right is Constant c && c.ConstType == Constant.ConstantType.ConstBool && !c.Boolean &&
-                    b.Instructions[i + 1] is Assignment a2 && a2.Left.Count > 0 && !a2.Left[0].HasIndex &&
-                    a2.Right is Constant c2 && c2.ConstType == Constant.ConstantType.ConstNil)
+                if (b.Instructions[i] is Assignment 
+                    { 
+                        LeftAny: true, 
+                        Left.HasIndex: false, 
+                        Right: Constant { ConstType: Constant.ConstantType.ConstBool, Boolean: false }
+                    } a1 &&
+                    b.Instructions[i + 1] is Assignment
+                    { 
+                        LeftAny: true, 
+                        Left.HasIndex: false, 
+                        Right: Constant { ConstType: Constant.ConstantType.ConstNil }
+                    } a2)
                 {
-                    a1.Left.AddRange(a2.Left);
+                    a1.LeftList.AddRange(a2.LeftList);
                     if (a1.LocalAssignments == null)
                     {
                         a1.LocalAssignments = a2.LocalAssignments;
                     }
                     else
                     {
+                        Debug.Assert(a2.LocalAssignments != null);
                         a1.LocalAssignments.AddRange(a2.LocalAssignments);
                     }
                     b.Instructions.RemoveAt(i + 1);

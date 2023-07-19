@@ -9,7 +9,7 @@ namespace LuaDecompilerCore.IR
     /// <summary>
     /// A Lua function. A function contains a CFG, a list of instructions, and child functions used for closures
     /// </summary>
-    public class Function : IIrNode
+    public sealed class Function
     {
         public List<Identifier> Parameters { get; private set; }
         public List<Function> Closures { get; }
@@ -45,9 +45,7 @@ namespace LuaDecompilerCore.IR
         /// All the renamed SSA variables
         /// </summary>
         public HashSet<Identifier> SsaVariables { get; private set; }
-
-        private static int _indentLevel = 0;
-
+        
         /// <summary>
         /// Unique identifier for the function used for various purposes
         /// </summary>
@@ -55,14 +53,14 @@ namespace LuaDecompilerCore.IR
 
         public bool InsertDebugComments { get; set; }
 
-        public List<LuaFile.Local> ArgumentNames = null;
+        public List<LuaFile.Local>? ArgumentNames = null;
 
         public bool IsVarargs = false;
 
         /// <summary>
         /// Number of upvalues this function uses
         /// </summary>
-        public int UpValCount = 0;
+        public int UpValueCount = 0;
 
         /// <summary>
         /// For each upvalue in Lua 5.3, the register in the parent its bound to
@@ -78,6 +76,16 @@ namespace LuaDecompilerCore.IR
         /// Upvalue binding symbol from parent closure
         /// </summary>
         public readonly List<Identifier> UpValueBindings = new();
+
+        /// <summary>
+        /// List of UpValue gets that will need to be mutated once intra-function UpValue closure binding is done
+        /// </summary>
+        public readonly List<Assignment> GetUpValueInstructions = new();
+        
+        /// <summary>
+        /// List of UpValue sets that will need to be mutated once intra-function UpValue closure binding is done
+        /// </summary>
+        public readonly List<Assignment> SetUpValueInstructions = new();
 
         /// <summary>
         /// Identifiers that have been statically determined to be local variables and should not be inlined via
@@ -146,7 +154,6 @@ namespace LuaDecompilerCore.IR
             var regi = new Identifier
             {
                 Type = Identifier.IdentifierType.Register,
-                VType = Identifier.ValueType.Unknown,
                 Name = $@"REG{reg}",
                 RegNum = reg
             };
@@ -181,8 +188,8 @@ namespace LuaDecompilerCore.IR
             if (_symbols.TryGetValue($@"UPVAL{upValue}", out var value)) return value;
             var regi = new Identifier
             {
-                Type = Identifier.IdentifierType.Upvalue,
-                VType = Identifier.ValueType.Unknown,
+                Type = Identifier.IdentifierType.UpValue,
+                RegNum = upValue,
                 Name = $@"UPVAL{upValue}"
             };
             _symbols.Add(regi.Name, regi);
@@ -348,11 +355,6 @@ namespace LuaDecompilerCore.IR
             {
                 ordering[i].ReversePostorderNumber = i;
             }
-        }
-
-        public void Accept(IIrVisitor visitor)
-        {
-            visitor.VisitFunction(this);
         }
     }
 }

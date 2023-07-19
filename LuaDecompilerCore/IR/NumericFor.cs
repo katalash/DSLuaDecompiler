@@ -1,4 +1,5 @@
 ﻿using System.Linq;
+using LuaDecompilerCore.CFG;
 
 namespace LuaDecompilerCore.IR
 {
@@ -8,18 +9,27 @@ namespace LuaDecompilerCore.IR
     ///     something
     /// end
     /// </summary>
-    public class NumericFor : Instruction
+    public sealed class NumericFor : Instruction
     {
-        public Assignment Initial;
-        public Expression Limit;
-        public Expression Increment;
+        public readonly Assignment? Initial;
+        public readonly Expression? Limit;
+        public readonly Expression Increment;
 
-        public CFG.BasicBlock Body;
-        public CFG.BasicBlock Follow;
+        public readonly BasicBlock Body;
+        public readonly BasicBlock? Follow;
 
-        public override void Accept(IIrVisitor visitor)
+        public NumericFor(
+            Assignment? initial,
+            Expression? limit, 
+            Expression increment, 
+            BasicBlock body, 
+            BasicBlock? follow)
         {
-            visitor.VisitNumericFor(this);
+            Initial = initial;
+            Limit = limit;
+            Increment = increment;
+            Body = body;
+            Follow = follow;
         }
     }
 }

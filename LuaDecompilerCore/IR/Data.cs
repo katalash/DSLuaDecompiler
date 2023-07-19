@@ -6,16 +6,11 @@ namespace LuaDecompilerCore.IR
     /// Data instruction. Don't know what it does but doesn't seem to do anything important for decompilation purposes.
     /// Basically have this so the label generation algorithm doesn't break
     /// </summary>
-    public class Data : Instruction
+    public sealed class Data : Instruction
     {
         /// <summary>
         /// Lua locals are often defined at the last data instruction
         /// </summary>
-        public List<LuaFile.Local> Locals = null;
-
-        public override void Accept(IIrVisitor visitor)
-        {
-            visitor.VisitData(this);
-        }
+        public List<LuaFile.Local>? Locals = null;
     }
 }

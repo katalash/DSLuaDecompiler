@@ -1,5 +1,5 @@
-﻿using System.Collections.Generic;
-using System.Linq;
+﻿using System;
+using System.Diagnostics;
 using LuaDecompilerCore.IR;
 
 namespace LuaDecompilerCore.Passes;
@@ -13,25 +13,36 @@ public class DetectGenericListInitializersPass : IPass
     {
         foreach (var b in f.BlockList)
         {
-            for (int i = 0; i < b.Instructions.Count; i++)
+            for (var i = 0; i < b.Instructions.Count; i++)
             {
-                if (b.Instructions[i] is Assignment a && a.Left.Count == 1 && !a.Left[0].HasIndex && 
-                    a.Right is InitializerList il && il.Exprs.Count == 0)
+                if (b.Instructions[i] is Assignment { 
+                        IsSingleAssignment: true, 
+                        Left.HasIndex: false, 
+                        Right: InitializerList { Expressions.Count: 0 } il 
+                    } a)
                 {
                     while (i + 1 < b.Instructions.Count)
                     {
-                        if (b.Instructions[i + 1] is Assignment a2 && a2.Left.Count == 1 && 
-                            a2.Left[0].Identifier == a.Left[0].Identifier && a2.Left[0].HasIndex &&
-                            a2.Left[0].TableIndices[0] is Constant { ConstType: Constant.ConstantType.ConstString } c)
+                        if (b.Instructions[i + 1] is Assignment
+                            {
+                                IsSingleAssignment: true, 
+                                Left:
+                                {
+                                    HasIndex: true, 
+                                    TableIndex: Constant { ConstType: Constant.ConstantType.ConstString } c
+                                }
+                            } a2 && 
+                            a2.Left.Identifier == a.Left.Identifier)
                         {
-                            il.Exprs.Add(a2.Right);
-                            il.Assignments ??= new List<Constant>();
+                            if (a2.Right == null)
+                                throw new Exception("Expected assigned value");
+                            il.Expressions.Add(a2.Right);
                             il.Assignments.Add(c);
                             if (a2.LocalAssignments != null)
                             {
                                 a.LocalAssignments = a2.LocalAssignments;
                             }
-                            a2.Left[0].Identifier.UseCount--;
+                            a2.LeftList[0].Identifier.UseCount--;
                             b.Instructions.RemoveAt(i + 1);
                         }
                         else

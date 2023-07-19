@@ -8,15 +8,15 @@ namespace LuaDecompilerCore.CFG
     /// <summary>
     /// A block of instructions in which control flow only enters at the beginning and leaves at the end
     /// </summary>
-    public class BasicBlock : IIrNode
+    public sealed class BasicBlock
     {
-        public int BlockID;
+        public readonly int BlockId;
         public List<BasicBlock> Predecessors;
         public List<BasicBlock> Successors;
-        public List<IR.Instruction> Instructions;
-        public Dictionary<IR.Identifier, IR.PhiFunction> PhiFunctions;
+        public List<Instruction> Instructions;
+        public Dictionary<Identifier, PhiFunction> PhiFunctions;
 
-        public HashSet<IR.Identifier> PhiMerged = new HashSet<IR.Identifier>();
+        public readonly HashSet<Identifier> PhiMerged = new();
 
         /// <summary>
         /// Set of basic blocks that dominate this function
@@ -34,26 +34,26 @@ namespace LuaDecompilerCore.CFG
         public List<BasicBlock> DominanceTreeSuccessors;
 
         // Live analysis stuff
-        public HashSet<IR.Identifier> UpwardExposedIdentifiers;
-        public HashSet<IR.Identifier> KilledIdentifiers;
-        public HashSet<IR.Identifier> LiveOut;
+        public HashSet<Identifier> UpwardExposedIdentifiers;
+        public HashSet<Identifier> KilledIdentifiers;
+        public HashSet<Identifier> LiveOut;
 
         /// <summary>
         /// Register IDs of registers killed (i.e. redefined) under the scope of this block (excluding this block)
         /// </summary>
-        public HashSet<uint> ScopeKilled = new HashSet<uint>();
+        public HashSet<uint> ScopeKilled = new();
 
         // Control flow analysis
         public int ReversePostorderNumber = 0;
         public int OrderNumber = 0;
         public bool IsLoopHead = false;
         public bool IsLoopLatch = false;
-        public BasicBlock LoopFollow = null;
-        public List<BasicBlock> LoopLatches = new List<BasicBlock>();
-        public CFG.LoopType LoopType = LoopType.LoopNone;
-        public BasicBlock Follow = null;
-        public BasicBlock LoopBreakFollow = null;
-        public BasicBlock LoopContinueFollow = null;
+        public BasicBlock? LoopFollow = null;
+        public readonly List<BasicBlock> LoopLatches = new();
+        public LoopType LoopType = LoopType.LoopNone;
+        public BasicBlock? Follow = null;
+        public BasicBlock? LoopBreakFollow = null;
+        public BasicBlock? LoopContinueFollow = null;
         public bool IsBreakNode = false;
         public bool IsContinueNode = false;
         // Set to true if both the true and false branch lead to a return
@@ -61,32 +61,41 @@ namespace LuaDecompilerCore.CFG
 
         // Code gen
         public bool IsInfiniteLoop = false;
-        private bool IsCodegened = false;
+        private bool _isCodeGenerated;
 
         /// <summary>
         /// Used for SSA construction
         /// </summary>
         public HashSet<BasicBlock> DominanceFrontier;
 
+        /// <summary>
+        /// Printer friendly name of the basic block
+        /// </summary>
+        public string Name => $"basicblock_{BlockId}";
+        
+        public bool Empty => Instructions.Count == 0;
+        public bool HasInstructions => Instructions.Count > 0;
+
         public BasicBlock(int blockId)
         {
-            BlockID = blockId;
+            BlockId = blockId;
             Predecessors = new List<BasicBlock>();
             Successors = new List<BasicBlock>();
-            Instructions = new List<IR.Instruction>();
-            PhiFunctions = new Dictionary<IR.Identifier, IR.PhiFunction>();
+            Instructions = new List<Instruction>();
+            PhiFunctions = new Dictionary<Identifier, PhiFunction>();
             Dominance = new HashSet<BasicBlock>();
+            ImmediateDominator = this;
             DominanceFrontier = new HashSet<BasicBlock>();
             DominanceTreeSuccessors = new List<BasicBlock>();
-            UpwardExposedIdentifiers = new HashSet<IR.Identifier>();
-            KilledIdentifiers = new HashSet<IR.Identifier>();
-            LiveOut = new HashSet<IR.Identifier>();
+            UpwardExposedIdentifiers = new HashSet<Identifier>();
+            KilledIdentifiers = new HashSet<Identifier>();
+            LiveOut = new HashSet<Identifier>();
         }
         
         /// <summary>
         /// Get an instruction by index with bounds checking.
         /// </summary>
-        public IR.Instruction GetInstruction(int index)
+        public Instruction? GetInstruction(int index)
         {
             if (index >= 0 && index < Instructions.Count)
                 return Instructions[index];
@@ -99,7 +108,7 @@ namespace LuaDecompilerCore.CFG
         public void ComputeImmediateDominator()
         {
             // Use BFS to encounter the closest dominating node guaranteed
-            Queue<BasicBlock> queue = new Queue<BasicBlock>(Predecessors);
+            var queue = new Queue<BasicBlock>(Predecessors);
             while (queue.Count != 0)
             {
                 var b = queue.Dequeue();
@@ -123,22 +132,20 @@ namespace LuaDecompilerCore.CFG
         /// Prerequisite information for global liveness analysis and SSA generation. Determines the variables used from
         /// predecessor blocks (upwards exposed) and variables that are redefined in this block (killed)
         /// </summary>
-        public HashSet<IR.Identifier> ComputeKilledAndUpwardExposed()
+        public IEnumerable<Identifier> ComputeKilledAndUpwardExposed()
         {
-            var globals = new HashSet<IR.Identifier>();
-            var instructions = new List<IR.Instruction>(PhiFunctions.Values);
+            var globals = new HashSet<Identifier>();
+            var instructions = new List<Instruction>(PhiFunctions.Values);
             instructions.AddRange(Instructions);
             foreach (var inst in instructions)
             {
-                if (!(inst is IR.PhiFunction))
+                if (inst is not PhiFunction)
                 {
                     foreach (var use in inst.GetUses(true))
                     {
-                        if (!KilledIdentifiers.Contains(use))
-                        {
-                            UpwardExposedIdentifiers.Add(use);
-                            globals.Add(use);
-                        }
+                        if (KilledIdentifiers.Contains(use)) continue;
+                        UpwardExposedIdentifiers.Add(use);
+                        globals.Add(use);
                     }
                 }
                 foreach(var def in inst.GetDefines(true))
@@ -149,54 +156,23 @@ namespace LuaDecompilerCore.CFG
             return globals;
         }
 
-        public void MarkCodegened(int debugFuncID)
+        public void MarkCodeGenerated(int debugFuncId)
         {
-            if (IsCodegened)
+            if (_isCodeGenerated)
             {
-                Console.WriteLine("Warning: Function " + debugFuncID + " using already codegened block " + ToString());
+                Console.WriteLine($"Warning: Function {debugFuncId} using already code-generated block {Name}");
             }
-            IsCodegened = true;
+            _isCodeGenerated = true;
         }
 
-        public bool Codegened()
-        {
-            return IsCodegened;
-        }
-
-        public string GetName()
-        {
-            return $@"basicblock_{BlockID}";
-        }
-
-        public string PrintBlock(int indentLevel, bool infloopprint=false)
-        {
-            string ret = "";
-            //ret += $@"basicblock_{BlockID}:";
-            //ret += "\n";
-            int count = (IsInfiniteLoop && !infloopprint) ? 1 : Instructions.Count;
-            int begin = (IsInfiniteLoop && infloopprint) ? 1 : 0;
-            for (int j = begin; j < count; j++)
-            {
-                var inst = Instructions[j];
-                for (int i = 0; i < indentLevel; i++)
-                {
-                    ret += "    ";
-                }
-                ret += inst.WriteLua(indentLevel);
-                if (!(inst is IR.IfStatement) && j != Instructions.Count - 1)
-                {
-                    ret += "\n";
-                }
-            }
-            return ret;
-        }
+        public bool IsCodeGenerated => _isCodeGenerated;
 
         public string ToStringWithDF()
         {
-            var ret = $@"basicblock_{BlockID}: (DF = {{ ";
-            for (int i = 0; i < DominanceFrontier.Count; i++)
+            var ret = $@"basicblock_{BlockId}: (DF = {{ ";
+            for (var i = 0; i < DominanceFrontier.Count; i++)
             {
-                ret += DominanceFrontier.ToArray()[i].GetName();
+                ret += DominanceFrontier.ToArray()[i].Name;
                 if (i != DominanceFrontier.Count - 1)
                 {
                     ret += ", ";
@@ -208,8 +184,8 @@ namespace LuaDecompilerCore.CFG
 
         public string ToStringWithUpwardExposed()
         {
-            var ret = $@"basicblock_{BlockID}: (DF = {{ ";
-            for (int i = 0; i < UpwardExposedIdentifiers.Count; i++)
+            var ret = $@"basicblock_{BlockId}: (DF = {{ ";
+            for (var i = 0; i < UpwardExposedIdentifiers.Count; i++)
             {
                 ret += UpwardExposedIdentifiers.ToArray()[i].ToString();
                 if (i != UpwardExposedIdentifiers.Count - 1)
@@ -223,8 +199,8 @@ namespace LuaDecompilerCore.CFG
 
         public string ToStringWithLiveOut()
         {
-            var ret = $@"basicblock_{BlockID}: (LiveOut = {{ ";
-            for (int i = 0; i < LiveOut.Count; i++)
+            var ret = $@"basicblock_{BlockId}: (LiveOut = {{ ";
+            for (var i = 0; i < LiveOut.Count; i++)
             {
                 ret += LiveOut.ToArray()[i].ToString();
                 if (i != LiveOut.Count - 1)
@@ -238,13 +214,13 @@ namespace LuaDecompilerCore.CFG
 
         public string ToStringWithFollow()
         {
-            var ret = $@"basicblock_{BlockID}:";
+            var ret = $@"basicblock_{BlockId}:";
             if (Follow != null)
             {
                 ret += $@" (Follow: {Follow})";
             }
             ret += $@" (Dominance tree: {{";
-            for (int i = 0; i < DominanceTreeSuccessors.Count; i++)
+            for (var i = 0; i < DominanceTreeSuccessors.Count; i++)
             {
                 ret += DominanceTreeSuccessors[i].ToString();
                 if (i != DominanceTreeSuccessors.Count - 1)
@@ -258,7 +234,7 @@ namespace LuaDecompilerCore.CFG
 
         public string ToStringWithLoop()
         {
-            var ret = $@"basicblock_{BlockID}:";
+            var ret = $@"basicblock_{BlockId}:";
             if (IsLoopHead)
             {
                 ret += " (Loop head";
@@ -304,16 +280,6 @@ namespace LuaDecompilerCore.CFG
                 ret += $@"(BreakFollow: {LoopBreakFollow})";
             }
             return ret;
-        }
-
-        public override string ToString()
-        {
-            return $@"basicblock_{BlockID}:";
-        }
-
-        public void Accept(IIrVisitor visitor)
-        {
-            visitor.VisitBasicBlock(this);
         }
     }
 }

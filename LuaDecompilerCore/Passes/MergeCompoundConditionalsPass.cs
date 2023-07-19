@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Linq;
 using LuaDecompilerCore.IR;
 
@@ -29,28 +30,32 @@ public class MergeCompoundConditionalsPass : IPass
                 {
                     continue;
                 }
-                if (node.Successors.Count == 2 && node.Instructions.Last() is Jump n)
+                if (node.Successors.Count == 2 && node.Instructions.Last() is Jump { Condition: not null } n)
                 {
                     var t = node.Successors[0];
                     var e = node.Successors[1];
-                    if (t.Successors.Count == 2 && t.Instructions.First() is Jump tj && t.Predecessors.Count == 1)
+                    if (t.Successors.Count == 2 && t.Instructions.First() is Jump { Condition: not null } tj && 
+                        t.Predecessors.Count == 1)
                     {
                         if (t.Successors[0] == e && t.Successors[1] != e)
                         {
                             //var newCond = new BinOp(new UnaryOp(n.Condition, UnaryOp.OperationType.OpNot), tj.Condition, BinOp.OperationType.OpOr);
                             Expression newCond;
-                            if (n.Condition is BinOp b && b.IsCompare())
+                            if (n.Condition is BinOp { IsCompare: true } b)
                             {
                                 newCond = new BinOp(b.NegateCondition(), tj.Condition, BinOp.OperationType.OpOr);
                             }
                             else
                             {
-                                newCond = new BinOp(new UnaryOp(n.Condition, UnaryOp.OperationType.OpNot), tj.Condition, BinOp.OperationType.OpOr);
+                                newCond = new BinOp(new UnaryOp(n.Condition, UnaryOp.OperationType.OpNot), 
+                                    tj.Condition, BinOp.OperationType.OpOr);
                             }
                             n.Condition = newCond;
                             if (t.Follow != null)
                             {
-                                node.Follow = (node.Follow.ReversePostorderNumber > t.Follow.ReversePostorderNumber) ? node.Follow : t.Follow;
+                                Debug.Assert(node.Follow != null);
+                                node.Follow = node.Follow.ReversePostorderNumber > t.Follow.ReversePostorderNumber ? 
+                                    node.Follow : t.Follow;
                             }
                             node.Successors[1] = t.Successors[1];
                             n.BlockDest = node.Successors[1];
@@ -70,7 +75,9 @@ public class MergeCompoundConditionalsPass : IPass
                             n.Condition = newCond;
                             if (t.Follow != null)
                             {
-                                node.Follow = (node.Follow.ReversePostorderNumber > t.Follow.ReversePostorderNumber) ? node.Follow : t.Follow;
+                                Debug.Assert(node.Follow != null);
+                                node.Follow = node.Follow.ReversePostorderNumber > t.Follow.ReversePostorderNumber ? 
+                                    node.Follow : t.Follow;
                             }
                             node.Successors[0] = t.Successors[0];
                             var i = t.Successors[0].Predecessors.IndexOf(t);
@@ -80,15 +87,19 @@ public class MergeCompoundConditionalsPass : IPass
                             changed = true;
                         }
                     }
-                    else if (e.Successors.Count == 2 && e.Instructions.First() is Jump ej && e.Predecessors.Count == 1)
+                    else if (e.Successors.Count == 2 && e.Instructions.First() is Jump { Condition: not null } ej && 
+                             e.Predecessors.Count == 1)
                     {
                         if (e.Successors[0] == t)
                         {
-                            var newCond = new BinOp(new UnaryOp(n.Condition, UnaryOp.OperationType.OpNot), ej.Condition, BinOp.OperationType.OpOr);
+                            var newCond = new BinOp(new UnaryOp(n.Condition, UnaryOp.OperationType.OpNot), 
+                                ej.Condition, BinOp.OperationType.OpOr);
                             n.Condition = newCond;
                             if (e.Follow != null)
                             {
-                                node.Follow = (node.Follow.ReversePostorderNumber > e.Follow.ReversePostorderNumber) ? node.Follow : e.Follow;
+                                Debug.Assert(node.Follow != null);
+                                node.Follow = node.Follow.ReversePostorderNumber > e.Follow.ReversePostorderNumber ? 
+                                    node.Follow : e.Follow;
                             }
                             node.Successors[1] = e.Successors[1];
                             n.BlockDest = node.Successors[1];
@@ -102,11 +113,12 @@ public class MergeCompoundConditionalsPass : IPass
                         {
                             // TODO: not correct
                             throw new Exception("this is used so fix it");
+#if false
                             var newCond = new BinOp(n.Condition, ej.Condition, BinOp.OperationType.OpOr);
                             n.Condition = newCond;
                             if (e.Follow != null)
                             {
-                                node.Follow = (node.Follow.ReversePostorderNumber > e.Follow.ReversePostorderNumber) ? node.Follow : e.Follow;
+                                node.Follow = node.Follow.ReversePostorderNumber > e.Follow.ReversePostorderNumber ? node.Follow : e.Follow;
                             }
                             node.Successors[1] = e.Successors[0];
                             var i = e.Successors[0].Predecessors.IndexOf(e);
@@ -114,6 +126,7 @@ public class MergeCompoundConditionalsPass : IPass
                             t.Predecessors.Remove(e);
                             f.BlockList.Remove(e);
                             changed = true;
+#endif
                         }
                     }
                 }

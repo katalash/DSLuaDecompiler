@@ -13,7 +13,7 @@ public class ResolveClosureUpValues53Pass : IPass
         var allRegisters = f.GetAllRegisters();
         foreach (var c in f.Closures)
         {
-            for (int i = 0; i < c.UpValCount; i++)
+            for (int i = 0; i < c.UpValueCount; i++)
             {
                 if (c.UpValueIsStackBinding[i])
                 {

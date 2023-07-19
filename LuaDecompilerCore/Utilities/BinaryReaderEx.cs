@@ -676,7 +676,7 @@ namespace LuaDecompilerCore.Utilities
         private TEnum ReadEnum<TEnum, TValue>(Func<TValue> readValue, string valueFormat)
         {
             TValue value = readValue();
-            if (!Enum.IsDefined(typeof(TEnum), value))
+            if (!Enum.IsDefined(typeof(TEnum), value ?? throw new Exception()))
             {
                 string strValue = string.Format(valueFormat, value);
                 throw new InvalidDataException(string.Format(

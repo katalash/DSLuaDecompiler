@@ -1,5 +1,4 @@
 ﻿using System.Collections.Generic;
-using System.Linq;
 
 namespace LuaDecompilerCore.IR
 {
@@ -7,28 +6,33 @@ namespace LuaDecompilerCore.IR
     /// IL for an assignment operation
     /// Identifier := Expr
     /// </summary>
-    public class Assignment : Instruction
+    public sealed class Assignment : Instruction
     {
         /// <summary>
-        /// Functions can have multiple returns
+        /// Functions can have multiple returns, so we store the assignment identifiers as a list
         /// </summary>
-        public List<IdentifierReference> Left;
-        public Expression Right;
+        public readonly List<IdentifierReference> LeftList;
+        public Expression? Right;
+
+        /// <summary>
+        /// Convenience for when there's only a single assignment identifier
+        /// </summary>
+        public IdentifierReference Left => LeftList[0];
 
         /// <summary>
         /// If debug info exist, these are the local variables that are assigned if any (null if none are assigned and thus a "temp")
         /// </summary>
-        public List<LuaFile.Local> LocalAssignments;
+        public List<LuaFile.Local>? LocalAssignments = null;
         
         /// <summary>
         /// When this is set to true, the value defined by this is always expression/constant propogated, even if it's used more than once
         /// </summary>
-        public bool PropogateAlways = false;
+        public bool PropagateAlways = false;
 
         /// <summary>
         /// This assignment represents an assignment to an indeterminant number of varargs
         /// </summary>
-        public bool IsIndeterminantVararg = false;
+        public bool IsAmbiguousVararg = false;
         public uint VarargAssignmentReg = 0;
 
         public uint NilAssignmentReg = 0;
@@ -53,39 +57,46 @@ namespace LuaDecompilerCore.IR
         /// </summary>
         public bool IsSelfAssignment = false;
 
-        public Assignment(Identifier l, Expression r)
+        /// <summary>
+        /// Assignment only assigns to a single identifier
+        /// </summary>
+        public bool IsSingleAssignment => LeftList.Count == 1;
+        
+        /// <summary>
+        /// Assignment assigns to multiple identifiers
+        /// </summary>
+        public bool IsMultiAssignment => LeftList.Count > 1;
+
+        public bool LeftAny => LeftList.Count > 0;
+
+        public Assignment(Identifier l, Expression? r)
         {
-            Left = new List<IdentifierReference>();
-            Left.Add(new IdentifierReference(l));
+            LeftList = new List<IdentifierReference> { new IdentifierReference(l) };
             Right = r;
         }
 
-        public Assignment(IdentifierReference l, Expression r)
+        public Assignment(IdentifierReference l, Expression? r)
         {
-            Left = new List<IdentifierReference>();
-            Left.Add(l);
+            LeftList = new List<IdentifierReference> { l };
             Right = r;
         }
 
-        public Assignment(List<IdentifierReference> l, Expression r)
+        public Assignment(List<IdentifierReference> l, Expression? r)
         {
-            Left = l;
+            LeftList = l;
             Right = r;
         }
 
         public override void Parenthesize()
         {
-            Left.ForEach(x => x.Parenthesize());
-            if (Right != null)
-            {
-                Right.Parenthesize();
-            }
+            LeftList.ForEach(x => x.Parenthesize());
+            Right?.Parenthesize();
         }
 
         public override HashSet<Identifier> GetDefines(bool registersOnly)
         {
             var defines = new HashSet<Identifier>();
-            foreach (var id in Left)
+            foreach (var id in LeftList)
             {
                 // If the reference is not an indirect one (i.e. not an array access), then it is a definition
                 if (!id.HasIndex && (!registersOnly || id.Identifier.Type == Identifier.IdentifierType.Register))
@@ -99,7 +110,7 @@ namespace LuaDecompilerCore.IR
         public override HashSet<Identifier> GetUses(bool registersOnly)
         {
             var uses = new HashSet<Identifier>();
-            foreach (var id in Left)
+            foreach (var id in LeftList)
             {
                 // If the reference is an indirect one (i.e. an array access), then it is a use
                 if (id.HasIndex && (!registersOnly || id.Identifier.Type == Identifier.IdentifierType.Register))
@@ -115,16 +126,17 @@ namespace LuaDecompilerCore.IR
                     }
                 }
             }
-            uses.UnionWith(Right.GetUses(registersOnly));
+            if (Right != null)
+                uses.UnionWith(Right.GetUses(registersOnly));
             return uses;
         }
 
-        public override void RenameDefines(Identifier orig, Identifier newIdentifier)
+        public override void RenameDefines(Identifier original, Identifier newIdentifier)
         {
-            foreach (var id in Left)
+            foreach (var id in LeftList)
             {
                 // If the reference is not an indirect one (i.e. not an array access), then it is a definition
-                if (!id.HasIndex && id.Identifier == orig)
+                if (!id.HasIndex && id.Identifier == original)
                 {
                     id.Identifier = newIdentifier;
                     id.Identifier.DefiningInstruction = this;
@@ -132,51 +144,47 @@ namespace LuaDecompilerCore.IR
             }
         }
 
-        public override void RenameUses(Identifier orig, Identifier newIdentifier)
+        public override void RenameUses(Identifier original, Identifier newIdentifier)
         {
-            foreach (var id in Left)
+            foreach (var id in LeftList)
             {
                 // If the reference is an indirect one (i.e. an array access), then it is a use
                 if (id.HasIndex)
                 {
-                    id.RenameUses(orig, newIdentifier);
+                    id.RenameUses(original, newIdentifier);
                 }
             }
-            Right.RenameUses(orig, newIdentifier);
+            Right?.RenameUses(original, newIdentifier);
         }
 
         public override bool ReplaceUses(Identifier orig, Expression sub)
         {
             bool replaced = false;
-            foreach (var l in Left)
+            foreach (var l in LeftList)
             {
                 replaced = replaced || l.ReplaceUses(orig, sub);
             }
-            if (Expression.ShouldReplace(orig, Right))
+            if (Right != null && Expression.ShouldReplace(orig, Right))
             {
                 replaced = true;
                 Right = sub;
             }
             else
             {
-                replaced = replaced || Right.ReplaceUses(orig, sub);
+                replaced = replaced || (Right != null && Right.ReplaceUses(orig, sub));
             }
             return replaced;
-        }
-
-        public override void Accept(IIrVisitor visitor)
-        {
-            visitor.VisitAssignment(this);
         }
 
         public override List<Expression> GetExpressions()
         {
             var ret = new List<Expression>();
-            foreach (var left in Left)
+            foreach (var left in LeftList)
             {
                 ret.AddRange(left.GetExpressions());
             }
-            ret.AddRange(Right.GetExpressions());
+            if (Right != null)
+                ret.AddRange(Right.GetExpressions());
             return ret;
         }
     }

@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using LuaDecompilerCore.IR;
 
@@ -45,12 +46,12 @@ public class SsaTransformPass : IPass
                             continue;
                         }
 
-                        var phiargs = new List<Identifier>();
-                        for (int i = 0; i < d.Predecessors.Count; i++)
+                        var phiArgs = new List<Identifier?>();
+                        for (var i = 0; i < d.Predecessors.Count; i++)
                         {
-                            phiargs.Add(g);
+                            phiArgs.Add(g);
                         }
-                        d.PhiFunctions.Add(g, new PhiFunction(g, phiargs));
+                        d.PhiFunctions.Add(g, new PhiFunction(g, phiArgs));
                         //if (!visitedSet.Contains(d))
                         //{
                         work.Enqueue(d);
@@ -119,16 +120,16 @@ public class SsaTransformPass : IPass
             }
                 
             // Rename successor phi functions
-            foreach (var succ in b.Successors)
+            foreach (var successor in b.Successors)
             {
-                if (succ == f.EndBlock) continue;
-                var index = succ.Predecessors.IndexOf(b);
-                foreach (var phi in succ.PhiFunctions)
+                if (successor == f.EndBlock) continue;
+                var index = successor.Predecessors.IndexOf(b);
+                foreach (var phi in successor.PhiFunctions)
                 {
-                    if (stacks[phi.Value.Right[index]].Count > 0)
+                    if (phi.Value.Right[index] is { } k && stacks[k].Count > 0)
                     {
-                        phi.Value.Right[index] = stacks[phi.Value.Right[index]].Peek();
-                        phi.Value.Right[index].UseCount++;
+                        phi.Value.Right[index] = stacks[k].Peek();
+                        k.UseCount++;
                     }
                     else
                     {
@@ -141,27 +142,28 @@ public class SsaTransformPass : IPass
             }
                 
             // Rename successors in the dominator tree
-            foreach (var succ in b.DominanceTreeSuccessors)
+            foreach (var successor in b.DominanceTreeSuccessors)
             {
-                if (succ != f.EndBlock)
+                if (successor != f.EndBlock)
                 {
-                    RenameBlock(succ);
+                    RenameBlock(successor);
                 }
 
                 // Add to the scope killed set based on the domtree successor's killed and scope killed
-                foreach (var killed in succ.KilledIdentifiers)
+                foreach (var killed in successor.KilledIdentifiers)
                 {
                     if (killed.Type == Identifier.IdentifierType.Register)
                     {
                         b.ScopeKilled.Add(killed.RegNum);
                     }
-                    b.ScopeKilled.UnionWith(succ.ScopeKilled);
+                    b.ScopeKilled.UnionWith(successor.ScopeKilled);
                 }
             }
 
             // Pop off anything we pushed
             foreach (var phi in b.PhiFunctions)
             {
+                Debug.Assert(phi.Value.Left.OriginalIdentifier != null);
                 stacks[phi.Value.Left.OriginalIdentifier].Pop();
             }
             foreach (var inst in b.Instructions)
@@ -172,13 +174,14 @@ public class SsaTransformPass : IPass
                     {
                         continue;
                     }
+                    Debug.Assert(def.OriginalIdentifier != null);
                     stacks[def.OriginalIdentifier].Pop();
                 }
             }
         }
 
         // Rename the arguments first
-        for (int i = 0; i < f.Parameters.Count; i++)
+        for (var i = 0; i < f.Parameters.Count; i++)
         {
             f.Parameters[i] = NewName(f.Parameters[i]);
         }

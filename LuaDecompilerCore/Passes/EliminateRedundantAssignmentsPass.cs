@@ -20,12 +20,12 @@ public class EliminateRedundantAssignmentsPass : IPass
                 // critical for upvalue binding analysis
                 if (b.Instructions[i] is Assignment a && a.Right is Closure c)
                 {
-                    i += c.Function.UpValCount;
+                    i += c.Function.UpValueCount;
                 }
-                else if (b.Instructions[i] is Assignment assn && assn.Left.Count == 1 && !assn.Left[0].HasIndex)
+                else if (b.Instructions[i] is Assignment assn && assn.LeftList.Count == 1 && !assn.LeftList[0].HasIndex)
                 {
                     if (assn.Right is IdentifierReference { HasIndex: false } reference &&
-                        assn.Left[0].Identifier == reference.Identifier)
+                        assn.LeftList[0].Identifier == reference.Identifier)
                     {
                         b.Instructions.RemoveAt(i);
                         i--;

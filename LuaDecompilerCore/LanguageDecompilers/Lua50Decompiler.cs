@@ -101,7 +101,7 @@ public class Lua50Decompiler : ILanguageDecompiler
         return con.Type switch
         {
             LuaFile.Constant.ConstantType.TypeNumber => new Constant(con.NumberValue, id),
-            LuaFile.Constant.ConstantType.TypeString => new Constant(con.StringValue, id),
+            LuaFile.Constant.ConstantType.TypeString => new Constant(con.StringValue ?? "", id),
             LuaFile.Constant.ConstantType.TypeInt => new Constant(con.IntValue, id),
             _ => new Constant(Constant.ConstantType.ConstNil, id)
         };
@@ -127,10 +127,10 @@ public class Lua50Decompiler : ILanguageDecompiler
         // Register closures for all the children
         foreach (var t in function.ChildFunctions)
         {
-            var childFunction = new Function(t.FunctionID)
+            var childFunction = new Function(t.FunctionId)
             {
                 // UpValue count needs to be set for child functions for analysis to be correct
-                UpValCount = t.Nups
+                UpValueCount = t.NumUpValues
             };
             irFunction.AddClosure(childFunction);
         }
@@ -306,7 +306,8 @@ public class Lua50Decompiler : ILanguageDecompiler
             List<Expression> args;
             List<Instruction> instructions = new();
             Assignment assignment;
-            
+
+            bool needsUpValueBinding;
             switch ((Lua50Ops)opcode)
             {
                 case Lua50Ops.OpMove:
@@ -343,22 +344,25 @@ public class Lua50Decompiler : ILanguageDecompiler
                     break;
                 case Lua50Ops.OpGetUpVal:
                     var up = irFunction.GetUpValue(b);
-                    if (function.UpvalueNames.Length > 0 && !up.UpValueResolved)
+                    needsUpValueBinding = false;
+                    if (function.UpValueNames.Length > 0 && !up.UpValueResolved)
                     {
-                        up.Name = function.UpvalueNames[b].Name;
+                        up.Name = function.UpValueNames[b].Name ?? throw new Exception();
                         up.UpValueResolved = true;
                     }
                     else
                     {
-                        if (b >= irFunction.UpValueBindings.Count)
+                        if (b >= irFunction.UpValueCount)
                         {
                             throw new Exception("Reference to unbound upvalue");
                         }
 
-                        up = irFunction.UpValueBindings[(int)b];
+                        needsUpValueBinding = true;
                     }
 
                     assignment = new Assignment(irFunction.GetRegister(a), new IdentifierReference(up));
+                    if (needsUpValueBinding)
+                        irFunction.GetUpValueInstructions.Add(assignment);
                     CheckLocal(assignment, function, pc);
                     instructions.Add(assignment);
                     break;
@@ -383,9 +387,10 @@ public class Lua50Decompiler : ILanguageDecompiler
                     break;
                 case Lua50Ops.OpSetUpVal:
                     var up2 = irFunction.GetUpValue(b);
-                    if (function.UpvalueNames.Length > 0 && !up2.UpValueResolved)
+                    needsUpValueBinding = false;
+                    if (function.UpValueNames.Length > 0 && !up2.UpValueResolved)
                     {
-                        up2.Name = function.UpvalueNames[b].Name;
+                        up2.Name = function.UpValueNames[b].Name ?? throw new Exception();
                         up2.UpValueResolved = true;
                     }
                     else
@@ -395,10 +400,12 @@ public class Lua50Decompiler : ILanguageDecompiler
                             throw new Exception("Reference to unbound upvalue");
                         }
 
-                        up2 = irFunction.UpValueBindings[(int)b];
+                        needsUpValueBinding = true;
                     }
 
                     instructions.Add(new Assignment(up2, new IdentifierReference(irFunction.GetRegister(a))));
+                    if (needsUpValueBinding)
+                        irFunction.SetUpValueInstructions.Add(instructions[^1] as Assignment ?? throw new Exception());
                     break;
                 case Lua50Ops.OpNewTable:
                     assignment = new Assignment(
@@ -612,7 +619,7 @@ public class Lua50Decompiler : ILanguageDecompiler
                     if (b == 0)
                     {
                         ret.BeginRet = a;
-                        ret.IsIndeterminantReturnCount = true;
+                        ret.IsAmbiguousReturnCount = true;
                     }
 
                     instructions.Add(ret);

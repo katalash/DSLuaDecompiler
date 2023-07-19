@@ -13,17 +13,17 @@ public class ResolveClosureUpValues50Pass : IPass
     {
         foreach (var b in f.BlockList)
         {
-            for (int i = 0; i < b.Instructions.Count; i++)
+            for (var i = 0; i < b.Instructions.Count; i++)
             {
                 // Recognize a closure instruction
                 if (b.Instructions[i] is Assignment { Right: Closure c })
                 {
                     // Fetch the closure bindings from the following instructions
-                    for (int j = 0; j < c.Function.UpValCount; j++)
+                    for (var j = 0; j < c.Function.UpValueCount; j++)
                     {
                         if (b.Instructions[i + 1] is Assignment ca && 
-                            ca.Left.Count == 1 && 
-                            ca.Left[0].Identifier.RegNum == 0 &&
+                            ca.LeftList.Count == 1 && 
+                            ca.LeftList[0].Identifier.RegNum == 0 &&
                             ca.Right is IdentifierReference ir &&
                             ir.Identifier.Type == Identifier.IdentifierType.Register)
                         {
@@ -35,6 +35,18 @@ public class ResolveClosureUpValues50Pass : IPass
                         {
                             throw new Exception("Unrecognized upvalue binding pattern following closure");
                         }
+                    }
+                    
+                    // Update upValue get/set instructions to new parent identifiers
+                    foreach (var get in c.Function.GetUpValueInstructions)
+                    {
+                        if (get.Right is IdentifierReference right) 
+                            right.Identifier = c.Function.UpValueBindings[(int)right.Identifier.RegNum];
+                    }
+                    
+                    foreach (var get in c.Function.SetUpValueInstructions)
+                    {
+                        get.LeftList[0].Identifier = c.Function.UpValueBindings[(int)get.LeftList[0].Identifier.RegNum];
                     }
                 }
             }

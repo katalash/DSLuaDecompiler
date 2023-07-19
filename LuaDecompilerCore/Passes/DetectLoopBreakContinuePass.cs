@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using LuaDecompilerCore.IR;
 
@@ -13,46 +14,41 @@ public class DetectLoopBreakContinuePass : IPass
     public void RunOnFunction(DecompilationContext context, Function f)
     {
         var visited = new HashSet<CFG.BasicBlock>();
-        void Visit(CFG.BasicBlock b, CFG.BasicBlock loopHead)
+        void Visit(CFG.BasicBlock b, CFG.BasicBlock? loopHead)
         {
             visited.Add(b);
-            var lhead = loopHead;
-            if (b.IsLoopHead)
+            var nextHead = b.IsLoopHead ? b : loopHead;
+            foreach (var successor in b.Successors.Where(successor => !visited.Contains(successor)))
             {
-                lhead = b;
-            }
-            foreach (var succ in b.Successors)
-            {
-                if (!visited.Contains(succ))
-                {
-                    Visit(succ, lhead);
-                }
+                Visit(successor, nextHead);
             }
         
             // Detect unstructured if statements
-            if (lhead != null && b.Successors.Count == 2 && b.Instructions.Last() is Jump && 
-                !(b.IsLoopHead && b.LoopType == CFG.LoopType.LoopPretested))
+            if (nextHead != null && b.Successors.Count == 2 && b.Instructions.Last() is Jump && 
+                b is not { IsLoopHead: true, LoopType: CFG.LoopType.LoopPretested })
             {
+                Debug.Assert(nextHead.LoopFollow != null);
+                
                 // An if statement is unstructured but recoverable if it has a forward edge to the loop follow (break)
                 // or head (continue) on the left or right
-                foreach (var succ in b.DominanceTreeSuccessors)
+                foreach (var successor in b.DominanceTreeSuccessors)
                 {
-                    if (succ.IsLoopLatch)
+                    if (successor.IsLoopLatch)
                     {
                         continue;
                     }
         
                     // Mark breaks
-                    if (succ.Successors.Contains(lhead.LoopFollow))
+                    if (successor.Successors.Contains(nextHead.LoopFollow))
                     {
-                        succ.IsBreakNode = true;
-                        b.LoopBreakFollow = lhead.LoopFollow;
+                        successor.IsBreakNode = true;
+                        b.LoopBreakFollow = nextHead.LoopFollow;
                     }
                     // Mark continues
-                    if (succ.Successors.Contains(lhead))
+                    if (successor.Successors.Contains(nextHead))
                     {
-                        succ.IsContinueNode = true;
-                        b.LoopContinueFollow = lhead.LoopContinueFollow;
+                        successor.IsContinueNode = true;
+                        b.LoopContinueFollow = nextHead.LoopContinueFollow;
                     }
                 }
             }

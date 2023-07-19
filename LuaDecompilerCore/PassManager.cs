@@ -39,7 +39,7 @@ public class PassManager
     /// <param name="context">The decompilation context provided to every pass</param>
     /// <param name="functions">The functions to run all the passes on</param>
     /// <returns>String representation of the first function after each specified pass runs</returns>
-    public string RunOnFunctions(DecompilationContext context, IReadOnlyList<Function> functions)
+    public string? RunOnFunctions(DecompilationContext context, IReadOnlyList<Function> functions)
     {
         var printPassCount = _dumpAllIrPasses ? _passes.Count : _dumpIrPasses.Count;
         var output = new StringBuilder(printPassCount * 1024 * 1024);

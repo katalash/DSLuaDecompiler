@@ -45,31 +45,31 @@ internal static unsafe partial class Lua50
     public struct LuaState { }
     
     [LibraryImport(
-        "Lib/lua502.dll",
+        "LuaNative/lua502.dll",
         EntryPoint = "lua_open",
         StringMarshalling = StringMarshalling.Utf8)]
     public static unsafe partial LuaState* LuaOpen();
     
     [LibraryImport(
-        "Lib/lua502.dll",
+        "LuaNative/lua502.dll",
         EntryPoint = "lua_close",
         StringMarshalling = StringMarshalling.Utf8)]
     public static unsafe partial void LuaClose(LuaState *state);
     
     [LibraryImport(
-        "Lib/lua502.dll",
+        "LuaNative/lua502.dll",
         EntryPoint = "lua_topointer",
         StringMarshalling = StringMarshalling.Utf8)]
     public static unsafe partial void* LuaToPointer(LuaState *state, int index);
     
     [LibraryImport(
-        "Lib/lua502.dll",
+        "LuaNative/lua502.dll",
         EntryPoint = "lua_tostring",
         StringMarshalling = StringMarshalling.Utf8)]
     public static unsafe partial byte* LuaToString(LuaState *state, int idx);
     
     [LibraryImport(
-        "Lib/lua502.dll",
+        "LuaNative/lua502.dll",
         EntryPoint = "luaL_loadbuffer",
         StringMarshalling = StringMarshalling.Utf8)]
     public static unsafe partial int LuaLLoadBuffer(LuaState *state, byte *buffer, ulong size, byte* name);
@@ -89,7 +89,7 @@ internal static unsafe partial class Lua50
     }
     
     [LibraryImport(
-        "Lib/lua502.dll",
+        "LuaNative/lua502.dll",
         EntryPoint = "luaU_dump",
         StringMarshalling = StringMarshalling.Utf8)]
     public static unsafe partial void LuaUDump(

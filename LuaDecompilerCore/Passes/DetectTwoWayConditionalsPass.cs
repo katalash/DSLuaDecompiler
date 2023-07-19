@@ -29,11 +29,11 @@ public class DetectTwoWayConditionalsPass : IPass
             if (b.Successors.Count == 2 && b.Instructions.Last() is Jump && 
                 (!b.IsLoopHead || b.LoopType != CFG.LoopType.LoopPretested))
             {
-                int maxEdges = 0;
-                CFG.BasicBlock maxNode = null;
+                var maxEdges = 0;
+                CFG.BasicBlock? maxNode = null;
                 foreach (var d in b.DominanceTreeSuccessors)
                 {
-                    int successorsReq = 2;
+                    var successorsReq = 2;
                     // If there is a break or while, the follow node is only going to have one backedge
                     if (b.LoopBreakFollow != null || b.LoopContinueFollow != null)
                     {
@@ -50,15 +50,15 @@ public class DetectTwoWayConditionalsPass : IPass
                 // If the true branch also has a follow chain defined that leads to a return or if-orphaned node, then it is also disjoint from the rest of the CFG
                 // and the false branch is the follow
                 var isDisjoint = false;
-                var testfollow = b.Successors[0].Follow;
-                while (testfollow != null)
+                var testFollow = b.Successors[0].Follow;
+                while (testFollow != null)
                 {
-                    if (testfollow.Instructions.Last() is Return || testfollow.IfOrphaned)
+                    if (testFollow.Instructions.Last() is Return || testFollow.IfOrphaned)
                     {
                         isDisjoint = true;
                         break;
                     }
-                    testfollow = testfollow.Follow;
+                    testFollow = testFollow.Follow;
                 }
                 if (maxNode == null && (b.Successors[0].Instructions.Last() is Return || 
                                         b.Successors[0].IfOrphaned || isDisjoint))
@@ -91,26 +91,25 @@ public class DetectTwoWayConditionalsPass : IPass
                 if (maxNode != null)
                 {
                     b.Follow = maxNode;
-                    bool keepMN = false;
                     var unresolvedClone = new HashSet<CFG.BasicBlock>(unresolved);
                     foreach (var x in unresolvedClone)
                     {
                         if (x != maxNode && !x.Dominance.Contains(maxNode))
                         {
-                            bool inc = (x.DominanceTreeSuccessors.Count == 0);
+                            var inc = x.DominanceTreeSuccessors.Count == 0;
                             // Do a BFS down the dominance hierarchy to search for a follow
                             var bfsQueue = new Queue<CFG.BasicBlock>(x.DominanceTreeSuccessors);
                             //foreach (var domsucc in x.DominanceTreeSuccessors)
                             //{
                             while (bfsQueue.Count > 0)
                             {
-                                var domsucc = bfsQueue.Dequeue();
-                                if (domsucc.Successors.Contains(maxNode) || domsucc.Follow == maxNode)
+                                var dominanceSuccessor = bfsQueue.Dequeue();
+                                if (dominanceSuccessor.Successors.Contains(maxNode) || dominanceSuccessor.Follow == maxNode)
                                 {
                                     inc = true;
                                     break;
                                 }
-                                domsucc.DominanceTreeSuccessors.ForEach(s => bfsQueue.Enqueue(s));
+                                dominanceSuccessor.DominanceTreeSuccessors.ForEach(s => bfsQueue.Enqueue(s));
                             }
                             //}
                             if (x.IfOrphaned)
@@ -138,7 +137,7 @@ public class DetectTwoWayConditionalsPass : IPass
                 foreach (var ur in unresolved)
                 {
                     // If there's a single loop latch and it has multiple predecessors, it's probably the follow
-                    if (b.LoopLatches.Count == 1 && b.LoopLatches[0].Predecessors.Count > 1)
+                    if (b.LoopLatches is [{ Predecessors.Count: > 1 }])
                     {
                         ur.Follow = b.LoopLatches[0];
                     }

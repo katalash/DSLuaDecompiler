@@ -3,12 +3,12 @@ using System.Linq;
 
 namespace LuaDecompilerCore.IR
 {
-    public class PhiFunction : Instruction
+    public sealed class PhiFunction : Instruction
     {
         public Identifier Left;
-        public List<Identifier> Right;
+        public readonly List<Identifier?> Right;
 
-        public PhiFunction(Identifier left, List<Identifier> right)
+        public PhiFunction(Identifier left, List<Identifier?> right)
         {
             Left = left;
             Right = right;
@@ -24,41 +24,30 @@ namespace LuaDecompilerCore.IR
             var uses = new HashSet<Identifier>();
             foreach (var id in Right)
             {
-                uses.UnionWith(Right);
+                if (id != null)
+                    uses.Add(id);
             }
             return uses;
         }
 
-        public override void RenameDefines(Identifier orig, Identifier newIdentifier)
+        public override void RenameDefines(Identifier original, Identifier newIdentifier)
         {
-            if (Left == orig)
+            if (Left == original)
             {
                 Left = newIdentifier;
             }
         }
 
-        public override void RenameUses(Identifier orig, Identifier newIdentifier)
+        public override void RenameUses(Identifier original, Identifier? newIdentifier)
         {
-            for (int i = 0; i < Right.Count; i++)
+            for (var i = 0; i < Right.Count; i++)
             {
-                if (Right[i] == orig)
-                {
-                    if (orig != null)
-                    {
-                        orig.UseCount--;
-                    }
-                    Right[i] = newIdentifier;
-                    if (newIdentifier != null)
-                    {
-                        newIdentifier.UseCount++;
-                    }
-                }
+                if (Right[i] != original) continue;
+                original.UseCount--;
+                Right[i] = newIdentifier;
+                if (newIdentifier != null)
+                    newIdentifier.UseCount++;
             }
-        }
-
-        public override void Accept(IIrVisitor visitor)
-        {
-            visitor.VisitPhiFunction(this);
         }
     }
 }

@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using LuaDecompilerCore.IR;
 
@@ -15,6 +16,7 @@ public class DropSsaSubscriptsPass : IPass
         {
             foreach (var phi in b.PhiFunctions)
             {
+                Debug.Assert(phi.Value.Left.OriginalIdentifier != null);
                 b.PhiMerged.Add(phi.Value.Left.OriginalIdentifier);
             }
             b.PhiFunctions.Clear();
@@ -34,18 +36,20 @@ public class DropSsaSubscriptsPass : IPass
         }
         for (var a = 0; a < f.Parameters.Count; a++)
         {
-            if (f.Parameters[a].OriginalIdentifier != null)
-                f.Parameters[a] = f.Parameters[a].OriginalIdentifier;
+            if (f.Parameters[a].OriginalIdentifier is { } identifier)
+                f.Parameters[a] = identifier;
         }
 
         var counter = 0;
         Identifier NewName(Identifier orig)
         {
-            var newName = new Identifier();
-            newName.Name = orig.Name + $@"_{counter}";
+            var newName = new Identifier
+            {
+                Name = orig.Name + $@"_{counter}",
+                Type = Identifier.IdentifierType.Register,
+                OriginalIdentifier = orig
+            };
             counter++;
-            newName.Type = Identifier.IdentifierType.Register;
-            newName.OriginalIdentifier = orig;
             return newName;
         }
 
@@ -74,13 +78,13 @@ public class DropSsaSubscriptsPass : IPass
             {
                 changed = true;
                 var reassigned = false;
-                Identifier newDef = null;
+                Identifier? newDef = null;
                 while (changed)
                 {
                     changed = false;
                     foreach (var use in instruction.GetUses(true))
                     {
-                        if (newReplacements.TryGetValue(use, out Identifier value) && newReplacements[use] != newDef)
+                        if (newReplacements.TryGetValue(use, out var value) && newReplacements[use] != newDef)
                         {
                             instruction.RenameUses(use, value);
                             changed = true;
@@ -88,7 +92,7 @@ public class DropSsaSubscriptsPass : IPass
                     }
                     foreach (var def in instruction.GetDefines(true))
                     {
-                        if (instruction is Assignment a && a.LocalAssignments != null && !reassigned)
+                        if (instruction is Assignment { LocalAssignments: not null } && !reassigned)
                         {
                             var newName = NewName(def);
                             instruction.RenameDefines(def, newName);
@@ -115,9 +119,9 @@ public class DropSsaSubscriptsPass : IPass
             }
 
             // Propagate to children in the dominance hierarchy
-            foreach (var succ in b.DominanceTreeSuccessors)
+            foreach (var successor in b.DominanceTreeSuccessors)
             {
-                Visit(succ, newReplacements);
+                Visit(successor, newReplacements);
             }
         }
         Visit(f.BeginBlock, new Dictionary<Identifier, Identifier>());

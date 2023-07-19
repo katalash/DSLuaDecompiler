@@ -27,7 +27,7 @@ public class ApplyLabelsPass : IPass
         }
 
         // Mark the implicit return lua always generates
-        if (f.EndBlock.Instructions.Last() is Return r && r.ReturnExpressions.Count == 0)
+        if (f.EndBlock.Instructions.Last() is Return { ReturnExpressions.Count: 0 } r)
         {
             r.IsImplicit = true;
         }

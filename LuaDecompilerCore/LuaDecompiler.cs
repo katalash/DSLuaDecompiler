@@ -16,7 +16,7 @@ namespace LuaDecompilerCore
             DecompilationOptions = options;
         }
 
-        public string DecompileLuaFunction(
+        public string? DecompileLuaFunction(
             ILanguageDecompiler languageDecompiler,
             Function main,
             LuaFile.Function luaMain)
@@ -49,9 +49,9 @@ namespace LuaDecompilerCore
                 for (var i = 0; i < luaFunction.ChildFunctions.Length; i++)
                 {
                     if (DecompilationOptions.IncludedFunctionIds != null && 
-                        !DecompilationOptions.IncludedFunctionIds.Contains(luaFunction.ChildFunctions[i].FunctionID))
+                        !DecompilationOptions.IncludedFunctionIds.Contains(luaFunction.ChildFunctions[i].FunctionId))
                         continue;
-                    if (DecompilationOptions.ExcludedFunctionIds.Contains(luaFunction.ChildFunctions[i].FunctionID))
+                    if (DecompilationOptions.ExcludedFunctionIds.Contains(luaFunction.ChildFunctions[i].FunctionId))
                         continue;
                     Visit(luaFunction.ChildFunctions[i], irFunction.LookupClosure((uint)i));
                 }

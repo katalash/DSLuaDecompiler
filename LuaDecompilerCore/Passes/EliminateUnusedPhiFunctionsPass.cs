@@ -39,7 +39,7 @@ public class EliminateUnusedPhiFunctionsPass : IPass
                     phisToKeep.Add(phi.Value);
                     foreach (var use in phi.Value.Right)
                     {
-                        if (!usedIdentifiers.Contains(use))
+                        if (use != null)
                         {
                             usedIdentifiers.Add(use);
                         }

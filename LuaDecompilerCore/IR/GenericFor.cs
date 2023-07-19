@@ -1,4 +1,5 @@
 ﻿using System.Linq;
+using LuaDecompilerCore.CFG;
 
 namespace LuaDecompilerCore.IR
 {
@@ -8,16 +9,17 @@ namespace LuaDecompilerCore.IR
     ///     something
     /// end
     /// </summary>
-    public class GenericFor : Instruction
+    public sealed class GenericFor : Instruction
     {
-        public Assignment Iterator;
+        public readonly Assignment Iterator;
+        public readonly BasicBlock Body;
+        public readonly BasicBlock? Follow;
 
-        public CFG.BasicBlock Body;
-        public CFG.BasicBlock Follow;
-
-        public override void Accept(IIrVisitor visitor)
+        public GenericFor(Assignment iterator, BasicBlock body, BasicBlock? follow)
         {
-            visitor.VisitGenericFor(this);
+            Iterator = iterator;
+            Body = body;
+            Follow = follow;
         }
     }
 }

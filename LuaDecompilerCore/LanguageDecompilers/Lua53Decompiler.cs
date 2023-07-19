@@ -121,7 +121,7 @@ public class Lua53Decompiler : ILanguageDecompiler
         return con.Type switch
         {
             LuaFile.Constant.ConstantType.TypeNumber => new Constant(con.NumberValue, id),
-            LuaFile.Constant.ConstantType.TypeString => new Constant(con.StringValue, id),
+            LuaFile.Constant.ConstantType.TypeString => new Constant(con.StringValue ?? "", id),
             LuaFile.Constant.ConstantType.TypeInt => new Constant(con.IntValue, id),
             _ => new Constant(Constant.ConstantType.ConstNil, id)
         };
@@ -145,14 +145,14 @@ public class Lua53Decompiler : ILanguageDecompiler
     private static Identifier UpValue53(Function irFunction, LuaFile.Function function, uint upValueId)
     {
         var up = irFunction.GetUpValue(upValueId);
-        if (upValueId < function.Upvalues.Length && function.Upvalues[upValueId].InStack)
+        if (upValueId < function.UpValues.Length && function.UpValues[upValueId].InStack)
         {
-            up.StackUpvalue = true;
+            up.StackUpValue = true;
         }
 
-        if (function.UpvalueNames.Length > 0 && !up.UpValueResolved)
+        if (function.UpValueNames.Length > 0 && !up.UpValueResolved)
         {
-            up.Name = function.UpvalueNames[upValueId].Name;
+            up.Name = function.UpValueNames[upValueId].Name ?? throw new Exception("Expected non-empty name");
             up.UpValueResolved = true;
         }
 
@@ -164,21 +164,21 @@ public class Lua53Decompiler : ILanguageDecompiler
         // Register closures for all the children
         foreach (var t in function.ChildFunctions)
         {
-            var childFunction = new Function(t.FunctionID)
+            var childFunction = new Function(t.FunctionId)
             {
                 // UpValue count needs to be set for child functions for analysis to be correct
-                UpValCount = t.Nups
+                UpValueCount = t.NumUpValues
             };
             irFunction.AddClosure(childFunction);
         }
         
         // Create the global table as the first upValue for the root function
-        if (function.FunctionID == 0)
+        if (function.FunctionId == 0)
         {
             var globalTable = new Identifier
             {
+                Name = "Global",
                 Type = Identifier.IdentifierType.GlobalTable,
-                VType = Identifier.ValueType.Table,
                 IsClosureBound = true
             };
             irFunction.UpValueBindings.Add(globalTable);
@@ -188,7 +188,7 @@ public class Lua53Decompiler : ILanguageDecompiler
         irFunction.ArgumentNames = function.LocalsAt(0);
     }
 
-    public string Disassemble(LuaFile.Function function)
+    public string? Disassemble(LuaFile.Function function)
     {
         return null;
     }
@@ -210,7 +210,7 @@ public class Lua53Decompiler : ILanguageDecompiler
             var bx = (instruction >> 14) & 0x3FFFF;
             var sbx = (int)bx - (((1 << 18) - 1) >> 1);
             var pc = i / 4;
-            List<Expression> args = null;
+            List<Expression> args;
             var instructions = new List<Instruction>();
             Assignment assignment;
             switch ((Lua53Ops)opcode)
@@ -269,7 +269,7 @@ public class Lua53Decompiler : ILanguageDecompiler
 
                     up = irFunction.UpValueBindings[(int)b];
                     var rkir = RkIr53(irFunction, function, c);
-                    if (up.StackUpvalue && rkir is Constant c1 && c1.ConstType == Constant.ConstantType.ConstString)
+                    if (up.StackUpValue && rkir is Constant c1 && c1.ConstType == Constant.ConstantType.ConstString)
                     {
                         assignment = new Assignment(irFunction.GetRegister(a),
                             new IdentifierReference(globalSymbolTable.GetGlobal(c1.String, -1)));
@@ -297,7 +297,7 @@ public class Lua53Decompiler : ILanguageDecompiler
 
                     up = irFunction.UpValueBindings[(int)a];
                     rkir = RkIr53(irFunction, function, b);
-                    if (up.StackUpvalue && rkir is Constant { ConstType: Constant.ConstantType.ConstString } c2)
+                    if (up.StackUpValue && rkir is Constant { ConstType: Constant.ConstantType.ConstString } c2)
                     {
                         instructions.Add(new Assignment(globalSymbolTable.GetGlobal(c2.String, -1),
                             RkIr53(irFunction, function, c)));
@@ -311,9 +311,9 @@ public class Lua53Decompiler : ILanguageDecompiler
                     break;
                 case Lua53Ops.OpSetUpVal:
                     var up2 = UpValue53(irFunction, function, b);
-                    if (function.UpvalueNames.Length > 0 && !up2.UpValueResolved)
+                    if (function.UpValueNames.Length > 0 && !up2.UpValueResolved)
                     {
-                        up2.Name = function.UpvalueNames[b].Name;
+                        up2.Name = function.UpValueNames[b].Name ?? throw new Exception();
                         up2.UpValueResolved = true;
                     }
 
@@ -383,7 +383,7 @@ public class Lua53Decompiler : ILanguageDecompiler
                 case Lua53Ops.OpBXOr:
                     assignment = new Assignment(irFunction.GetRegister(a),
                         new BinOp(RkIr53(irFunction, function, b),
-                            RkIr53(irFunction, function, c), BinOp.OperationType.OpBXOr));
+                            RkIr53(irFunction, function, c), BinOp.OperationType.OpBxOr));
                     CheckLocal(assignment, function, pc);
                     instructions.Add(assignment);
                     break;
@@ -553,7 +553,7 @@ public class Lua53Decompiler : ILanguageDecompiler
                     if (b == 0)
                     {
                         ret.BeginRet = a;
-                        ret.IsIndeterminantReturnCount = true;
+                        ret.IsAmbiguousReturnCount = true;
                     }
 
                     instructions.Add(ret);
@@ -566,7 +566,7 @@ public class Lua53Decompiler : ILanguageDecompiler
                         new IdentifierReference(irFunction.GetRegister(a)),
                         new IdentifierReference(irFunction.GetRegister(a + 1)), BinOp.OperationType.OpLoopCompare));
                     var pta = new Assignment(irFunction.GetRegister(a + 3), Register(irFunction, a));
-                    pta.PropogateAlways = true;
+                    pta.PropagateAlways = true;
                     jmp.PostTakenAssignment = pta;
                     instructions.Add(jmp);
                     break;
@@ -599,7 +599,7 @@ public class Lua53Decompiler : ILanguageDecompiler
                             BinOp.OperationType.OpEqual));
                     var pta2 = new Assignment(irFunction.GetRegister(a),
                         new IdentifierReference(irFunction.GetRegister(a + 1)));
-                    pta2.PropogateAlways = true;
+                    pta2.PropagateAlways = true;
                     jmp2.PostTakenAssignment = pta2;
                     instructions.Add(jmp2);
                     break;
@@ -657,7 +657,6 @@ public class Lua53Decompiler : ILanguageDecompiler
                     }
 
                     throw new Exception($@"Unimplemented opcode {OpProperties[opcode].OpName}");
-                    break;
             }
 
             foreach (var inst in instructions)

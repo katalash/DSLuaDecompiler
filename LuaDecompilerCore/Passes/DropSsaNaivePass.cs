@@ -56,35 +56,32 @@ public class DropSsaNaivePass : IPass
             visited.Add(b);
             // A set of mappings to rename variables induced by phi functions
             var replacements = new Dictionary<Identifier, Identifier>();
-            foreach (var succ in b.Successors)
+            foreach (var successors in b.Successors)
             {
-                Dictionary<Identifier, Identifier> previsited = null;
-                if (!visited.Contains(succ))
+                Dictionary<Identifier, Identifier>? preVisited = null;
+                if (!visited.Contains(successors))
                 {
-                    previsited = Visit(succ);
+                    preVisited = Visit(successors);
                 }
                 else
                 {
-                    if (remapCache.ContainsKey(succ))
+                    if (remapCache.TryGetValue(successors, out var value))
                     {
-                        previsited = remapCache[succ];
+                        preVisited = value;
                     }
                 }
-                if (previsited != null)
+                if (preVisited != null)
                 {
-                    foreach (var rep in previsited)
+                    foreach (var rep in preVisited)
                     {
-                        if (!replacements.ContainsKey(rep.Key))
-                        {
-                            replacements.Add(rep.Key, rep.Value);
-                        }
+                        replacements.TryAdd(rep.Key, rep.Value);
                     }
                 }
             }
 
 
             // First rename and delete phi functions by renaming the arguments to the assignment
-            var phiuses = new HashSet<Identifier>();
+            var phiUses = new HashSet<Identifier>();
             foreach (var phi in b.PhiFunctions)
             {
                 // If the def is renamed by a later instruction, go ahead and rename it
@@ -95,7 +92,10 @@ public class DropSsaNaivePass : IPass
                 var def = phi.Value.Left;
                 foreach (var use in phi.Value.Right)
                 {
-                    phiuses.Add(use);
+                    if (use == null) 
+                        continue;
+                    
+                    phiUses.Add(use);
                     if (replacements.TryGetValue(use, out var replacement))
                     {
                         if (replacement != def)
@@ -134,7 +134,7 @@ public class DropSsaNaivePass : IPass
                     {
                         inst.RenameDefines(def, replacements[def]);
                         // Only retire this replacement if it wasn't used by a phi function in this block
-                        if (!phiuses.Contains(def))
+                        if (!phiUses.Contains(def))
                         {
                             replacements.Remove(def);
                         }

@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Linq;
 
 namespace LuaDecompilerCore.IR
 {
@@ -6,7 +7,7 @@ namespace LuaDecompilerCore.IR
     /// A single instruction or statement, initially translated from a Lua opcode,
     /// but can be simplified into more powerful "instructions"
     /// </summary>
-    public abstract class Instruction : IIrNode
+    public abstract class Instruction
     {
         /// <summary>
         /// The original lua bytecode op within the function that generated this instruction
@@ -21,8 +22,25 @@ namespace LuaDecompilerCore.IR
         /// <summary>
         /// Backpointer to the containing block. Used for some analysis
         /// </summary>
-        public CFG.BasicBlock Block = null;
+        public CFG.BasicBlock? Block = null;
 
+        public bool HasClosure => GetExpressions().Any(e => e is Closure);
+        
+        /// <summary>
+        /// True if this is an assignment instruction that assigns a closure
+        /// </summary>
+        public bool IsClosureAssignment => this is Assignment { Right: Closure };
+
+        /// <summary>
+        /// True if this instruction pattern matches to a function declaration
+        /// </summary>
+        public bool IsFunctionDeclaration => this is Assignment
+        {
+            IsSingleAssignment: true,
+            Left: { HasIndex: false, Identifier.IsGlobal: true },
+            Right: Closure
+        };
+        
         public virtual void Parenthesize() { }
 
         /// <summary>
@@ -48,17 +66,10 @@ namespace LuaDecompilerCore.IR
             return new List<Expression>();
         }
 
-        public virtual void RenameDefines(Identifier orig, Identifier newIdentifier) { }
+        public virtual void RenameDefines(Identifier original, Identifier newIdentifier) { }
 
-        public virtual void RenameUses(Identifier orig, Identifier newIdentifier) { }
+        public virtual void RenameUses(Identifier original, Identifier newIdentifier) { }
 
         public virtual bool ReplaceUses(Identifier orig, Expression sub) { return false; }
-
-        public virtual string WriteLua(int indentLevel)
-        {
-            return ToString();
-        }
-
-        public abstract void Accept(IIrVisitor visitor);
     }
 }
