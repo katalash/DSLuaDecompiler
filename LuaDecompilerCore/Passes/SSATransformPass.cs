@@ -129,7 +129,7 @@ public class SsaTransformPass : IPass
                     if (phi.Value.Right[index] is { } k && stacks[k].Count > 0)
                     {
                         phi.Value.Right[index] = stacks[k].Peek();
-                        k.UseCount++;
+                        stacks[k].Peek().UseCount++;
                     }
                     else
                     {
