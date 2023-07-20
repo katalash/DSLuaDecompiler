@@ -385,7 +385,7 @@ namespace LuaDecompilerCore.IR
             var liveOut = new List<BitArray>(BlockList.Count);
             foreach (var block in BlockList)
             {
-                killedIdentifiers.Add(BitArrayFromSet(block.KilledIdentifiers));
+                killedIdentifiers.Add(BitArrayFromSet(block.KilledIdentifiers, true));
                 upwardExposedIdentifiers.Add(BitArrayFromSet(block.UpwardExposedIdentifiers));
                 liveOut.Add(new BitArray(allRegisters.Count, false));
             }
