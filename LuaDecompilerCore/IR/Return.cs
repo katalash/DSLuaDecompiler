@@ -25,14 +25,12 @@ namespace LuaDecompilerCore.IR
             ReturnExpressions.ForEach(x => x.Parenthesize());
         }
 
-        public override HashSet<Identifier> GetUses(bool registersOnly)
+        public override void GetUses(HashSet<Identifier> uses, bool registersOnly)
         {
-            var uses = new HashSet<Identifier>();
             foreach (var exp in ReturnExpressions)
             {
-                uses.UnionWith(exp.GetUses(registersOnly));
+                exp.GetUses(uses, registersOnly);
             }
-            return uses;
         }
 
         public override void RenameUses(Identifier original, Identifier newIdentifier)

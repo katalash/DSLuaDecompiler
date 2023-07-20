@@ -44,12 +44,31 @@ namespace LuaDecompilerCore.IR
         public virtual void Parenthesize() { }
 
         /// <summary>
+        /// Gets all the identifiers that are defined by this instruction and adds them to the input set
+        /// </summary>
+        public virtual void GetDefines(HashSet<Identifier> defines, bool registersOnly)
+        {
+            
+        }
+        
+        /// <summary>
+        /// Gets all the identifiers that are used (but not defined) by this instruction and adds them
+        /// to the input set
+        /// </summary>
+        public virtual void GetUses(HashSet<Identifier> uses, bool registersOnly)
+        {
+            
+        }
+        
+        /// <summary>
         /// Gets all the identifiers that are defined by this instruction
         /// </summary>
         /// <returns></returns>
         public virtual HashSet<Identifier> GetDefines(bool registersOnly)
         {
-            return new HashSet<Identifier>();
+            var defines = new HashSet<Identifier>();
+            GetDefines(defines, registersOnly);
+            return defines;
         }
 
         /// <summary>
@@ -58,7 +77,9 @@ namespace LuaDecompilerCore.IR
         /// <returns></returns>
         public virtual HashSet<Identifier> GetUses(bool registersOnly)
         {
-            return new HashSet<Identifier>();
+            var uses = new HashSet<Identifier>();
+            GetUses(uses, registersOnly);
+            return uses;
         }
 
         public virtual List<Expression> GetExpressions()

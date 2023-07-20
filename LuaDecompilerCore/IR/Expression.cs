@@ -10,9 +10,16 @@ namespace LuaDecompilerCore.IR
     /// </summary>
     public abstract class Expression
     {
-        public virtual HashSet<Identifier> GetUses(bool registerOnly)
+        public virtual void GetUses(HashSet<Identifier> uses, bool registersOnly)
         {
-            return new HashSet<Identifier>();
+            
+        }
+        
+        public virtual HashSet<Identifier> GetUses(bool registersOnly)
+        {
+            var uses = new HashSet<Identifier>();
+            GetUses(uses, registersOnly);
+            return uses;
         }
 
         public virtual void RenameUses(Identifier original, Identifier newIdentifier) { }
@@ -154,10 +161,13 @@ namespace LuaDecompilerCore.IR
             Function = fun;
         }
 
-        public override HashSet<Identifier> GetUses(bool registerOnly)
+        public override void GetUses(HashSet<Identifier> uses, bool registersOnly)
         {
-            return Function.UpValueBindings.Where(
-                e => !registerOnly || e.Type == Identifier.IdentifierType.Register).ToHashSet();
+            foreach (var binding in Function.UpValueBindings)
+            {
+                if (!registersOnly || binding.IsRegister)
+                    uses.Add(binding);
+            }
         }
 
         public override void RenameUses(Identifier original, Identifier newIdentifier)
@@ -203,18 +213,16 @@ namespace LuaDecompilerCore.IR
             }
         }
 
-        public override HashSet<Identifier> GetUses(bool registerOnly)
+        public override void GetUses(HashSet<Identifier> uses, bool registersOnly)
         {
-            var ret = new HashSet<Identifier>();
-            if ((!registerOnly || Identifier.Type == Identifier.IdentifierType.Register) && !Identifier.IsClosureBound)
+            if ((!registersOnly || Identifier.IsRegister) && !Identifier.IsClosureBound)
             {
-                ret.Add(Identifier);
+                uses.Add(Identifier);
             }
             foreach (var idx in TableIndices)
             {
-                ret.UnionWith(idx.GetUses(registerOnly));
+                idx.GetUses(uses, registersOnly);
             }
-            return ret;
         }
 
         public override void RenameUses(Identifier original, Identifier newIdentifier)
@@ -323,14 +331,12 @@ namespace LuaDecompilerCore.IR
             }
         }
 
-        public override HashSet<Identifier> GetUses(bool registerOnly)
+        public override void GetUses(HashSet<Identifier> uses, bool registersOnly)
         {
-            var ret = new HashSet<Identifier>();
             foreach (var arg in Expressions)
             {
-                ret.UnionWith(arg.GetUses(registerOnly));
+                arg.GetUses(uses, registersOnly);
             }
-            return ret;
         }
 
         public override void RenameUses(Identifier original, Identifier newIdentifier)
@@ -407,14 +413,12 @@ namespace LuaDecompilerCore.IR
             Expressions.ForEach(x => x.Parenthesize());
         }
 
-        public override HashSet<Identifier> GetUses(bool registerOnly)
+        public override void GetUses(HashSet<Identifier> uses, bool registersOnly)
         {
-            var ret = new HashSet<Identifier>();
             foreach (var arg in Expressions)
             {
-                ret.UnionWith(arg.GetUses(registerOnly));
+                arg.GetUses(uses, registersOnly);
             }
-            return ret;
         }
 
         public override void RenameUses(Identifier original, Identifier newIdentifier)
@@ -643,12 +647,10 @@ namespace LuaDecompilerCore.IR
             _ => false
         };
 
-        public override HashSet<Identifier> GetUses(bool registerOnly)
+        public override void GetUses(HashSet<Identifier> uses, bool registersOnly)
         {
-            var ret = new HashSet<Identifier>();
-            ret.UnionWith(Left.GetUses(registerOnly));
-            ret.UnionWith(Right.GetUses(registerOnly));
-            return ret;
+            Left.GetUses(uses, registersOnly);
+            Right.GetUses(uses, registersOnly);
         }
 
         public override void RenameUses(Identifier original, Identifier newIdentifier)
@@ -731,11 +733,9 @@ namespace LuaDecompilerCore.IR
             Operation = op;
         }
 
-        public override HashSet<Identifier> GetUses(bool registerOnly)
+        public override void GetUses(HashSet<Identifier> uses, bool registersOnly)
         {
-            var ret = new HashSet<Identifier>();
-            ret.UnionWith(Expression.GetUses(registerOnly));
-            return ret;
+            Expression.GetUses(uses, registersOnly);
         }
 
         public override void RenameUses(Identifier original, Identifier newIdentifier)
@@ -822,15 +822,14 @@ namespace LuaDecompilerCore.IR
             Args.ForEach(x => x.Parenthesize());
         }
 
-        public override HashSet<Identifier> GetUses(bool registerOnly)
+        public override void GetUses(HashSet<Identifier> uses, bool registersOnly)
         {
             var ret = new HashSet<Identifier>();
             foreach (var arg in Args)
             {
-                ret.UnionWith(arg.GetUses(registerOnly));
+                arg.GetUses(uses, registersOnly);
             }
-            ret.UnionWith(Function.GetUses(registerOnly));
-            return ret;
+            Function.GetUses(uses, registersOnly);
         }
 
         public override void RenameUses(Identifier original, Identifier newIdentifier)

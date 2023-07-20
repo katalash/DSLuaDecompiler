@@ -33,9 +33,12 @@ namespace LuaDecompilerCore.IR
             Condition?.Parenthesize();
         }
 
-        public override HashSet<Identifier> GetUses(bool registersOnly)
+        public override void GetUses(HashSet<Identifier> uses, bool registersOnly)
         {
-            return Condition != null ? Condition.GetUses(registersOnly) : base.GetUses(registersOnly);
+            if (Condition != null)
+                Condition.GetUses(uses, registersOnly);
+            else
+                base.GetUses(uses, registersOnly);
         }
 
         public override void RenameUses(Identifier original, Identifier newIdentifier)

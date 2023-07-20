@@ -93,29 +93,26 @@ namespace LuaDecompilerCore.IR
             Right?.Parenthesize();
         }
 
-        public override HashSet<Identifier> GetDefines(bool registersOnly)
+        public override void GetDefines(HashSet<Identifier> set, bool registersOnly)
         {
-            var defines = new HashSet<Identifier>();
             foreach (var id in LeftList)
             {
                 // If the reference is not an indirect one (i.e. not an array access), then it is a definition
                 if (!id.HasIndex && (!registersOnly || id.Identifier.Type == Identifier.IdentifierType.Register))
                 {
-                    defines.Add(id.Identifier);
+                    set.Add(id.Identifier);
                 }
             }
-            return defines;
         }
 
-        public override HashSet<Identifier> GetUses(bool registersOnly)
+        public override void GetUses(HashSet<Identifier> uses, bool registersOnly)
         {
-            var uses = new HashSet<Identifier>();
             foreach (var id in LeftList)
             {
                 // If the reference is an indirect one (i.e. an array access), then it is a use
                 if (id.HasIndex && (!registersOnly || id.Identifier.Type == Identifier.IdentifierType.Register))
                 {
-                    uses.UnionWith(id.GetUses(registersOnly));
+                    id.GetUses(uses, registersOnly);
                 }
                 // Indices are also uses
                 if (id.HasIndex)
@@ -126,9 +123,8 @@ namespace LuaDecompilerCore.IR
                     }
                 }
             }
-            if (Right != null)
-                uses.UnionWith(Right.GetUses(registersOnly));
-            return uses;
+
+            Right?.GetUses(uses, registersOnly);
         }
 
         public override void RenameDefines(Identifier original, Identifier newIdentifier)
