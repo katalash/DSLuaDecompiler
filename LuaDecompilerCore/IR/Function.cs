@@ -1,4 +1,6 @@
 ﻿using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
 using LuaDecompilerCore.CFG;
 
 namespace LuaDecompilerCore.IR
@@ -210,48 +212,82 @@ namespace LuaDecompilerCore.IR
         /// </summary>
         public void ComputeDominance()
         {
-            // Start block only has itself in dominance set
-            BeginBlock.Dominance.Clear();
-            BeginBlock.DominanceTreeSuccessors.Clear();
-            BeginBlock.Dominance.Add(BeginBlock);
+            // Use Cooper-Harvey-Kennedy algorithm for fast computation of dominance
+            // http://www.hipersoft.rice.edu/grads/publications/dom14.pdf
 
-            // All blocks but the start have everything dominate them to begin the algorithm
-            for (var i = 1; i < BlockList.Count; i++)
+            // List the blocks in reverse postorder and initialize the immediate dominator
+            var reversePostorderBlocks = NumberReversePostorder(false);
+            foreach (var block in reversePostorderBlocks)
             {
-                BlockList[i].Dominance = new HashSet<BasicBlock>(BlockList);
-                BlockList[i].DominanceTreeSuccessors.Clear();
+                block.ImmediateDominator = block;
+                block.Dominance.Clear();
+                block.DominanceTreeSuccessors.Clear();
             }
 
-            // Iterative solver of dominance data flow equation
+            BasicBlock Intersect(BasicBlock b1, BasicBlock b2)
+            {
+                var finger1 = b1;
+                var finger2 = b2;
+                while (finger1 != finger2)
+                {
+                    while (finger1.ReversePostorderNumber > finger2.ReversePostorderNumber)
+                    {
+                        finger1 = reversePostorderBlocks[finger1.ReversePostorderNumber].ImmediateDominator;
+                    }
+
+                    while (finger2.ReversePostorderNumber > finger1.ReversePostorderNumber)
+                    {
+                        finger2 = reversePostorderBlocks[finger2.ReversePostorderNumber].ImmediateDominator;
+                    }
+                }
+
+                return finger1;
+            }
+            
             var changed = true;
             while (changed)
             {
                 changed = false;
-                for (var i = 1; i < BlockList.Count; i++)
+                foreach (var block in reversePostorderBlocks)
                 {
-                    var temp = new HashSet<BasicBlock>(BlockList);
-                    foreach (var p in BlockList[i].Predecessors)
+                    // Begin block is always its only dominator
+                    if (block == BeginBlock) continue;
+                    
+                    // Intersect all the predecessors to find the new dominator
+                    var firstProcessed = block.Predecessors
+                        .First(b => block.ReversePostorderNumber > b.ReversePostorderNumber);
+                    var newDominator = firstProcessed;
+                    foreach (var predecessor in block.Predecessors)
                     {
-                        temp.IntersectWith(p.Dominance);
+                        if (predecessor == firstProcessed) continue;
+                        if (predecessor.ImmediateDominator != predecessor || predecessor == BeginBlock)
+                        {
+                            newDominator = Intersect(predecessor, newDominator);
+                        }
                     }
-                    temp.UnionWith(new[] { BlockList[i] });
-                    if (!temp.SetEquals(BlockList[i].Dominance))
-                    {
-                        BlockList[i].Dominance = temp;
-                        changed = true;
-                    }
+
+                    // if dominator is unchanged go to the next block
+                    if (block.ImmediateDominator == newDominator) continue;
+                    
+                    // We have a new dominator
+                    block.ImmediateDominator = newDominator;
+                    changed = true;
                 }
             }
-
-            // Compute the immediate dominator
-            for (var i = 1; i < BlockList.Count; i++)
+            
+            // Now build the dominance set and dominance tree
+            foreach (var block in reversePostorderBlocks)
             {
-                BlockList[i].ComputeImmediateDominator();
+                block.Dominance.Add(block);
+                if (block.ImmediateDominator == block) continue;
+                block.Dominance.Add(block.ImmediateDominator);
+                block.ImmediateDominator.DominanceTreeSuccessors.Add(block);
+                block.Dominance.UnionWith(block.ImmediateDominator.Dominance);
             }
         }
 
         /// <summary>
-        /// Compute the dominance frontier for each block
+        /// Compute the dominance frontier for each blockFollow = {BasicBlock} null 
         /// </summary>
         public void ComputeDominanceFrontier()
         {
@@ -295,15 +331,15 @@ namespace LuaDecompilerCore.IR
                 foreach (var b in BlockList)
                 {
                     var temp = new HashSet<Identifier>();
-                    foreach (var succ in b.Successors)
+                    foreach (var successor in b.Successors)
                     {
                         var equation = new HashSet<Identifier>(allRegisters);
-                        foreach (var kill in succ.KilledIdentifiers)
+                        foreach (var kill in successor.KilledIdentifiers)
                         {
                             equation.Remove(kill);
                         }
-                        equation.IntersectWith(succ.LiveOut);
-                        equation.UnionWith(succ.UpwardExposedIdentifiers);
+                        equation.IntersectWith(successor.LiveOut);
+                        equation.UnionWith(successor.UpwardExposedIdentifiers);
                         temp.UnionWith(equation);
                     }
                     if (!b.LiveOut.SetEquals(temp))
@@ -315,19 +351,23 @@ namespace LuaDecompilerCore.IR
             }
         }
 
-        public List<BasicBlock> PostorderTraversal(bool reverse)
+        public List<BasicBlock> PostorderTraversal(bool reverse, bool skipEndBlock = true)
         {
             var ret = new List<BasicBlock>();
-            var visited = new HashSet<BasicBlock> { EndBlock };
+            var visited = new HashSet<BasicBlock>();
+            if (skipEndBlock)
+            {
+                visited.Add(EndBlock);
+            }
 
             void Visit(BasicBlock b)
             {
                 visited.Add(b);
-                foreach (var succ in b.Successors)
+                foreach (var successor in b.Successors)
                 {
-                    if (!visited.Contains(succ))
+                    if (!visited.Contains(successor))
                     {
-                        Visit(succ);
+                        Visit(successor);
                     }
                 }
                 ret.Add(b);
@@ -345,13 +385,15 @@ namespace LuaDecompilerCore.IR
         /// <summary>
         /// Labels all the blocks in the CFG with a number in order of their reverse postorder traversal
         /// </summary>
-        public void NumberReversePostorder()
+        public List<BasicBlock> NumberReversePostorder(bool skipEndBlock = true)
         {
-            var ordering = PostorderTraversal(true);
+            var ordering = PostorderTraversal(true, skipEndBlock);
             for (var i = 0; i < ordering.Count; i++)
             {
                 ordering[i].ReversePostorderNumber = i;
             }
+
+            return ordering;
         }
         
         public override string? ToString()

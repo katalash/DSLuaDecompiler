@@ -207,6 +207,7 @@ public class BuildControlFlowGraphPass : IPass
             if (b.Successors.Count == 0)
             {
                 b.Successors.Add(f.EndBlock);
+                f.EndBlock.Predecessors.Add(b);
             }
         }
 

@@ -16,8 +16,6 @@ public class SsaTransformPass : IPass
     {
         var allRegisters = f.GetAllRegisters();
         allRegisters.UnionWith(new HashSet<Identifier>(f.Parameters));
-        f.ComputeDominance();
-        f.ComputeDominanceFrontier();
         f.ComputeGlobalLiveness(allRegisters);
 
         // Now insert all the needed phi functions
