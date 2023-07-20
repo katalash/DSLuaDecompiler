@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System.Collections;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using LuaDecompilerCore.CFG;
@@ -207,6 +208,14 @@ namespace LuaDecompilerCore.IR
             return b;
         }
 
+        public void RefreshBlockIndices()
+        {
+            for (int i = 0; i < BlockList.Count; i++)
+            {
+                BlockList[i].BlockIndex = i;
+            }
+        }
+
         /// <summary>
         /// Computes the dominance sets for all the nodes as well as the dominance tree
         /// </summary>
@@ -315,39 +324,101 @@ namespace LuaDecompilerCore.IR
         public void ComputeGlobalLiveness(HashSet<Identifier> allRegisters)
         {
             ComputeDominanceFrontier();
-            foreach (var b in BlockList)
+            RefreshBlockIndices();
+            foreach (var block in BlockList)
             {
-                b.KilledIdentifiers.Clear();
-                b.UpwardExposedIdentifiers.Clear();
-                b.LiveOut.Clear();
-                GlobalIdentifiers.UnionWith(b.ComputeKilledAndUpwardExposed());
+                block.KilledIdentifiers.Clear();
+                block.UpwardExposedIdentifiers.Clear();
+                GlobalIdentifiers.UnionWith(block.ComputeKilledAndUpwardExposed());
+            }
+            
+            // Map each identifier to an ID
+            var identifierToId = new Dictionary<Identifier, int>(allRegisters.Count);
+            int index = 0;
+            var allRegistersArray = allRegisters.ToArray();
+            foreach (var register in allRegistersArray)
+            {
+                identifierToId[register] = index++;
+            }
+
+            BitArray BitArrayFromSet(HashSet<Identifier> set, bool invert = false)
+            {
+                var array = new BitArray(allRegisters.Count, invert);
+                foreach (var identifier in set)
+                {
+                    array.Set(identifierToId[identifier], !invert);
+                }
+
+                return array;
+            }
+
+            HashSet<Identifier> SetFromBitArray(BitArray array)
+            {
+                var set = new HashSet<Identifier>();
+                for (int i = 0; i < array.Count; i++)
+                {
+                    if (array[i])
+                        set.Add(allRegistersArray[i]);
+                }
+
+                return set;
+            }
+
+            // Because the class doesn't have a built in way to compare for some reason...
+            bool BitArrayEqual(BitArray a, BitArray b)
+            {
+                if (a.Count != b.Count)
+                    return false;
+                
+                for (var i = 0; i < a.Count; i++)
+                {
+                    if (a[i] != b[i])
+                        return false;
+                }
+
+                return true;
+            }
+            
+            // Build bitsets for needed sets from the blocks
+            var killedIdentifiers = new List<BitArray>(BlockList.Count);
+            var upwardExposedIdentifiers = new List<BitArray>(BlockList.Count);
+            var liveOut = new List<BitArray>(BlockList.Count);
+            foreach (var block in BlockList)
+            {
+                killedIdentifiers.Add(BitArrayFromSet(block.KilledIdentifiers));
+                upwardExposedIdentifiers.Add(BitArrayFromSet(block.UpwardExposedIdentifiers));
+                liveOut.Add(new BitArray(allRegisters.Count, false));
             }
 
             // Compute live out for each block iteratively
+            var equation = new BitArray(allRegisters.Count);
+            var temp = new BitArray(allRegisters.Count);
             var changed = true;
             while (changed)
             {
                 changed = false;
-                foreach (var b in BlockList)
+                foreach (var block in BlockList)
                 {
-                    var temp = new HashSet<Identifier>();
-                    foreach (var successor in b.Successors)
+                    temp.SetAll(false);
+                    foreach (var successor in block.Successors)
                     {
-                        var equation = new HashSet<Identifier>(allRegisters);
-                        foreach (var kill in successor.KilledIdentifiers)
-                        {
-                            equation.Remove(kill);
-                        }
-                        equation.IntersectWith(successor.LiveOut);
-                        equation.UnionWith(successor.UpwardExposedIdentifiers);
-                        temp.UnionWith(equation);
+                        equation.SetAll(true);
+                        equation.And(killedIdentifiers[successor.BlockIndex]);
+                        equation.And(liveOut[successor.BlockIndex]);
+                        equation.Or(upwardExposedIdentifiers[successor.BlockIndex]);
+                        temp.Or(equation);
                     }
-                    if (!b.LiveOut.SetEquals(temp))
+                    if (!BitArrayEqual(liveOut[block.BlockIndex], temp))
                     {
-                        b.LiveOut = temp;
+                        (liveOut[block.BlockIndex], temp) = (temp, liveOut[block.BlockIndex]);
                         changed = true;
                     }
                 }
+            }
+
+            foreach (var block in BlockList)
+            {
+                block.LiveOut = SetFromBitArray(liveOut[block.BlockIndex]);
             }
         }
 

@@ -34,6 +34,7 @@ namespace LuaDecompilerCore.CFG
         public List<BasicBlock> DominanceTreeSuccessors;
 
         // Live analysis stuff
+        public int BlockIndex;
         public HashSet<Identifier> UpwardExposedIdentifiers;
         public HashSet<Identifier> KilledIdentifiers;
         public HashSet<Identifier> LiveOut;
