@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
+﻿using System.Collections.Generic;
 using LuaDecompilerCore.CFG;
 
 namespace LuaDecompilerCore.IR
@@ -355,6 +352,11 @@ namespace LuaDecompilerCore.IR
             {
                 ordering[i].ReversePostorderNumber = i;
             }
+        }
+        
+        public override string? ToString()
+        {
+            return FunctionPrinter.DebugPrintFunction(this);
         }
     }
 }

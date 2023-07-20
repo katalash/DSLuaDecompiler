@@ -281,5 +281,10 @@ namespace LuaDecompilerCore.CFG
             }
             return ret;
         }
+        
+        public override string? ToString()
+        {
+            return FunctionPrinter.DebugPrintBasicBlock(this);
+        }
     }
 }

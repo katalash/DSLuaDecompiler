@@ -71,5 +71,10 @@ namespace LuaDecompilerCore.IR
         public virtual void RenameUses(Identifier original, Identifier newIdentifier) { }
 
         public virtual bool ReplaceUses(Identifier orig, Expression sub) { return false; }
+
+        public override string? ToString()
+        {
+            return FunctionPrinter.DebugPrintInstruction(this);
+        }
     }
 }

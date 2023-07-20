@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
 using System.Text;
@@ -10,16 +9,36 @@ namespace LuaDecompilerCore;
 
 public class FunctionPrinter
 {
-    private StringBuilder _builder = new StringBuilder();
+    private StringBuilder _builder = new();
     private int _indentLevel;
+    private bool _debugPrint;
 
-    [DebuggerDisplay("Hello")]
-    internal class ExpressionDebugView
+    internal static string? DebugPrintFunction(Function function)
     {
-        public ExpressionDebugView(Expression expression)
-        {
-            
-        }
+        var printer = new FunctionPrinter { _debugPrint = true };
+        printer.VisitFunction(function);
+        return printer._builder.ToString();
+    }
+    
+    internal static string? DebugPrintBasicBlock(BasicBlock basicBlock)
+    {
+        var printer = new FunctionPrinter { _debugPrint = true };
+        printer.VisitBasicBlock(basicBlock);
+        return printer._builder.ToString();
+    }
+    
+    internal static string? DebugPrintInstruction(Instruction instruction)
+    {
+        var printer = new FunctionPrinter { _debugPrint = true };
+        printer.VisitInstruction(instruction);
+        return printer._builder.ToString();
+    }
+    
+    internal static string? DebugPrintExpression(Expression expression)
+    {
+        var printer = new FunctionPrinter { _debugPrint = true };
+        printer.VisitExpression(expression);
+        return printer._builder.ToString();
     }
     
     public string PrintFunction(Function function)
@@ -161,7 +180,7 @@ public class FunctionPrinter
 
     private void VisitFunction(Function function, string? name = null)
     {
-        if (function.FunctionId != 0)
+        if (function.FunctionId != 0 || _debugPrint)
         {
             Append(name == null ? @"function (" : $@"function {name}(");
             for (var i = 0; i < function.Parameters.Count; i++)
@@ -177,6 +196,10 @@ public class FunctionPrinter
                 Append(function.Parameters.Count > 0 ? ", ..." : "...");
             }
             Append(')');
+            
+            if (_debugPrint)
+                return;
+            
             NewLine();
             _indentLevel += 1;
         }
@@ -248,6 +271,12 @@ public class FunctionPrinter
 
     private void VisitBasicBlock(BasicBlock basicBlock, bool printInfiniteLoop = false)
     {
+        if (_debugPrint)
+        {
+            Append(basicBlock.Name);
+            return;
+        }
+        
         var count = basicBlock.IsInfiniteLoop && !printInfiniteLoop ? 1 : basicBlock.Instructions.Count;
         var begin = basicBlock.IsInfiniteLoop && printInfiniteLoop ? 1 : 0;
         for (var j = begin; j < count; j++)
