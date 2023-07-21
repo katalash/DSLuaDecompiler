@@ -11,11 +11,11 @@ public class PeepholeOptimizationPass : IPass
     {
         foreach (var b in f.BlockList)
         {
-            for (int i = 0; i < b.Instructions.Count; i++)
+            for (var i = 0; i < b.Instructions.Count; i++)
             {
                 if (b.Instructions[i] is Jump jmp1)
                 {
-                    Instruction dest = b.Instructions[b.Instructions.IndexOf(jmp1.Dest) + 1];
+                    var dest = b.Instructions[b.Instructions.IndexOf(jmp1.Dest) + 1];
                     while (dest is Jump { Conditional: false } jmp2)
                     {
                         jmp1.Dest.UsageCount--;

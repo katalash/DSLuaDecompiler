@@ -307,7 +307,7 @@ public class ExpressionPropagationPass : IPass
                               ((i - 1 >= 0 && b.Instructions[i - 1] == use.DefiningInstruction) || 
                                inst is Assignment { IsListAssignment: true }) && 
                               !f.LocalVariables.Contains(use)) || 
-                             a.PropagateAlways) && !a.LeftList[0].Identifier.IsClosureBound)
+                             a.PropagateAlways) && !a.Left.Identifier.IsClosureBound)
                         {
                             // Don't substitute if this use's define was defined before the code gen for the function call even began
                             if (!a.PropagateAlways && inst is Assignment { Right: FunctionCall fc } && 
@@ -348,13 +348,12 @@ public class ExpressionPropagationPass : IPass
                 for (var i = 0; i < b.Instructions.Count; i++)
                 {
                     var inst = b.Instructions[i];
-                    if (inst is Assignment { Right: FunctionCall fc } a && fc.Args.Count > 0 &&
-                        fc.Args[0] is IdentifierReference { HasIndex: false } ir && ir.Identifier.UseCount == 2 &&
-                        i > 0 && b.Instructions[i - 1] is Assignment a2 && a2.LeftList.Count == 1 &&
-                        !a2.LeftList[0].HasIndex && a2.LeftList[0].Identifier == ir.Identifier &&
+                    if (inst is Assignment { Right: FunctionCall { Args.Count: > 0 } fc } a &&
+                        fc.Args[0] is IdentifierReference { HasIndex: false, Identifier.UseCount: 2 } ir &&
+                        i > 0 && b.Instructions[i - 1] is Assignment { IsSingleAssignment: true, Left.HasIndex: false } a2 && a2.Left.Identifier == ir.Identifier &&
                         a2.Right is IdentifierReference or Constant)
                     {
-                        a.ReplaceUses(a2.LeftList[0].Identifier, a2.Right);
+                        a.ReplaceUses(a2.Left.Identifier, a2.Right);
                         b.Instructions.RemoveAt(i - 1);
                         i--;
                         changed = true;

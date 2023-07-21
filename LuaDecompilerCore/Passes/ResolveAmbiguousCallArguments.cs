@@ -50,7 +50,7 @@ public class ResolveAmbiguousCallArguments : IPass
                         Right: FunctionCall { HasAmbiguousReturnCount: true }
                     } a)
                 {
-                    lastAmbiguousReturn = a.LeftList[0].Identifier;
+                    lastAmbiguousReturn = a.Left.Identifier;
                 }
             }
         }

@@ -25,22 +25,41 @@ public class MergeConditionalAssignmentsPass : IPass
         {
             for (int i = 0; i < b.Instructions.Count - 6; i++)
             {
-                // Big pattern match
-                if (b.Instructions[i] is Jump { Conditional: true } jmp &&
-                    b.Instructions[i + 1] is Assignment asscond1 && asscond1.LeftList.Count == 1 && asscond1.LeftList[0] is { } assignee && 
-                    asscond1.Right is Constant { ConstType: Constant.ConstantType.ConstBool, Boolean: false } &&
-                    b.Instructions[i + 2] is Jump jmp2 && !jmp2.Conditional &&
+                // Match conditional jump to label
+                if (b.Instructions[i] is Jump
+                    {
+                        Conditional: true
+                    } jmp &&
+                    // Register set to false
+                    b.Instructions[i + 1] is Assignment
+                    {
+                        IsSingleAssignment: true, 
+                        Left: { } assignee, 
+                        Right: Constant { ConstType: Constant.ConstantType.ConstBool, Boolean: false }
+                    } &&
+                    // Unconditional jump
+                    b.Instructions[i + 2] is Jump
+                    {
+                        Conditional: false
+                    } jmp2 &&
+                    // Label that is destination of original jump
                     b.Instructions[i + 3] is Label label1 && label1 == jmp.Dest &&
-                    b.Instructions[i + 4] is Assignment asscond2 && asscond2.LeftList.Count == 1 && asscond2.LeftList[0] is { } assignee2 && 
-                    assignee.Identifier == assignee2.Identifier && asscond2.Right is Constant { ConstType: Constant.ConstantType.ConstBool, Boolean: true } &&
+                    // Set same register to true
+                    b.Instructions[i + 4] is Assignment
+                    {
+                        IsSingleAssignment: true,
+                        Left: { } assignee2, 
+                        Right: Constant { ConstType: Constant.ConstantType.ConstBool, Boolean: true }
+                    } && assignee.Identifier == assignee2.Identifier &&
+                    // Label that is destination of the second jump
                     b.Instructions[i + 5] is Label label2 && label2 == jmp2.Dest)
                 {
                     if (jmp.Condition is BinOp bop)
                     {
                         bop.NegateCondition();
                     }
-                    var newassn = new Assignment(assignee, jmp.Condition);
-                    b.Instructions[i] = newassn;
+                    var newAssignment = new Assignment(assignee, jmp.Condition);
+                    b.Instructions[i] = newAssignment;
                     
                     // Don't remove the final label as it can be a jump destination sometimes
                     b.Instructions.RemoveRange(i + 1, 4);

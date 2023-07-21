@@ -39,7 +39,7 @@ public class SsaTransformPass : IPass
                     if (d != f.EndBlock && !d.PhiFunctions.ContainsKey(g))
                     {
                         // Heuristic: if the block is just a single return, we don't need phi functions
-                        if (d.Instructions.First() is Return r && r.ReturnExpressions.Count == 0)
+                        if (d.First is Return { ReturnExpressions.Count: 0 })
                         {
                             continue;
                         }

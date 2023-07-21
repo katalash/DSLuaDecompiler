@@ -41,12 +41,12 @@ public class SimplifyIfElseFollowChainPass : IPass
                 {
                     return false;
                 }
-                foreach (var succ in c.Successors)
+                foreach (var successor in c.Successors)
                 {
-                    if (!visited.Contains(succ))
+                    if (!visited.Contains(successor))
                     {
-                        queue.Enqueue(succ);
-                        visited.Add(succ);
+                        queue.Enqueue(successor);
+                        visited.Add(successor);
                     }
                 }
             }
@@ -69,9 +69,9 @@ public class SimplifyIfElseFollowChainPass : IPass
                 var highestFollowNumber = b.Follow.ReversePostorderNumber;
                 chain.Add(b);
                 while (!processed.Contains(iter) && iter.Successors.Count == 2 && 
-                       iter.Follow == iter.Successors[1] && iter.Successors[1].Instructions.Count == 1 && 
-                       IsIsolated(iter.Successors[0], b.Follow)
-                       && b.Successors[1] != iter && iter.Follow.Predecessors.Count == 1)
+                       iter.Follow == iter.EdgeFalse && iter.EdgeFalse.Instructions.Count == 1 && 
+                       IsIsolated(iter.EdgeTrue, b.Follow)
+                       && b.EdgeFalse != iter && iter.Follow.Predecessors.Count == 1)
                 {
                     processed.Add(iter);
                     iter = iter.Follow;
@@ -86,25 +86,25 @@ public class SimplifyIfElseFollowChainPass : IPass
                 {
                     foreach (var c in chain)
                     {
-                        var oldf = c.Follow;
-                        var newf = chain.Last().Follow;
+                        var oldFollow = c.Follow;
+                        var newFollow = chain.Last().Follow;
 
                         // Update any matching follows inside the dominance tree of the true branch
                         var toVisit = new Stack<CFG.BasicBlock>();
-                        toVisit.Push(c.Successors[0]);
+                        toVisit.Push(c.EdgeTrue);
                         while (toVisit.Count > 0)
                         {
                             var v = toVisit.Pop();
-                            if (v.Follow == oldf)
+                            if (v.Follow == oldFollow)
                             {
-                                v.Follow = newf;
+                                v.Follow = newFollow;
                             }
                             foreach (var d in v.DominanceTreeSuccessors)
                             {
                                 toVisit.Push(d);
                             }
                         }
-                        c.Follow = newf;
+                        c.Follow = newFollow;
                     }
                 }
             }

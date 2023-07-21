@@ -39,7 +39,9 @@ public class DetectLoopsPass : IPass
         //head.InLoop = true;
         head.IsHead = true;
         graph.LoopHeads[head] = head;
-        foreach (var l in interval.Where(x => x.ReversePostorderNumber >= beginNum && x.ReversePostorderNumber <= latch.ReversePostorderNumber))
+        foreach (var l in interval
+                     .Where(x => x.ReversePostorderNumber >= beginNum && 
+                                 x.ReversePostorderNumber <= latch.ReversePostorderNumber))
         {
             loopNodes.Add(l);
             l.InLoop = true;
@@ -57,22 +59,16 @@ public class DetectLoopsPass : IPass
                 type = latch.Successors.Any(next => !loopNodes.Contains(next)) ? CFG.LoopType.LoopPosttested : CFG.LoopType.LoopEndless;
             }
             graph.LoopTypes[head] = type;
-            List<CFG.AbstractGraph.Node> follows;
-            if (type == CFG.LoopType.LoopPretested)
+            List<CFG.AbstractGraph.Node> follows = type switch
             {
-                follows = head.Successors.Where(next => !loopNodes.Contains(next)).ToList();
-            }
-            else if (type == CFG.LoopType.LoopPosttested)
-            {
-                follows = latch.Successors.Where(next => !loopNodes.Contains(next)).ToList();
-            }
-            else
-            {
-                //follows = loopNodes.SelectMany(loopNode => loopNode.Successors.Where(next => !loopNodes.Contains(next))).ToList();
-                // Heuristic: make the follow any loop successor node with a post-order number larger than the latch
-                follows = loopNodes.SelectMany(loopNode => loopNode.Successors.Where(next => next.ReversePostorderNumber > latch.ReversePostorderNumber)).ToList();
-            }
-            
+                CFG.LoopType.LoopPretested => head.Successors.Where(next => !loopNodes.Contains(next)).ToList(),
+                CFG.LoopType.LoopPosttested => latch.Successors.Where(next => !loopNodes.Contains(next)).ToList(),
+                _ => loopNodes
+                    .SelectMany(loopNode => loopNode.Successors
+                        .Where(next => next.ReversePostorderNumber > latch.ReversePostorderNumber))
+                    .ToList()
+            };
+
             if (follows.Count == 0 && type != CFG.LoopType.LoopEndless)
             {
                 throw new Exception("No follow for loop found");

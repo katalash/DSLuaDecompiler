@@ -42,7 +42,7 @@ public class DetectGenericListInitializersPass : IPass
                             {
                                 a.LocalAssignments = a2.LocalAssignments;
                             }
-                            a2.LeftList[0].Identifier.UseCount--;
+                            a2.Left.Identifier.UseCount--;
                             b.Instructions.RemoveAt(i + 1);
                         }
                         else

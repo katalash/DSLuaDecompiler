@@ -22,10 +22,10 @@ public class EliminateRedundantAssignmentsPass : IPass
                 {
                     i += c.Function.UpValueCount;
                 }
-                else if (b.Instructions[i] is Assignment assn && assn.LeftList.Count == 1 && !assn.LeftList[0].HasIndex)
+                else if (b.Instructions[i] is Assignment { IsSingleAssignment: true, Left.HasIndex: false } assn)
                 {
                     if (assn.Right is IdentifierReference { HasIndex: false } reference &&
-                        assn.LeftList[0].Identifier == reference.Identifier)
+                        assn.Left.Identifier == reference.Identifier)
                     {
                         b.Instructions.RemoveAt(i);
                         i--;

@@ -19,25 +19,35 @@ public class MergeCompoundConditionalsPass : IPass
             f.NumberReversePostorder();
             foreach (var node in f.PostorderTraversal(false))
             {
-                if (node.Instructions.Count > 0 && node.Instructions.Last() is Jump 
+                if (node is 
                     { 
-                        Conditional: true, 
-                        Condition: BinOp 
-                        {
-                            Operation: BinOp.OperationType.OpLoopCompare
+                        HasInstructions: true, 
+                        Last: Jump 
+                        { 
+                            Conditional: true, 
+                            Condition: BinOp 
+                            {
+                                Operation: BinOp.OperationType.OpLoopCompare
+                            }
                         }
                     })
                 {
                     continue;
                 }
-                if (node.Successors.Count == 2 && node.Instructions.Last() is Jump { Condition: not null } n)
-                {
-                    var t = node.Successors[0];
-                    var e = node.Successors[1];
-                    if (t.Successors.Count == 2 && t.Instructions.First() is Jump { Condition: not null } tj && 
-                        t.Predecessors.Count == 1)
+                if (node is
                     {
-                        if (t.Successors[0] == e && t.Successors[1] != e)
+                        IsConditional: true, 
+                        Last: Jump
+                        {
+                            Condition: not null
+                        } n
+                    })
+                {
+                    var t = node.EdgeTrue;
+                    var e = node.EdgeFalse;
+                    if (t is { IsConditional: true, First: Jump { Condition: not null } tj, Predecessors.Count: 1 })
+                    {
+                        if (t.EdgeTrue == e && t.EdgeFalse != e)
                         {
                             //var newCond = new BinOp(new UnaryOp(n.Condition, UnaryOp.OperationType.OpNot), tj.Condition, BinOp.OperationType.OpOr);
                             Expression newCond;
@@ -57,19 +67,19 @@ public class MergeCompoundConditionalsPass : IPass
                                 node.Follow = node.Follow.ReversePostorderNumber > t.Follow.ReversePostorderNumber ? 
                                     node.Follow : t.Follow;
                             }
-                            node.Successors[1] = t.Successors[1];
-                            n.BlockDest = node.Successors[1];
-                            var i = t.Successors[1].Predecessors.IndexOf(t);
-                            t.Successors[1].Predecessors[i] = node;
-                            node.Successors[0] = e;
-                            i = t.Successors[0].Predecessors.IndexOf(t);
+                            node.EdgeFalse = t.EdgeFalse;
+                            n.BlockDest = node.EdgeFalse;
+                            var i = t.EdgeFalse.Predecessors.IndexOf(t);
+                            t.EdgeFalse.Predecessors[i] = node;
+                            node.EdgeTrue = e;
+                            i = t.EdgeTrue.Predecessors.IndexOf(t);
                             //e.Predecessors[i] = node;
                             f.BlockList.Remove(t);
                             e.Predecessors.Remove(t);
-                            t.Successors[1].Predecessors.Remove(t);
+                            t.EdgeFalse.Predecessors.Remove(t);
                             changed = true;
                         }
-                        else if (t.Successors[1] == e)
+                        else if (t.EdgeFalse == e)
                         {
                             var newCond = new BinOp(n.Condition, tj.Condition, BinOp.OperationType.OpAnd);
                             n.Condition = newCond;
@@ -79,18 +89,17 @@ public class MergeCompoundConditionalsPass : IPass
                                 node.Follow = node.Follow.ReversePostorderNumber > t.Follow.ReversePostorderNumber ? 
                                     node.Follow : t.Follow;
                             }
-                            node.Successors[0] = t.Successors[0];
-                            var i = t.Successors[0].Predecessors.IndexOf(t);
-                            t.Successors[0].Predecessors[i] = node;
+                            node.EdgeTrue = t.EdgeTrue;
+                            var i = t.EdgeTrue.Predecessors.IndexOf(t);
+                            t.EdgeTrue.Predecessors[i] = node;
                             e.Predecessors.Remove(t);
                             f.BlockList.Remove(t);
                             changed = true;
                         }
                     }
-                    else if (e.Successors.Count == 2 && e.Instructions.First() is Jump { Condition: not null } ej && 
-                             e.Predecessors.Count == 1)
+                    else if (e is { IsConditional: true, First: Jump { Condition: not null } ej, Predecessors.Count: 1 })
                     {
-                        if (e.Successors[0] == t)
+                        if (e.EdgeTrue == t)
                         {
                             var newCond = new BinOp(new UnaryOp(n.Condition, UnaryOp.OperationType.OpNot), 
                                 ej.Condition, BinOp.OperationType.OpOr);
@@ -101,15 +110,15 @@ public class MergeCompoundConditionalsPass : IPass
                                 node.Follow = node.Follow.ReversePostorderNumber > e.Follow.ReversePostorderNumber ? 
                                     node.Follow : e.Follow;
                             }
-                            node.Successors[1] = e.Successors[1];
-                            n.BlockDest = node.Successors[1];
-                            var i = e.Successors[1].Predecessors.IndexOf(e);
-                            e.Successors[1].Predecessors[i] = node;
+                            node.EdgeFalse = e.EdgeFalse;
+                            n.BlockDest = node.EdgeFalse;
+                            var i = e.EdgeFalse.Predecessors.IndexOf(e);
+                            e.EdgeFalse.Predecessors[i] = node;
                             t.Predecessors.Remove(e);
-                           f. BlockList.Remove(e);
+                            f.BlockList.Remove(e);
                             changed = true;
                         }
-                        else if (e.Successors[1] == t)
+                        else if (e.EdgeFalse == t)
                         {
                             // TODO: not correct
                             throw new Exception("this is used so fix it");
@@ -120,9 +129,9 @@ public class MergeCompoundConditionalsPass : IPass
                             {
                                 node.Follow = node.Follow.ReversePostorderNumber > e.Follow.ReversePostorderNumber ? node.Follow : e.Follow;
                             }
-                            node.Successors[1] = e.Successors[0];
-                            var i = e.Successors[0].Predecessors.IndexOf(e);
-                            e.Successors[0].Predecessors[i] = node;
+                            node.EdgeFalse = e.EdgeTrue;
+                            var i = e.EdgeTrue.Predecessors.IndexOf(e);
+                            e.EdgeTrue.Predecessors[i] = node;
                             t.Predecessors.Remove(e);
                             f.BlockList.Remove(e);
                             changed = true;

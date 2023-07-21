@@ -24,11 +24,11 @@ public class MergeConditionalJumpsPass : IPass
         // This algorithm is run until convergence
         foreach (var b in f.BlockList)
         {
-            for (int i = 0; i < b.Instructions.Count - 2; i++)
+            for (var i = 0; i < b.Instructions.Count - 2; i++)
             {
                 // Pattern match the prerequisites
-                if (b.Instructions[i] is Jump jmp1 && jmp1.Conditional &&
-                    b.Instructions[i + 1] is Jump jmp2 && !jmp2.Conditional &&
+                if (b.Instructions[i] is Jump { Conditional: true } jmp1 &&
+                    b.Instructions[i + 1] is Jump { Conditional: false } jmp2 &&
                     b.Instructions[i + 2] is Label shortLabel && jmp1.Dest == shortLabel)
                 {
                     // flip the condition and change the destination to the far jump. Then remove the following goto and label
@@ -39,7 +39,7 @@ public class MergeConditionalJumpsPass : IPass
                         b.Instructions.RemoveRange(i + 1, jmp1.Dest.UsageCount <= 0 ? 2 : 1);
                         jmp1.Dest = jmp2.Dest;
                     }
-                    else if ((jmp1.Condition is UnaryOp op2 && op2.Operation == UnaryOp.OperationType.OpNot) || jmp1.Condition is IdentifierReference)
+                    else if (jmp1.Condition is UnaryOp { Operation: UnaryOp.OperationType.OpNot } or IdentifierReference)
                     {
                         jmp1.Dest.UsageCount--;
                         b.Instructions.RemoveRange(i + 1, jmp1.Dest.UsageCount <= 0 ? 2 : 1);

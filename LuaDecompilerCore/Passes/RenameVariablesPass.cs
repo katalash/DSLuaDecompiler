@@ -38,8 +38,10 @@ public class RenameVariablesPass : IPass
                     var ll = 0;
                     foreach (var l in a.LeftList)
                     {
-                        if (l is { HasIndex: false } && l.Identifier.Type == Identifier.IdentifierType.Register && 
-                            !renamed.Contains(l.Identifier) && !l.Identifier.Renamed)
+                        if (l is
+                            {
+                                HasIndex: false, Identifier: { IsRegister: true, Renamed: false }
+                            } && !renamed.Contains(l.Identifier))
                         {
                             renamed.Add(l.Identifier);
                             if (a.LocalAssignments != null && ll < a.LocalAssignments.Count &&

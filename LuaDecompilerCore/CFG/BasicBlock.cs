@@ -73,6 +73,44 @@ namespace LuaDecompilerCore.CFG
         /// Printer friendly name of the basic block
         /// </summary>
         public string Name => $"basicblock_{BlockId}";
+
+        /// <summary>
+        /// First instruction in instruction list
+        /// </summary>
+        public Instruction First => Instructions.First();
+        
+        /// <summary>
+        /// Last instruction in instruction list
+        /// </summary>
+        public Instruction Last => Instructions.Last();
+
+        /// <summary>
+        /// If block is a condition, the successor block for when the condition is "true"
+        /// </summary>
+        public BasicBlock EdgeTrue
+        {
+            get => Successors[0];
+            set => Successors[0] = value;
+        }
+        
+        /// <summary>
+        /// If block is a condition, the successor block for when the condition is "false"
+        /// </summary>
+        public BasicBlock EdgeFalse
+        {
+            get => Successors[1];
+            set => Successors[1] = value;
+        }
+
+        /// <summary>
+        /// Block is a conditional block where a successor is chosen based on a conditional jump
+        /// </summary>
+        public bool IsConditional => Successors.Count == 2 && Last is Jump { Conditional: true };
+
+        /// <summary>
+        /// Block is a return block that ends the function call when the block is done executing
+        /// </summary>
+        public bool IsReturn => Successors.Count == 1 && Last is Return;
         
         public bool Empty => Instructions.Count == 0;
         public bool HasInstructions => Instructions.Count > 0;

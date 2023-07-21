@@ -33,7 +33,7 @@ public class DetectListInitializersPass : IPass
                                 IsSingleAssignment: true, Left: { HasIndex: true, TableIndex: Constant c }
                             } a2 && 
                             Math.Abs(c.Number - initIndex) < 0.0001 && 
-                            a2.Left.Identifier == a.LeftList[0].Identifier)
+                            a2.Left.Identifier == a.Left.Identifier)
                         {
                             if (a2.Right == null)
                                 throw new Exception("Expected assignment");
@@ -42,7 +42,7 @@ public class DetectListInitializersPass : IPass
                             {
                                 a.LocalAssignments = a2.LocalAssignments;
                             }
-                            a2.LeftList[0].Identifier.UseCount--;
+                            a2.Left.Identifier.UseCount--;
                             b.Instructions.RemoveAt(i + 1);
                             initIndex++;
                         }

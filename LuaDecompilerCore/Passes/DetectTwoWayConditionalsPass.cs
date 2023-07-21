@@ -16,25 +16,24 @@ public class DetectTwoWayConditionalsPass : IPass
         HashSet<CFG.BasicBlock> Visit(CFG.BasicBlock b)
         {
             var unresolved = new HashSet<CFG.BasicBlock>();
-            foreach (var succ in b.DominanceTreeSuccessors)
+            foreach (var successor in b.DominanceTreeSuccessors)
             {
-                if (debugVisited.Contains(succ))
+                if (debugVisited.Contains(successor))
                 {
-                    throw new Exception("Revisited dom tree node " + succ);
+                    throw new Exception("Revisited dom tree node " + successor);
                 }
-                debugVisited.Add(succ);
-                unresolved.UnionWith(Visit(succ));
+                debugVisited.Add(successor);
+                unresolved.UnionWith(Visit(successor));
             }
 
-            if (b.Successors.Count == 2 && b.Instructions.Last() is Jump && 
-                (!b.IsLoopHead || b.LoopType != CFG.LoopType.LoopPretested))
+            if (b.IsConditional && (!b.IsLoopHead || b.LoopType != CFG.LoopType.LoopPretested))
             {
                 var maxEdges = 0;
                 CFG.BasicBlock? maxNode = null;
                 foreach (var d in b.DominanceTreeSuccessors)
                 {
                     var successorsReq = 2;
-                    // If there is a break or while, the follow node is only going to have one backedge
+                    // If there is a break or while, the follow node is only going to have one back-edge
                     if (b.LoopBreakFollow != null || b.LoopContinueFollow != null)
                     {
                         successorsReq = 1;
@@ -50,30 +49,28 @@ public class DetectTwoWayConditionalsPass : IPass
                 // If the true branch also has a follow chain defined that leads to a return or if-orphaned node, then it is also disjoint from the rest of the CFG
                 // and the false branch is the follow
                 var isDisjoint = false;
-                var testFollow = b.Successors[0].Follow;
+                var testFollow = b.EdgeTrue.Follow;
                 while (testFollow != null)
                 {
-                    if (testFollow.Instructions.Last() is Return || testFollow.IfOrphaned)
+                    if (testFollow.IsReturn || testFollow.IfOrphaned)
                     {
                         isDisjoint = true;
                         break;
                     }
                     testFollow = testFollow.Follow;
                 }
-                if (maxNode == null && (b.Successors[0].Instructions.Last() is Return || 
-                                        b.Successors[0].IfOrphaned || isDisjoint))
+                if (maxNode == null && (b.EdgeTrue.IsReturn || b.EdgeTrue.IfOrphaned || isDisjoint))
                 {
                     // If the false branch leads to an isolated return node or an if-orphaned node, then we are if-orphaned, which essentially means we don't
                     // have a follow defined in the CFG. This means that to structure this, the if-orphaned node must be adopted by the next node with a CFG
                     // determined follow and this node will inherit that follow
-                    if ((b.Successors[1].Instructions.Last() is Return && b.Successors[1].Predecessors.Count == 1) 
-                        || b.Successors[1].IfOrphaned)
+                    if (b.EdgeFalse is { IsReturn: true, Predecessors.Count: 1 } || b.EdgeFalse.IfOrphaned)
                     {
                         b.IfOrphaned = true;
                     }
                     else
                     {
-                        maxNode = b.Successors[1];
+                        maxNode = b.EdgeFalse;
                     }
                 }
                 // If you don't match anything, but you dominate the end node, then it's probably the follow
@@ -83,9 +80,9 @@ public class DetectTwoWayConditionalsPass : IPass
                 }
 
                 // If we are a latch and the false node leads to a loop head, then the follow is the loop head
-                if (maxNode == null && b.IsLoopLatch && b.Successors[1].IsLoopHead)
+                if (maxNode == null && b is { IsLoopLatch: true, EdgeFalse.IsLoopHead: true })
                 {
-                    maxNode = b.Successors[1];
+                    maxNode = b.EdgeFalse;
                 }
 
                 if (maxNode != null)

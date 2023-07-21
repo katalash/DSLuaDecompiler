@@ -24,7 +24,7 @@ public class DetectLoopBreakContinuePass : IPass
             }
         
             // Detect unstructured if statements
-            if (nextHead != null && b.Successors.Count == 2 && b.Instructions.Last() is Jump && 
+            if (nextHead != null && b.IsConditional && 
                 b is not { IsLoopHead: true, LoopType: CFG.LoopType.LoopPretested })
             {
                 Debug.Assert(nextHead.LoopFollow != null);
