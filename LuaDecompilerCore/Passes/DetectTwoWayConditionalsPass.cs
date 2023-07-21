@@ -26,7 +26,7 @@ public class DetectTwoWayConditionalsPass : IPass
                 unresolved.UnionWith(Visit(successor));
             }
 
-            if (b.IsConditional && (!b.IsLoopHead || b.LoopType != CFG.LoopType.LoopPretested))
+            if (b.IsConditionalJump && (!b.IsLoopHead || b.LoopType != CFG.LoopType.LoopPretested))
             {
                 var maxEdges = 0;
                 CFG.BasicBlock? maxNode = null;
@@ -120,7 +120,6 @@ public class DetectTwoWayConditionalsPass : IPass
                             }
                         }
                     }
-
                 }
                 else
                 {

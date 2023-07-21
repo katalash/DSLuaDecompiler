@@ -327,7 +327,7 @@ public class Lua50Decompiler : ILanguageDecompiler
                     instructions.Add(assignment);
                     if (c > 0)
                     {
-                        instructions.Add(new Jump(irFunction.GetLabel((uint)(i / 4 + 2))));
+                        instructions.Add(new JumpLabel(irFunction.GetLabel((uint)(i / 4 + 2))));
                     }
 
                     break;
@@ -491,19 +491,19 @@ public class Lua50Decompiler : ILanguageDecompiler
                     instructions.Add(assignment);
                     break;
                 case Lua50Ops.OpJmp:
-                    instructions.Add(new Jump(irFunction.GetLabel((uint)(i / 4 + sbx + 1))));
+                    instructions.Add(new JumpLabel(irFunction.GetLabel((uint)(i / 4 + sbx + 1))));
                     break;
                 case Lua50Ops.OpEq:
                     if (a == 0)
                     {
-                        instructions.Add(new Jump(
+                        instructions.Add(new ConditionalJumpLabel(
                             irFunction.GetLabel((uint)(i / 4 + 2)),
                             new BinOp(RkIr(irFunction, function, b),
                                 RkIr(irFunction, function, c), BinOp.OperationType.OpEqual)));
                     }
                     else
                     {
-                        instructions.Add(new Jump(
+                        instructions.Add(new ConditionalJumpLabel(
                             irFunction.GetLabel((uint)(i / 4 + 2)),
                             new BinOp(RkIr(irFunction, function, b),
                                 RkIr(irFunction, function, c), BinOp.OperationType.OpNotEqual)));
@@ -513,14 +513,14 @@ public class Lua50Decompiler : ILanguageDecompiler
                 case Lua50Ops.OpLt:
                     if (a == 0)
                     {
-                        instructions.Add(new Jump(
+                        instructions.Add(new ConditionalJumpLabel(
                             irFunction.GetLabel((uint)(i / 4 + 2)),
                             new BinOp(RkIr(irFunction, function, b),
                                 RkIr(irFunction, function, c), BinOp.OperationType.OpLessThan)));
                     }
                     else
                     {
-                        instructions.Add(new Jump(
+                        instructions.Add(new ConditionalJumpLabel(
                             irFunction.GetLabel((uint)(i / 4 + 2)),
                             new BinOp(RkIr(irFunction, function, b),
                                 RkIr(irFunction, function, c), BinOp.OperationType.OpGreaterEqual)));
@@ -530,14 +530,14 @@ public class Lua50Decompiler : ILanguageDecompiler
                 case Lua50Ops.OpLe:
                     if (a == 0)
                     {
-                        instructions.Add(new Jump(
+                        instructions.Add(new ConditionalJumpLabel(
                             irFunction.GetLabel((uint)(i / 4 + 2)),
                             new BinOp(RkIr(irFunction, function, b),
                                 RkIr(irFunction, function, c), BinOp.OperationType.OpLessEqual)));
                     }
                     else
                     {
-                        instructions.Add(new Jump(
+                        instructions.Add(new ConditionalJumpLabel(
                             irFunction.GetLabel((uint)(i / 4 + 2)),
                             new BinOp(RkIr(irFunction, function, b),
                                 RkIr(irFunction, function, c), BinOp.OperationType.OpGreaterThan)));
@@ -547,12 +547,12 @@ public class Lua50Decompiler : ILanguageDecompiler
                 case Lua50Ops.OpTest:
                     if (c == 0)
                     {
-                        instructions.Add(new Jump(
+                        instructions.Add(new ConditionalJumpLabel(
                             irFunction.GetLabel((uint)(i / 4 + 2)), RkIr(irFunction, function, b)));
                     }
                     else
                     {
-                        instructions.Add(new Jump(
+                        instructions.Add(new ConditionalJumpLabel(
                             irFunction.GetLabel((uint)(i / 4 + 2)),
                             new UnaryOp(RkIr(irFunction, function, b), UnaryOp.OperationType.OpNot)));
                     }
@@ -628,7 +628,7 @@ public class Lua50Decompiler : ILanguageDecompiler
                     instructions.Add(new Assignment(new IdentifierReference(irFunction.GetRegister(a)),
                         new BinOp(new IdentifierReference(irFunction.GetRegister(a)),
                             new IdentifierReference(irFunction.GetRegister(a + 2)), BinOp.OperationType.OpAdd)));
-                    instructions.Add(new Jump(irFunction.GetLabel((uint)(i / 4 + 1 + sbx)),
+                    instructions.Add(new ConditionalJumpLabel(irFunction.GetLabel((uint)(i / 4 + 1 + sbx)),
                         new BinOp(new IdentifierReference(irFunction.GetRegister(a)),
                             new IdentifierReference(
                                 irFunction.GetRegister(a + 1)), BinOp.OperationType.OpLoopCompare)));

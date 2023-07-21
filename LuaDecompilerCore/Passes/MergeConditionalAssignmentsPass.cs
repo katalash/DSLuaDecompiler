@@ -26,10 +26,7 @@ public class MergeConditionalAssignmentsPass : IPass
             for (int i = 0; i < b.Instructions.Count - 6; i++)
             {
                 // Match conditional jump to label
-                if (b.Instructions[i] is Jump
-                    {
-                        Conditional: true
-                    } jmp &&
+                if (b.Instructions[i] is ConditionalJumpLabel jmp &&
                     // Register set to false
                     b.Instructions[i + 1] is Assignment
                     {
@@ -38,12 +35,9 @@ public class MergeConditionalAssignmentsPass : IPass
                         Right: Constant { ConstType: Constant.ConstantType.ConstBool, Boolean: false }
                     } &&
                     // Unconditional jump
-                    b.Instructions[i + 2] is Jump
-                    {
-                        Conditional: false
-                    } jmp2 &&
+                    b.Instructions[i + 2] is JumpLabel jmp2 &&
                     // Label that is destination of original jump
-                    b.Instructions[i + 3] is Label label1 && label1 == jmp.Dest &&
+                    b.Instructions[i + 3] is Label label1 && label1 == jmp.Destination &&
                     // Set same register to true
                     b.Instructions[i + 4] is Assignment
                     {
@@ -52,7 +46,7 @@ public class MergeConditionalAssignmentsPass : IPass
                         Right: Constant { ConstType: Constant.ConstantType.ConstBool, Boolean: true }
                     } && assignee.Identifier == assignee2.Identifier &&
                     // Label that is destination of the second jump
-                    b.Instructions[i + 5] is Label label2 && label2 == jmp2.Dest)
+                    b.Instructions[i + 5] is Label label2 && label2 == jmp2.Destination)
                 {
                     if (jmp.Condition is BinOp bop)
                     {

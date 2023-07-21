@@ -13,19 +13,17 @@ public class PeepholeOptimizationPass : IPass
         {
             for (var i = 0; i < b.Instructions.Count; i++)
             {
-                if (b.Instructions[i] is Jump jmp1)
+                if (b.Instructions[i] is not IJumpLabel jmp1) continue;
+                var dest = b.Instructions[b.Instructions.IndexOf(jmp1.Destination) + 1];
+                while (dest is JumpLabel jmp2)
                 {
-                    var dest = b.Instructions[b.Instructions.IndexOf(jmp1.Dest) + 1];
-                    while (dest is Jump { Conditional: false } jmp2)
+                    jmp1.Destination.UsageCount--;
+                    if (jmp1.Destination.UsageCount <= 0)
                     {
-                        jmp1.Dest.UsageCount--;
-                        if (jmp1.Dest.UsageCount <= 0)
-                        {
-                            b.Instructions.Remove(jmp1.Dest);
-                        }
-                        jmp1.Dest = jmp2.Dest;
-                        dest = b.Instructions[b.Instructions.IndexOf(jmp1.Dest) + 1];
+                        b.Instructions.Remove(jmp1.Destination);
                     }
+                    jmp1.Destination = jmp2.Destination;
+                    dest = b.Instructions[b.Instructions.IndexOf(jmp1.Destination) + 1];
                 }
             }
         }

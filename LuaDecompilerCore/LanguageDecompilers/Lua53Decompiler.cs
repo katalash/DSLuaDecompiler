@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Text.Json.Serialization;
 using LuaDecompilerCore.IR;
 using LuaDecompilerCore.Passes;
 using LuaDecompilerCore.Utilities;
@@ -233,7 +234,7 @@ public class Lua53Decompiler : ILanguageDecompiler
                     instructions.Add(assignment);
                     if (c > 0)
                     {
-                        instructions.Add(new Jump(irFunction.GetLabel((uint)(i / 4 + 2))));
+                        instructions.Add(new JumpLabel(irFunction.GetLabel((uint)(i / 4 + 2))));
                     }
 
                     break;
@@ -439,18 +440,18 @@ public class Lua53Decompiler : ILanguageDecompiler
                     instructions.Add(assignment);
                     break;
                 case Lua53Ops.OpJmp:
-                    instructions.Add(new Jump(irFunction.GetLabel((uint)(i / 4 + sbx + 1))));
+                    instructions.Add(new JumpLabel(irFunction.GetLabel((uint)(i / 4 + sbx + 1))));
                     break;
                 case Lua53Ops.OpEq:
                     if (a == 0)
                     {
-                        instructions.Add(new Jump(irFunction.GetLabel((uint)(i / 4 + 2)),
+                        instructions.Add(new ConditionalJumpLabel(irFunction.GetLabel((uint)(i / 4 + 2)),
                             new BinOp(RkIr53(irFunction, function, b), RkIr53(irFunction, function, c),
                                 BinOp.OperationType.OpEqual)));
                     }
                     else
                     {
-                        instructions.Add(new Jump(irFunction.GetLabel((uint)(i / 4 + 2)),
+                        instructions.Add(new ConditionalJumpLabel(irFunction.GetLabel((uint)(i / 4 + 2)),
                             new BinOp(RkIr53(irFunction, function, b), RkIr53(irFunction, function, c),
                                 BinOp.OperationType.OpNotEqual)));
                     }
@@ -459,13 +460,13 @@ public class Lua53Decompiler : ILanguageDecompiler
                 case Lua53Ops.OpLt:
                     if (a == 0)
                     {
-                        instructions.Add(new Jump(irFunction.GetLabel((uint)(i / 4 + 2)),
+                        instructions.Add(new ConditionalJumpLabel(irFunction.GetLabel((uint)(i / 4 + 2)),
                             new BinOp(RkIr53(irFunction, function, b), RkIr53(irFunction, function, c),
                                 BinOp.OperationType.OpLessThan)));
                     }
                     else
                     {
-                        instructions.Add(new Jump(irFunction.GetLabel((uint)(i / 4 + 2)),
+                        instructions.Add(new ConditionalJumpLabel(irFunction.GetLabel((uint)(i / 4 + 2)),
                             new BinOp(RkIr53(irFunction, function, b), RkIr53(irFunction, function, c),
                                 BinOp.OperationType.OpGreaterEqual)));
                     }
@@ -474,13 +475,13 @@ public class Lua53Decompiler : ILanguageDecompiler
                 case Lua53Ops.OpLe:
                     if (a == 0)
                     {
-                        instructions.Add(new Jump(irFunction.GetLabel((uint)(i / 4 + 2)),
+                        instructions.Add(new ConditionalJumpLabel(irFunction.GetLabel((uint)(i / 4 + 2)),
                             new BinOp(RkIr53(irFunction, function, b), RkIr53(irFunction, function, c),
                                 BinOp.OperationType.OpLessEqual)));
                     }
                     else
                     {
-                        instructions.Add(new Jump(irFunction.GetLabel((uint)(i / 4 + 2)),
+                        instructions.Add(new ConditionalJumpLabel(irFunction.GetLabel((uint)(i / 4 + 2)),
                             new BinOp(RkIr53(irFunction, function, b), RkIr53(irFunction, function, c),
                                 BinOp.OperationType.OpGreaterThan)));
                     }
@@ -489,11 +490,11 @@ public class Lua53Decompiler : ILanguageDecompiler
                 case Lua53Ops.OpTest:
                     if (c == 0)
                     {
-                        instructions.Add(new Jump(irFunction.GetLabel((uint)(i / 4 + 2)), Register(irFunction, a)));
+                        instructions.Add(new ConditionalJumpLabel(irFunction.GetLabel((uint)(i / 4 + 2)), Register(irFunction, a)));
                     }
                     else
                     {
-                        instructions.Add(new Jump(irFunction.GetLabel((uint)(i / 4 + 2)),
+                        instructions.Add(new ConditionalJumpLabel(irFunction.GetLabel((uint)(i / 4 + 2)),
                             new UnaryOp(Register(irFunction, a), UnaryOp.OperationType.OpNot)));
                     }
 
@@ -562,12 +563,12 @@ public class Lua53Decompiler : ILanguageDecompiler
                     instructions.Add(new Assignment(new IdentifierReference(irFunction.GetRegister(a)), new BinOp(
                         new IdentifierReference(irFunction.GetRegister(a)),
                         new IdentifierReference(irFunction.GetRegister(a + 2)), BinOp.OperationType.OpAdd)));
-                    var jmp = new Jump(irFunction.GetLabel((uint)(i / 4 + 1 + sbx)), new BinOp(
-                        new IdentifierReference(irFunction.GetRegister(a)),
-                        new IdentifierReference(irFunction.GetRegister(a + 1)), BinOp.OperationType.OpLoopCompare));
                     var pta = new Assignment(irFunction.GetRegister(a + 3), Register(irFunction, a));
                     pta.PropagateAlways = true;
-                    jmp.PostTakenAssignment = pta;
+                    var jmp = new ConditionalJumpLabel(irFunction.GetLabel((uint)(i / 4 + 1 + sbx)), new BinOp(
+                        new IdentifierReference(irFunction.GetRegister(a)),
+                        new IdentifierReference(irFunction.GetRegister(a + 1)), BinOp.OperationType.OpLoopCompare),
+                        pta);
                     instructions.Add(jmp);
                     break;
                 case Lua53Ops.OpTForCall:
@@ -594,13 +595,12 @@ public class Lua53Decompiler : ILanguageDecompiler
                     instructions.Add(assignment);
                     break;
                 case Lua53Ops.OpTForLoop:
-                    var jmp2 = new Jump(irFunction.GetLabel((uint)(i / 4 + 1 + sbx)),
-                        new BinOp(Register(irFunction, a + 1), new Constant(Constant.ConstantType.ConstNil, -1),
-                            BinOp.OperationType.OpEqual));
                     var pta2 = new Assignment(irFunction.GetRegister(a),
                         new IdentifierReference(irFunction.GetRegister(a + 1)));
                     pta2.PropagateAlways = true;
-                    jmp2.PostTakenAssignment = pta2;
+                    var jmp2 = new ConditionalJumpLabel(irFunction.GetLabel((uint)(i / 4 + 1 + sbx)),
+                        new BinOp(Register(irFunction, a + 1), new Constant(Constant.ConstantType.ConstNil, -1),
+                            BinOp.OperationType.OpEqual), pta2);
                     instructions.Add(jmp2);
                     break;
                 case Lua53Ops.OpSetList:
@@ -618,7 +618,7 @@ public class Lua53Decompiler : ILanguageDecompiler
                     instructions.Add(assignment);
                     break;
                 case Lua53Ops.OpForPrep:
-                    instructions.Add(new Jump(irFunction.GetLabel((uint)(i / 4 + 1 + sbx))));
+                    instructions.Add(new JumpLabel(irFunction.GetLabel((uint)(i / 4 + 1 + sbx))));
                     break;
                 case Lua53Ops.OpLen:
                     assignment = new Assignment(irFunction.GetRegister(a),
@@ -681,7 +681,6 @@ public class Lua53Decompiler : ILanguageDecompiler
 
         passManager.AddPass("build-cfg", new BuildControlFlowGraphPass());
         passManager.AddPass("resolve-ambiguous-call-args", new ResolveAmbiguousCallArguments());
-        passManager.AddPass("complete-lua51-loops", new CompleteLua51LoopsPass());
         passManager.AddPass("resolve-closure-upvals-53", new ResolveClosureUpValues53Pass());
         passManager.AddPass("ssa-transform", new SsaTransformPass());
         

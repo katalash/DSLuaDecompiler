@@ -27,23 +27,23 @@ public class MergeConditionalJumpsPass : IPass
             for (var i = 0; i < b.Instructions.Count - 2; i++)
             {
                 // Pattern match the prerequisites
-                if (b.Instructions[i] is Jump { Conditional: true } jmp1 &&
-                    b.Instructions[i + 1] is Jump { Conditional: false } jmp2 &&
-                    b.Instructions[i + 2] is Label shortLabel && jmp1.Dest == shortLabel)
+                if (b.Instructions[i] is ConditionalJumpLabel jmp1 &&
+                    b.Instructions[i + 1] is JumpLabel jmp2 &&
+                    b.Instructions[i + 2] is Label shortLabel && jmp1.Destination == shortLabel)
                 {
                     // flip the condition and change the destination to the far jump. Then remove the following goto and label
                     if (jmp1.Condition is BinOp op)
                     {
                         op.NegateCondition();
-                        jmp1.Dest.UsageCount--;
-                        b.Instructions.RemoveRange(i + 1, jmp1.Dest.UsageCount <= 0 ? 2 : 1);
-                        jmp1.Dest = jmp2.Dest;
+                        jmp1.Destination.UsageCount--;
+                        b.Instructions.RemoveRange(i + 1, jmp1.Destination.UsageCount <= 0 ? 2 : 1);
+                        jmp1.Destination = jmp2.Destination;
                     }
                     else if (jmp1.Condition is UnaryOp { Operation: UnaryOp.OperationType.OpNot } or IdentifierReference)
                     {
-                        jmp1.Dest.UsageCount--;
-                        b.Instructions.RemoveRange(i + 1, jmp1.Dest.UsageCount <= 0 ? 2 : 1);
-                        jmp1.Dest = jmp2.Dest;
+                        jmp1.Destination.UsageCount--;
+                        b.Instructions.RemoveRange(i + 1, jmp1.Destination.UsageCount <= 0 ? 2 : 1);
+                        jmp1.Destination = jmp2.Destination;
                     }
                     else
                     {

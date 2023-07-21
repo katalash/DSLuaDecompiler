@@ -152,8 +152,17 @@ public class FunctionPrinter
             case IfStatement ifStatement:
                 VisitIfStatement(ifStatement);
                 break;
+            case JumpLabel jumpLabel:
+                VisitJumpLabel(jumpLabel);
+                break;
             case Jump jump:
                 VisitJump(jump);
+                break;
+            case ConditionalJumpLabel conditionalJumpLabel:
+                VisitConditionalJumpLabel(conditionalJumpLabel);
+                break;
+            case ConditionalJump conditionalJump:
+                VisitConditionalJump(conditionalJump);
                 break;
             case Label label:
                 VisitLabel(label);
@@ -239,12 +248,9 @@ public class FunctionPrinter
                 }
 
                 // Insert an implicit goto for fallthrough blocks if the destination isn't actually the next block
-                var lastInstruction = b.Instructions.Count > 0 ? b.Instructions.Last() : null;
-                if (lastInstruction != null && 
-                    ((lastInstruction is Jump { Conditional: true } && 
-                      b.Successors[0].BlockId != b.BlockId + 1) ||
-                     (lastInstruction is not Jump && lastInstruction is not Return && 
-                      b.Successors[0].BlockId != (b.BlockId + 1))))
+                if (b.HasInstructions && 
+                    ((b.Last is ConditionalJump && b.EdgeTrue.BlockId != b.BlockId + 1) ||
+                     (b.Last is not IJump and not Return && b.EdgeTrue.BlockId != b.BlockId + 1)))
                 {
                     for (var i = 0; i < _indentLevel; i++)
                     {
@@ -252,7 +258,7 @@ public class FunctionPrinter
                     }
 
                     Append("(goto ");
-                    Append(b.Successors[0].Name);
+                    Append(b.EdgeTrue.Name);
                     Append(')');
                     NewLine();
                 }
@@ -650,24 +656,34 @@ public class FunctionPrinter
         }
     }
 
+    private void VisitJumpLabel(JumpLabel jump)
+    {
+        Append("goto ");
+        VisitLabel(jump.Destination);
+    }
+
     private void VisitJump(Jump jump)
     {
-        if (jump.Conditional)
-        {
-            Append(@"if ");
-            VisitExpression(jump.Condition);
-            Append(" else ");
-        }
-        if (jump.BlockDest != null)
-        {
-            Append("goto ");
-            Append(jump.BlockDest.Name);
-        }
-        else
-        {
-            Append("goto ");
-            VisitLabel(jump.Dest);
-        }
+        Append("goto ");
+        Append(jump.Destination.Name);
+    }
+    
+    private void VisitConditionalJumpLabel(ConditionalJumpLabel jump)
+    {
+        Append(@"if ");
+        VisitExpression(jump.Condition);
+        Append(" else ");
+        Append("goto ");
+        VisitLabel(jump.Destination);
+    }
+    
+    private void VisitConditionalJump(ConditionalJump jump)
+    {
+        Append(@"if ");
+        VisitExpression(jump.Condition);
+        Append(" else ");
+        Append("goto ");
+        Append(jump.Destination.Name);
     }
 
     private void VisitLabel(Label label)

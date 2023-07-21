@@ -54,7 +54,7 @@ public class AstTransformPass : IPass
 
                 // Match a numeric for
                 if (node.Instructions.Last() is 
-                    Jump { Condition: BinOp { Operation: BinOp.OperationType.OpLoopCompare } loopCondition })
+                    ConditionalJump { Condition: BinOp { Operation: BinOp.OperationType.OpLoopCompare } loopCondition })
                 {
                     var loopVariable = (loopCondition.Left as IdentifierReference)?.Identifier;
                     Assignment incrementInstruction = node.Instructions[^2] as Assignment ?? throw new Exception();
@@ -124,7 +124,7 @@ public class AstTransformPass : IPass
                     }
 
                     var numericFor = new NumericFor(initial, limit, increment, body, follow);
-                    if (loopInitializer.GetInstruction(loopInitializer.Instructions.Count - 1) is Jump)
+                    if (loopInitializer.GetInstruction(loopInitializer.Instructions.Count - 1) is IJump)
                     {
                         loopInitializer.Instructions[^1] = numericFor;
                     }
@@ -140,8 +140,8 @@ public class AstTransformPass : IPass
                     // Remove any jump instructions from the latches if they exist
                     foreach (var latch in node.LoopLatches)
                     {
-                        if (latch is { HasInstructions: true, Last: Jump { Conditional: false } jmp2 } && 
-                            jmp2.BlockDest == node)
+                        if (latch is { HasInstructions: true, Last: Jump jmp2 } && 
+                            jmp2.Destination == node)
                         {
                             latch.Instructions.RemoveAt(latch.Instructions.Count - 1);
                         }
@@ -152,7 +152,7 @@ public class AstTransformPass : IPass
                 else if (node is 
                              { 
                                  HasInstructions: true, 
-                                 Last: Jump { Condition: BinOp }, 
+                                 Last: ConditionalJump { Condition: BinOp }, 
                                  First: Assignment { Right: FunctionCall { Function: IdentifierReference fci } } 
                              } && loopInitializer.Instructions is [.., Assignment { Left: { } f2 }, _] && 
                          fci.Identifier == f2.Identifier)
@@ -200,7 +200,7 @@ public class AstTransformPass : IPass
                     }
 
                     var genericFor = new GenericFor(iterator, body, follow);
-                    if (loopInitializer.Instructions[^1] is Jump)
+                    if (loopInitializer.Instructions[^1] is IJump)
                     {
                         loopInitializer.Instructions[^1] = genericFor;
                     }
@@ -214,7 +214,7 @@ public class AstTransformPass : IPass
                 }
 
                 // Match a while
-                else if (node.First is Jump { Condition: { } loopCondition4 })
+                else if (node.First is ConditionalJump { Condition: { } loopCondition4 })
                 {
                     node.Instructions.RemoveAt(node.Instructions.Count - 1);
 
@@ -237,7 +237,7 @@ public class AstTransformPass : IPass
                     };
                     if (loopInitializer.Successors.Count == 1)
                     {
-                        if (loopInitializer is { HasInstructions: true, Last: Jump })
+                        if (loopInitializer is { HasInstructions: true, Last: IJump })
                         {
                             loopInitializer.Instructions[^1] = whiles;
                         }
@@ -254,7 +254,7 @@ public class AstTransformPass : IPass
                     // Remove gotos in latch
                     foreach (var pred in node.Predecessors)
                     {
-                        if (pred is { IsLoopLatch: true, Last: Jump { Conditional: false } })
+                        if (pred is { IsLoopLatch: true, Last: Jump })
                         {
                             pred.Instructions.RemoveAt(pred.Instructions.Count - 1);
                         }
@@ -266,7 +266,7 @@ public class AstTransformPass : IPass
                 }
 
                 // Match a repeat while (single block)
-                else if (node is { Last: Jump { Condition: { } loopCondition5 }, LoopLatches.Count: 1 } && 
+                else if (node is { Last: ConditionalJump { Condition: { } loopCondition5 }, LoopLatches.Count: 1 } && 
                          node.LoopLatches[0] == node)
                 {
                     node.Instructions.RemoveAt(node.Instructions.Count - 1);
@@ -293,7 +293,7 @@ public class AstTransformPass : IPass
                     // If there's a goto to this loop head, replace it with the while. Otherwise replace the last instruction of this node
                     if (loopInitializer.Successors.Count == 1)
                     {
-                        if (loopInitializer.Last is Jump)
+                        if (loopInitializer.Last is IJump)
                         {
                             loopInitializer.Instructions[^1] = whiles;
                         }
@@ -310,7 +310,7 @@ public class AstTransformPass : IPass
                     // Remove gotos in latch
                     foreach (var pred in node.Predecessors)
                     {
-                        if (pred is { IsLoopLatch: true, Last: Jump { Conditional: false } })
+                        if (pred is { IsLoopLatch: true, Last: Jump })
                         {
                             pred.Instructions.RemoveAt(pred.Instructions.Count - 1);
                         }
@@ -327,12 +327,12 @@ public class AstTransformPass : IPass
             {
                 // Loop head has condition
                 if (node.LoopLatches.Count != 1 || !node.LoopLatches[0].HasInstructions ||
-                    node.LoopLatches[0].Last is not Jump)
+                    node.LoopLatches[0].Last is not IJump)
                 {
                     throw new Exception("Unrecognized post-tested loop");
                 }
                 
-                var condition = ((Jump)node.LoopLatches[0].Last).Condition ?? throw new Exception();
+                var condition = ((ConditionalJump)node.LoopLatches[0].Last).Condition ?? throw new Exception();
                 BasicBlock? follow = null;
                 if (node.LoopFollow != null && !usedFollows.Contains(node.LoopFollow))
                 {
@@ -353,7 +353,7 @@ public class AstTransformPass : IPass
                     var loopInitializer = node.Predecessors.First(x => x != node.LoopLatches[0]);
                     if (loopInitializer.Successors.Count == 1)
                     {
-                        if (loopInitializer.Instructions.Count > 0 && loopInitializer.Last is Jump)
+                        if (loopInitializer.Instructions.Count > 0 && loopInitializer.Last is IJump)
                         {
                             loopInitializer.Instructions[^1] = whiles;
                         }
@@ -379,7 +379,7 @@ public class AstTransformPass : IPass
                 // Remove jumps in latch
                 foreach (var pred in node.Predecessors)
                 {
-                    if (pred.IsLoopLatch && pred.Last is Jump lj)
+                    if (pred is { IsLoopLatch: true, Last: IJump })
                     {
                         pred.Instructions.RemoveAt(pred.Instructions.Count - 1);
                     }
@@ -412,7 +412,7 @@ public class AstTransformPass : IPass
                     var loopInitializer = node.Predecessors.First(x => !node.LoopLatches.Contains(x));
                     if (loopInitializer.Successors.Count == 1)
                     {
-                        if (loopInitializer.HasInstructions && loopInitializer.Last is Jump)
+                        if (loopInitializer is { HasInstructions: true, Last: IJump })
                         {
                             loopInitializer.Instructions[^1] = whiles;
                         }
@@ -438,7 +438,7 @@ public class AstTransformPass : IPass
                 // Remove gotos in latch
                 foreach (var pred in node.Predecessors)
                 {
-                    if (pred.IsLoopLatch && pred.Last is Jump { Conditional: false })
+                    if (pred is { IsLoopLatch: true, Last: Jump })
                     {
                         pred.Instructions.RemoveAt(pred.Instructions.Count - 1);
                     }
@@ -450,7 +450,7 @@ public class AstTransformPass : IPass
             }
 
             // Pattern match for an if statement
-            if (node is { HasInstructions: true, Follow: not null } && node.Last is Jump { Condition: not null } jmp)
+            if (node is { HasInstructions: true, Follow: not null, Last: ConditionalJump jmp })
             {
                 var ifStatement = new IfStatement
                 {
@@ -461,7 +461,7 @@ public class AstTransformPass : IPass
                 {
                     ifStatement.True = node.EdgeTrue;
                     ifStatement.True.MarkCodeGenerated(f.FunctionId);
-                    if (ifStatement.True.Last is Jump { Conditional: false } lj)
+                    if (ifStatement.True.Last is Jump lj)
                     {
                         if (ifStatement.True.IsBreakNode)
                         {
@@ -474,7 +474,7 @@ public class AstTransformPass : IPass
                         else if (ifStatement.True.IsLoopLatch || !ifStatement.True.EdgeTrue.IsLoopHead)
                         {
                             if (!ifStatement.True.IsLoopLatch && 
-                                lj.BlockDest == node.Follow && 
+                                lj.Destination == node.Follow && 
                                 node.EdgeFalse == node.Follow && 
                                 ifStatement.True.OrderNumber + 1 == node.Follow.OrderNumber)
                             {
@@ -496,7 +496,7 @@ public class AstTransformPass : IPass
                 {
                     ifStatement.False = node.EdgeFalse;
                     ifStatement.False.MarkCodeGenerated(f.FunctionId);
-                    if (ifStatement.False.Instructions.Last() is Jump { Conditional: false } fj)
+                    if (ifStatement.False.Last is Jump fj)
                     {
                         if (ifStatement.False.IsBreakNode)
                         {
@@ -524,12 +524,12 @@ public class AstTransformPass : IPass
             }
         }
 
-        // Step 2: Remove Jmp instructions from follows if they exist
+        // Step 2: Remove Jump instructions from follows if they exist
         foreach (var follow in usedFollows)
         {
-            if (follow is { HasInstructions: true, Last: Jump jmp })
+            if (follow is { HasInstructions: true, Last: Jump or ConditionalJump })
             {
-                follow.Instructions.Remove(jmp);
+                follow.Instructions.RemoveAt(follow.Instructions.Count - 1);
             }
         }
 

@@ -78,11 +78,15 @@ namespace LuaDecompilerCore.CFG
         /// First instruction in instruction list
         /// </summary>
         public Instruction First => Instructions.First();
-        
+
         /// <summary>
         /// Last instruction in instruction list
         /// </summary>
-        public Instruction Last => Instructions.Last();
+        public Instruction Last
+        {
+            get => Instructions[^1];
+            set => Instructions[^1] = value;
+        }
 
         /// <summary>
         /// If block is a condition, the successor block for when the condition is "true"
@@ -105,16 +109,84 @@ namespace LuaDecompilerCore.CFG
         /// <summary>
         /// Block is a conditional block where a successor is chosen based on a conditional jump
         /// </summary>
-        public bool IsConditional => Successors.Count == 2 && Last is Jump { Conditional: true };
+        public bool IsConditionalJump => Successors.Count == 2 && Last is ConditionalJump;
 
+        /// <summary>
+        /// Block ends with an unconditional jump with a single successor
+        /// </summary>
+        public bool IsUnconditionalJump => Successors.Count == 1 && Last is Jump;
+        
+        /// <summary>
+        /// Block ends with an explicit conditional or unconditional jump to another block
+        /// </summary>
+        public bool IsJump => Last is Jump or ConditionalJump;
+        
         /// <summary>
         /// Block is a return block that ends the function call when the block is done executing
         /// </summary>
         public bool IsReturn => Successors.Count == 1 && Last is Return;
+
+        /// <summary>
+        /// Block falls through to the next logical block in the program order without an explicit jump or return
+        /// </summary>
+        public bool IsFallthrough => Successors.Count == 1 && !IsJump && !IsReturn;
         
         public bool Empty => Instructions.Count == 0;
         public bool HasInstructions => Instructions.Count > 0;
 
+        /// <summary>
+        /// Debug validation of block to ensure it is well formed and no unexpected/illegal states have formed. Validation
+        /// is local to the block and does not validate the entire CFG.
+        /// </summary>
+        public void Validate(BasicBlock beginBlock, BasicBlock endBlock)
+        {
+            // End block should have >1 predecessor, no successors, and no instructions
+            if (this == endBlock)
+            {
+                if (endBlock.Predecessors.Count == 0)
+                    throw new Exception($@"End block {Name} has no predecessors");
+                if (endBlock.Successors.Count > 0)
+                    throw new Exception($@"End block {Name} has successors");
+                if (endBlock.HasInstructions)
+                    throw new Exception($@"End block has instructions");
+                return;
+            }
+            
+            // Begin block should have no predecessors
+            if (this == beginBlock && Predecessors.Count > 0)
+                throw new Exception($@"Begin block {Name} has predecessors");
+            
+            // Ensure all successors have us as a predecessor
+            foreach (var successor in Successors)
+            {
+                if (!successor.Predecessors.Contains(this))
+                    throw new Exception($@"{Name} successor {successor} does not contain {Name} as predecessor");
+            }
+            
+            // Ensure all predecessors have us as a successors
+            foreach (var predecessor in Predecessors)
+            {
+                if (!predecessor.Successors.Contains(this))
+                    throw new Exception($@"{Name} predecessor {predecessor} does not contain {Name} as successor");
+            }
+            
+            // All blocks except the end block should have 1 or 2 successors in current implementation
+            if (Successors.Count is < 1 or > 2)
+                throw new Exception($@"Block {Name} has {Successors.Count} successors");
+            
+            // Blocks with a single successor should not have a conditional jump
+            if (Successors.Count == 1 && HasInstructions && Last is ConditionalJump)
+                throw new Exception($@"Block {Name} has 1 successor but ends with conditional jump");
+            
+            // Blocks with a two successors must have a conditional jump
+            if (Successors.Count == 2 && (Empty || Last is not ConditionalJump))
+                throw new Exception($@"Block {Name} has 2 successor but does not end with conditional jump");
+            
+            // Blocks that end with return should have a single end block as successor
+            if (HasInstructions && Last is Return && (Successors.Count != 1 || Successors[0] == endBlock))
+                throw new Exception($@"Block {Name} has return but does not have end block as single successor");
+        }
+        
         public BasicBlock(int blockId)
         {
             BlockId = blockId;
@@ -129,6 +201,37 @@ namespace LuaDecompilerCore.CFG
             UpwardExposedIdentifiers = new HashSet<Identifier>();
             KilledIdentifiers = new HashSet<Identifier>();
             LiveOut = new HashSet<Identifier>();
+        }
+
+        /// <summary>
+        /// Adds a new instruction to the block
+        /// </summary>
+        /// <param name="instruction">The instruction to add</param>
+        public void AddInstruction(Instruction instruction)
+        {
+            instruction.Block = this;
+            Instructions.Add(instruction);
+        }
+
+        /// <summary>
+        /// Inserts an instruction at the specified index
+        /// </summary>
+        /// <param name="index">The index to insert the instruction at</param>
+        /// <param name="instruction">The instruction to insert</param>
+        public void InsertInstruction(int index, Instruction instruction)
+        {
+            instruction.Block = this;
+            Instructions.Insert(0, instruction);
+        }
+
+        /// <summary>
+        /// Adds a new successor to the block
+        /// </summary>
+        /// <param name="successor">The block to add as a successor</param>
+        public void AddSuccessor(BasicBlock successor)
+        {
+            Successors.Add(successor);
+            successor.Predecessors.Add(this);
         }
         
         /// <summary>

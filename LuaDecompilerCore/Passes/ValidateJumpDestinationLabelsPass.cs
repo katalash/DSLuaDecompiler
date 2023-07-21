@@ -14,12 +14,10 @@ public class ValidateJumpDestinationLabelsPass : IPass
         {
             foreach (var t in b.Instructions)
             {
-                if (t is Jump jmp)
+                if ((t is JumpLabel jmp && !b.Instructions.Contains(jmp.Destination)) ||
+                     (t is ConditionalJumpLabel cJmp && !b.Instructions.Contains(cJmp)))
                 {
-                    if (b.Instructions.IndexOf(jmp.Dest) == -1)
-                    {
-                        throw new Exception("Control flow is corrupted");
-                    }
+                    throw new Exception("Control flow is corrupted");
                 }
             }
         }

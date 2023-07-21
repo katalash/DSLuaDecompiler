@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Diagnostics;
-using System.Linq;
 using LuaDecompilerCore.IR;
 
 namespace LuaDecompilerCore.Passes;
@@ -22,9 +21,8 @@ public class MergeCompoundConditionalsPass : IPass
                 if (node is 
                     { 
                         HasInstructions: true, 
-                        Last: Jump 
+                        Last: ConditionalJump 
                         { 
-                            Conditional: true, 
                             Condition: BinOp 
                             {
                                 Operation: BinOp.OperationType.OpLoopCompare
@@ -36,16 +34,13 @@ public class MergeCompoundConditionalsPass : IPass
                 }
                 if (node is
                     {
-                        IsConditional: true, 
-                        Last: Jump
-                        {
-                            Condition: not null
-                        } n
+                        IsConditionalJump: true, 
+                        Last: ConditionalJump n
                     })
                 {
                     var t = node.EdgeTrue;
                     var e = node.EdgeFalse;
-                    if (t is { IsConditional: true, First: Jump { Condition: not null } tj, Predecessors.Count: 1 })
+                    if (t is { IsConditionalJump: true, First: ConditionalJump tj, Predecessors.Count: 1 })
                     {
                         if (t.EdgeTrue == e && t.EdgeFalse != e)
                         {
@@ -68,7 +63,7 @@ public class MergeCompoundConditionalsPass : IPass
                                     node.Follow : t.Follow;
                             }
                             node.EdgeFalse = t.EdgeFalse;
-                            n.BlockDest = node.EdgeFalse;
+                            n.Destination = node.EdgeFalse;
                             var i = t.EdgeFalse.Predecessors.IndexOf(t);
                             t.EdgeFalse.Predecessors[i] = node;
                             node.EdgeTrue = e;
@@ -97,7 +92,7 @@ public class MergeCompoundConditionalsPass : IPass
                             changed = true;
                         }
                     }
-                    else if (e is { IsConditional: true, First: Jump { Condition: not null } ej, Predecessors.Count: 1 })
+                    else if (e is { IsConditionalJump: true, First: ConditionalJump ej, Predecessors.Count: 1 })
                     {
                         if (e.EdgeTrue == t)
                         {
@@ -111,7 +106,7 @@ public class MergeCompoundConditionalsPass : IPass
                                     node.Follow : e.Follow;
                             }
                             node.EdgeFalse = e.EdgeFalse;
-                            n.BlockDest = node.EdgeFalse;
+                            n.Destination = node.EdgeFalse;
                             var i = e.EdgeFalse.Predecessors.IndexOf(e);
                             e.EdgeFalse.Predecessors[i] = node;
                             t.Predecessors.Remove(e);

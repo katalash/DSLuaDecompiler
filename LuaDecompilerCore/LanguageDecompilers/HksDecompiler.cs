@@ -328,7 +328,7 @@ public class HksDecompiler : ILanguageDecompiler
                     instructions.Add(assignment);
                     if (c > 0)
                     {
-                        instructions.Add(new Jump(irFunction.GetLabel((uint)(i / 4 + 2))));
+                        instructions.Add(new JumpLabel(irFunction.GetLabel((uint)(i / 4 + 2))));
                     }
 
                     break;
@@ -549,20 +549,20 @@ public class HksDecompiler : ILanguageDecompiler
                         addr = (uint)((sbx & 0xFFFF) + 2 + (uint)(i / 4));
                     }
 
-                    instructions.Add(new Jump(irFunction.GetLabel(addr)));
+                    instructions.Add(new JumpLabel(irFunction.GetLabel(addr)));
                     break;
                 case LuaHksOps.OpEq:
                     if (a == 0)
                     {
                         instructions.Add(
-                            new Jump(irFunction.GetLabel((uint)(i / 4 + 2)),
+                            new ConditionalJumpLabel(irFunction.GetLabel((uint)(i / 4 + 2)),
                                 new BinOp(Register(irFunction, (uint)b),
                                     RkIrHks(irFunction, function, c, sZero), BinOp.OperationType.OpEqual)));
                     }
                     else
                     {
                         instructions.Add(
-                            new Jump(irFunction.GetLabel((uint)(i / 4 + 2)),
+                            new ConditionalJumpLabel(irFunction.GetLabel((uint)(i / 4 + 2)),
                                 new BinOp(Register(irFunction, (uint)b),
                                     RkIrHks(irFunction, function, c, sZero), BinOp.OperationType.OpNotEqual)));
                     }
@@ -572,14 +572,14 @@ public class HksDecompiler : ILanguageDecompiler
                     if (a == 0)
                     {
                         instructions.Add(
-                            new Jump(irFunction.GetLabel((uint)(i / 4 + 2)),
+                            new ConditionalJumpLabel(irFunction.GetLabel((uint)(i / 4 + 2)),
                                 new BinOp(Register(irFunction, (uint)b),
                                     RkIrHks(irFunction, function, c, sZero), BinOp.OperationType.OpLessThan)));
                     }
                     else
                     {
                         instructions.Add(
-                            new Jump(irFunction.GetLabel((uint)(i / 4 + 2)),
+                            new ConditionalJumpLabel(irFunction.GetLabel((uint)(i / 4 + 2)),
                                 new BinOp(Register(irFunction, (uint)b),
                                     RkIrHks(irFunction, function, c, sZero), BinOp.OperationType.OpGreaterEqual)));
                     }
@@ -589,14 +589,14 @@ public class HksDecompiler : ILanguageDecompiler
                     if (a == 0)
                     {
                         instructions.Add(
-                            new Jump(irFunction.GetLabel((uint)(i / 4 + 2)),
+                            new ConditionalJumpLabel(irFunction.GetLabel((uint)(i / 4 + 2)),
                                 new BinOp(ToConstantIr(function.ConstantsHks[b], b),
                                     Register(irFunction, (uint)c), BinOp.OperationType.OpLessThan)));
                     }
                     else
                     {
                         instructions.Add(
-                            new Jump(irFunction.GetLabel((uint)(i / 4 + 2)),
+                            new ConditionalJumpLabel(irFunction.GetLabel((uint)(i / 4 + 2)),
                                 new BinOp(ToConstantIr(function.ConstantsHks[b], b),
                                     Register(irFunction, (uint)c), BinOp.OperationType.OpGreaterEqual)));
                     }
@@ -606,14 +606,14 @@ public class HksDecompiler : ILanguageDecompiler
                     if (a == 0)
                     {
                         instructions.Add(
-                            new Jump(irFunction.GetLabel((uint)(i / 4 + 2)),
+                            new ConditionalJumpLabel(irFunction.GetLabel((uint)(i / 4 + 2)),
                                 new BinOp(Register(irFunction, (uint)b),
                                     RkIrHks(irFunction, function, c, sZero), BinOp.OperationType.OpLessEqual)));
                     }
                     else
                     {
                         instructions.Add(
-                            new Jump(irFunction.GetLabel((uint)(i / 4 + 2)),
+                            new ConditionalJumpLabel(irFunction.GetLabel((uint)(i / 4 + 2)),
                                 new BinOp(Register(irFunction, (uint)b),
                                     RkIrHks(irFunction, function, c, sZero), BinOp.OperationType.OpGreaterThan)));
                     }
@@ -623,13 +623,13 @@ public class HksDecompiler : ILanguageDecompiler
                     if (a == 0)
                     {
                         instructions.Add(
-                            new Jump(irFunction.GetLabel((uint)(i / 4 + 2)),
+                            new ConditionalJumpLabel(irFunction.GetLabel((uint)(i / 4 + 2)),
                                 new BinOp(ToConstantIr(function.ConstantsHks[b], b),
                                     Register(irFunction, (uint)c), BinOp.OperationType.OpLessEqual)));
                     }
                     else
                     {
-                        instructions.Add(new Jump(irFunction.GetLabel((uint)(i / 4 + 2)),
+                        instructions.Add(new ConditionalJumpLabel(irFunction.GetLabel((uint)(i / 4 + 2)),
                             new BinOp(ToConstantIr(function.ConstantsHks[b], b),
                                 Register(irFunction, (uint)c), BinOp.OperationType.OpGreaterThan)));
                     }
@@ -640,12 +640,12 @@ public class HksDecompiler : ILanguageDecompiler
                     if (c == 0)
                     {
                         instructions.Add(
-                            new Jump(irFunction.GetLabel((uint)(i / 4 + 2)), Register(irFunction, a)));
+                            new ConditionalJumpLabel(irFunction.GetLabel((uint)(i / 4 + 2)), Register(irFunction, a)));
                     }
                     else
                     {
                         instructions.Add(
-                            new Jump(irFunction.GetLabel((uint)(i / 4 + 2)),
+                            new ConditionalJumpLabel(irFunction.GetLabel((uint)(i / 4 + 2)),
                                 new UnaryOp(Register(irFunction, a), UnaryOp.OperationType.OpNot)));
                     }
 
@@ -740,13 +740,12 @@ public class HksDecompiler : ILanguageDecompiler
                     instructions.Add(new Assignment(new IdentifierReference(irFunction.GetRegister(a)),
                         new BinOp(new IdentifierReference(irFunction.GetRegister(a)),
                             new IdentifierReference(irFunction.GetRegister(a + 2)), BinOp.OperationType.OpAdd)));
-                    var jmp = new Jump(irFunction.GetLabel(addr), new BinOp(
-                        new IdentifierReference(irFunction.GetRegister(a)),
-                        new IdentifierReference(irFunction.GetRegister(a + 1)),
-                        BinOp.OperationType.OpLoopCompare));
                     var pta = new Assignment(irFunction.GetRegister(a + 3), Register(irFunction, a));
                     pta.PropagateAlways = true;
-                    jmp.PostTakenAssignment = pta;
+                    var jmp = new ConditionalJumpLabel(irFunction.GetLabel(addr), new BinOp(
+                        new IdentifierReference(irFunction.GetRegister(a)),
+                        new IdentifierReference(irFunction.GetRegister(a + 1)),
+                        BinOp.OperationType.OpLoopCompare), pta);
                     instructions.Add(jmp);
                     break;
                 case LuaHksOps.OpTForLoop:
@@ -771,7 +770,7 @@ public class HksDecompiler : ILanguageDecompiler
                     assignment = new Assignment(rets, functionCall);
                     CheckLocal(assignment, function, pc);
                     instructions.Add(assignment);
-                    instructions.Add(new Jump(irFunction.GetLabel((uint)(i / 4 + 2)),
+                    instructions.Add(new ConditionalJumpLabel(irFunction.GetLabel((uint)(i / 4 + 2)),
                         new BinOp(Register(irFunction, a + 3),
                             new Constant(Constant.ConstantType.ConstNil, -1), BinOp.OperationType.OpEqual)));
                     instructions.Add(new Assignment(irFunction.GetRegister(a + 2),
@@ -785,7 +784,7 @@ public class HksDecompiler : ILanguageDecompiler
                         addr = (uint)((sbx & 0xFFFF) + 2 + (uint)(i / 4));
                     }
 
-                    instructions.Add(new Jump(irFunction.GetLabel(addr)));
+                    instructions.Add(new JumpLabel(irFunction.GetLabel(addr)));
                     break;
                 case LuaHksOps.OpSetList:
                     if (b == 0)
@@ -911,7 +910,6 @@ public class HksDecompiler : ILanguageDecompiler
 
         passManager.AddPass("build-cfg", new BuildControlFlowGraphPass());
         passManager.AddPass("resolve-ambiguous-call-args", new ResolveAmbiguousCallArguments());
-        passManager.AddPass("complete-lua51-loops", new CompleteLua51LoopsPass());
         passManager.AddPass("ssa-transform", new SsaTransformPass());
 
         passManager.AddPass("eliminate-dead-phi-1", new EliminateDeadAssignmentsPass(true));
