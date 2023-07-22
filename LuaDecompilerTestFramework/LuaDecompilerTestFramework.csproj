@@ -1,7 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <OutputType>Exe</OutputType>
         <TargetFramework>net7.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
@@ -10,12 +9,7 @@
     <ItemGroup>
       <ProjectReference Include="..\LuaCompiler\LuaCompiler.csproj" />
       <ProjectReference Include="..\LuaDecompilerCore\LuaDecompilerCore.csproj" />
-      <ProjectReference Include="..\LuaDecompilerTestFramework\LuaDecompilerTestFramework.csproj" />
       <ProjectReference Include="..\SoulsFormats\SoulsFormats\SoulsFormats.csproj" />
-    </ItemGroup>
-
-    <ItemGroup>
-      <None Remove="luac-5.0.2.exe" />
     </ItemGroup>
 
 </Project>

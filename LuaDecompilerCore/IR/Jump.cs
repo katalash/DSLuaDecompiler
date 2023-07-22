@@ -1,5 +1,5 @@
-﻿using System.Collections.Generic;
-using System.Linq.Expressions;
+﻿using System;
+using System.Collections.Generic;
 using LuaDecompilerCore.CFG;
 
 namespace LuaDecompilerCore.IR
@@ -15,12 +15,13 @@ namespace LuaDecompilerCore.IR
         
         public override void Parenthesize()
         {
-            Condition?.Parenthesize();
+            Condition.Parenthesize();
         }
 
-        public override void GetUses(HashSet<Identifier> uses, bool registersOnly)
+        public override HashSet<Identifier> GetUses(HashSet<Identifier> uses, bool registersOnly)
         {
             Condition.GetUses(uses, registersOnly);
+            return uses;
         }
 
         public override void RenameUses(Identifier original, Identifier newIdentifier)
@@ -74,6 +75,13 @@ namespace LuaDecompilerCore.IR
         {
             Destination = destination;
         }
+
+        public override bool MatchAny(Func<IMatchable, bool> condition)
+        {
+            var result = condition.Invoke(this);
+            result = result || Destination.MatchAny(condition);
+            return result;
+        }
     }
 
     /// <summary>
@@ -119,6 +127,14 @@ namespace LuaDecompilerCore.IR
                 op.NegateCondition();
             }
         }
+
+        public override bool MatchAny(Func<IMatchable, bool> condition)
+        {
+            var result = condition.Invoke(this);
+            result = result || Condition.MatchAny(condition);
+            result = result || Destination.MatchAny(condition);
+            return result;
+        }
     }
 
     /// <summary>
@@ -135,6 +151,13 @@ namespace LuaDecompilerCore.IR
             base(condition)
         {
             Destination = destination;
+        }
+        
+        public override bool MatchAny(Func<IMatchable, bool> condition)
+        {
+            var result = condition.Invoke(this);
+            result = result || Condition.MatchAny(condition);
+            return result;
         }
     }
 }

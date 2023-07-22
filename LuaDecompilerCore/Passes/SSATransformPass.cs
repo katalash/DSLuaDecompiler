@@ -1,6 +1,5 @@
 ﻿using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
 using LuaDecompilerCore.IR;
 
 namespace LuaDecompilerCore.Passes;
@@ -14,21 +13,32 @@ public class SsaTransformPass : IPass
 {
     public void RunOnFunction(DecompilationContext context, Function f)
     {
-        var allRegisters = f.GetAllRegisters();
-        allRegisters.UnionWith(new HashSet<Identifier>(f.Parameters));
+        // GetDefines and GetUses calls have a lot of allocation overhead so reusing the same set has huge perf gains.
+        var definesSet = new HashSet<Identifier>(2);
+        var usesSet = new HashSet<Identifier>(10);
+        
+        var allRegisters = new HashSet<Identifier>(f.RegisterCount + f.Parameters.Count);
+        f.AddAllRegistersToSet(allRegisters);
+        foreach (var p in f.Parameters)
+        {
+            allRegisters.Add(p);
+        }
+
         f.ComputeGlobalLiveness(allRegisters);
+
+        f.SsaVariables = new HashSet<Identifier>(f.BlockList.Count * 10);
 
         // Now insert all the needed phi functions
         foreach (var g in f.GlobalIdentifiers)
         {
             var work = new Queue<CFG.BasicBlock>();
-            var visitedSet = new HashSet<CFG.BasicBlock>();
+            //var visitedSet = new HashSet<CFG.BasicBlock>();
             foreach (var b in f.BlockList)
             {
                 if (b != f.EndBlock && b.KilledIdentifiers.Contains(g))
                 {
                     work.Enqueue(b);
-                    visitedSet.Add(b);
+                    //visitedSet.Add(b);
                 }
             }
             while (work.Count > 0)
@@ -53,7 +63,7 @@ public class SsaTransformPass : IPass
                         //if (!visitedSet.Contains(d))
                         //{
                         work.Enqueue(d);
-                        visitedSet.Add(d);
+                        //visitedSet.Add(d);
                         //}
                     }
                 }
@@ -74,7 +84,7 @@ public class SsaTransformPass : IPass
         {
             var newName = new Identifier
             {
-                Name = orig.Name + $@"_{counters[orig]}",
+                Name = $@"{orig.Name}_{counters[orig]}",
                 Type = Identifier.IdentifierType.Register,
                 OriginalIdentifier = orig,
                 IsClosureBound = orig.IsClosureBound
@@ -87,6 +97,8 @@ public class SsaTransformPass : IPass
 
         void RenameBlock(CFG.BasicBlock b)
         {
+            b.ScopeKilled = new HashSet<uint>(b.Instructions.Count / 2);
+            
             // Rewrite phi function definitions
             foreach (var phi in b.PhiFunctions)
             {
@@ -96,7 +108,9 @@ public class SsaTransformPass : IPass
             // Rename other instructions
             foreach (var inst in b.Instructions)
             {
-                foreach (var use in inst.GetUses(true))
+                usesSet.Clear();
+                inst.GetUses(usesSet, true);
+                foreach (var use in usesSet)
                 {
                     if (use.IsClosureBound)
                     {
@@ -107,7 +121,9 @@ public class SsaTransformPass : IPass
                         inst.RenameUses(use, stacks[use].Peek());
                     }
                 }
-                foreach (var def in inst.GetDefines(true))
+                definesSet.Clear();
+                inst.GetDefines(definesSet, true);
+                foreach (var def in definesSet)
                 {
                     if (def.IsClosureBound)
                     {
@@ -147,10 +163,10 @@ public class SsaTransformPass : IPass
                     RenameBlock(successor);
                 }
 
-                // Add to the scope killed set based on the domtree successor's killed and scope killed
+                // Add to the scope killed set based on the dom tree successor's killed and scope killed
                 foreach (var killed in successor.KilledIdentifiers)
                 {
-                    if (killed.Type == Identifier.IdentifierType.Register)
+                    if (killed.IsRegister)
                     {
                         b.ScopeKilled.Add(killed.RegNum);
                     }
@@ -166,7 +182,9 @@ public class SsaTransformPass : IPass
             }
             foreach (var inst in b.Instructions)
             {
-                foreach (var def in inst.GetDefines(true))
+                definesSet.Clear();
+                inst.GetDefines(definesSet, true);
+                foreach (var def in definesSet)
                 {
                     if (def.IsClosureBound)
                     {

@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace LuaDecompilerCore.IR
@@ -7,7 +8,7 @@ namespace LuaDecompilerCore.IR
     /// A single instruction or statement, initially translated from a Lua opcode,
     /// but can be simplified into more powerful "instructions"
     /// </summary>
-    public abstract class Instruction
+    public abstract class Instruction : IMatchable
     {
         /// <summary>
         /// The original lua bytecode op within the function that generated this instruction
@@ -24,7 +25,7 @@ namespace LuaDecompilerCore.IR
         /// </summary>
         public CFG.BasicBlock? Block = null;
 
-        public bool HasClosure => GetExpressions().Any(e => e is Closure);
+        public bool HasClosure => MatchAny(e => e is Closure);
         
         /// <summary>
         /// True if this is an assignment instruction that assigns a closure
@@ -46,40 +47,27 @@ namespace LuaDecompilerCore.IR
         /// <summary>
         /// Gets all the identifiers that are defined by this instruction and adds them to the input set
         /// </summary>
-        public virtual void GetDefines(HashSet<Identifier> defines, bool registersOnly)
+        public virtual HashSet<Identifier> GetDefines(HashSet<Identifier> defines, bool registersOnly)
         {
-            
+            return defines;
         }
         
         /// <summary>
         /// Gets all the identifiers that are used (but not defined) by this instruction and adds them
         /// to the input set
         /// </summary>
-        public virtual void GetUses(HashSet<Identifier> uses, bool registersOnly)
+        public virtual HashSet<Identifier> GetUses(HashSet<Identifier> uses, bool registersOnly)
         {
-            
-        }
-        
-        /// <summary>
-        /// Gets all the identifiers that are defined by this instruction
-        /// </summary>
-        /// <returns></returns>
-        public virtual HashSet<Identifier> GetDefines(bool registersOnly)
-        {
-            var defines = new HashSet<Identifier>();
-            GetDefines(defines, registersOnly);
-            return defines;
+            return uses;
         }
 
         /// <summary>
-        /// Gets all the identifiers that are used (but not defined) by this instruction
+        /// If this instruction defines only a single identifier, return that identifier
         /// </summary>
         /// <returns></returns>
-        public virtual HashSet<Identifier> GetUses(bool registersOnly)
+        public virtual Identifier? GetSingleDefine(bool registersOnly)
         {
-            var uses = new HashSet<Identifier>();
-            GetUses(uses, registersOnly);
-            return uses;
+            return null;
         }
 
         public virtual List<Expression> GetExpressions()
@@ -93,9 +81,14 @@ namespace LuaDecompilerCore.IR
 
         public virtual bool ReplaceUses(Identifier orig, Expression sub) { return false; }
 
-        public override string? ToString()
+        public override string ToString()
         {
             return FunctionPrinter.DebugPrintInstruction(this);
+        }
+
+        public virtual bool MatchAny(Func<IMatchable, bool> condition)
+        {
+            return condition.Invoke(this);
         }
     }
 }

@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using LuaDecompilerCore.IR;
@@ -20,6 +21,10 @@ public class ExpressionPropagationPass : IPass
     
     public void RunOnFunction(DecompilationContext context, Function f)
     {
+        // GetDefines and GetUses calls have a lot of allocation overhead so reusing the same set has huge perf gains.
+        var definesSet = new HashSet<Identifier>(2);
+        var usesSet = new HashSet<Identifier>(10);
+        
         // Lua function calls (and expressions in general have their bytecode generated recursively. This means for example when doing a function call,
         // the name of the function is loaded to a register first, then all the subexpressions are computed, and finally the function is called. We can
         // exploit this knowledge to determine which expressions were actually inlined into the function call in the original source code.
@@ -32,13 +37,12 @@ public class ExpressionPropagationPass : IPass
                 for (var i = 0; i < b.Instructions.Count; i++)
                 {
                     b.Instructions[i].PrePropagationIndex = i;
-                    var defs = b.Instructions[i].GetDefines(true);
-                    if (defs.Count == 1)
+                    if (b.Instructions[i].GetSingleDefine(true) is { } define)
                     {
-                        defines.Add(defs.First(), i);
+                        defines.Add(define, i);
                         if (b.Instructions[i] is Assignment { IsSelfAssignment: true })
                         {
-                            selfs.Add(defs.First());
+                            selfs.Add(define);
                         }
                     }
                     switch (b.Instructions[i])
@@ -82,18 +86,20 @@ public class ExpressionPropagationPass : IPass
         // local variable.
         int LocalIdentifyVisit(CFG.BasicBlock b, HashSet<Identifier> localRegs)
         {
-            var thisLocalRegs = new HashSet<Identifier>();
+            var thisLocalRegs = new HashSet<Identifier>(localRegs.Count * 2);
             thisLocalRegs.UnionWith(localRegs);
 
             // Set of defines that are never used in this block (very very likely to be locals)
-            var unusedDefines = new HashSet<Identifier>();
+            var unusedDefines = new HashSet<Identifier>(b.Instructions.Count / 2);
 
             // Set of recently used registers that are candidates for locals
-            var recentlyUsed = new Dictionary<Identifier, Identifier>();
+            var recentlyUsed = new Dictionary<Identifier, Identifier>(b.Instructions.Count / 2);
             for (var i = 0; i < b.Instructions.Count; i++)
             {
                 // First add registers such the set contains all the registers used up to this point
-                foreach (var use in b.Instructions[i].GetUses(true))
+                usesSet.Clear();
+                b.Instructions[i].GetUses(usesSet, true);
+                foreach (var use in usesSet)
                 {
                     // If it's used it's no longer an unused definition
                     if (unusedDefines.Contains(use))
@@ -130,12 +136,13 @@ public class ExpressionPropagationPass : IPass
 
                 var removed = false;
 
-                var defines = b.Instructions[i].GetDefines(true);
+                definesSet.Clear();
+                b.Instructions[i].GetDefines(definesSet, true);
 
                 // If this is a multi-assignment then these variables are almost certainly locals
-                if (defines.Count > 1)
+                if (definesSet.Count > 1)
                 {
-                    foreach (var def in defines)
+                    foreach (var def in definesSet)
                     {
                         // Unfortunately this pretty much kills any previous def of this in scope's chances to actually be a local
                         Debug.Assert(def.OriginalIdentifier != null);
@@ -148,15 +155,14 @@ public class ExpressionPropagationPass : IPass
                     }
                 }
                 // This is more interesting
-                else if (defines.Count == 1)
+                else if (definesSet.Count == 1)
                 {
                     // Self instructions have a lot of information because they always use the next available temp registers. This
                     // means that any pending uses below us that haven't been redefined yet are actually locals. Note that the SELF
                     // op actually translates to two IR ops with two registers used, so we account for that
                     if (b.Instructions[i] is Assignment { IsSelfAssignment: true })
                     {
-                        var def1 = defines.First();
-                        var def2 = b.Instructions[i + 1].GetDefines(true).First(); // Second instruction
+                        var def2 = b.Instructions[i + 1].GetSingleDefine(true) ?? throw new Exception();
                         Debug.Assert(def2.OriginalIdentifier != null);
 
                         foreach (var k in recentlyUsed.Keys)
@@ -173,10 +179,10 @@ public class ExpressionPropagationPass : IPass
                         i++;
                         continue;
                     }
-                    
-                    var def = defines.First();
 
-                    // Skip upvalue
+                    var def = b.Instructions[i].GetSingleDefine(true) ?? throw new Exception();
+
+                    // Skip upValue
                     if (def.IsClosureBound || def.Renamed)
                     {
                         continue;
@@ -229,9 +235,9 @@ public class ExpressionPropagationPass : IPass
 
             // Visit next blocks in scope
             var childFirstDef = int.MaxValue;
-            foreach (var succ in b.DominanceTreeSuccessors)
+            foreach (var successor in b.DominanceTreeSuccessors)
             {
-                var fd = LocalIdentifyVisit(succ, thisLocalRegs);
+                var fd = LocalIdentifyVisit(successor, thisLocalRegs);
                 if (fd < childFirstDef && fd != -1)
                 {
                     childFirstDef = fd;
@@ -256,10 +262,8 @@ public class ExpressionPropagationPass : IPass
             var firstTempDef = -1;
             foreach (var inst in b.Instructions)
             {
-                var defs = inst.GetDefines(true);
-                if (defs.Count == 1)
+                if (inst.GetSingleDefine(true) is { } def)
                 {
-                    var def = defs.First();
                     if (!f.LocalVariables.Contains(def) && def is { Renamed: false, IsClosureBound: false })
                     {
                         Debug.Assert(def.OriginalIdentifier != null);
@@ -295,7 +299,9 @@ public class ExpressionPropagationPass : IPass
                 for (var i = 0; i < b.Instructions.Count; i++)
                 {
                     var inst = b.Instructions[i];
-                    foreach (var use in inst.GetUses(true))
+                    usesSet.Clear();
+                    inst.GetUses(usesSet, true);
+                    foreach (var use in usesSet)
                     {
                         if (use.DefiningInstruction is Assignment
                             {

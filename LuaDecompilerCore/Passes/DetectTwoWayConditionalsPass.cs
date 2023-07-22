@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using LuaDecompilerCore.IR;
 
@@ -28,26 +29,37 @@ public class DetectTwoWayConditionalsPass : IPass
 
             if (b.IsConditionalJump && (!b.IsLoopHead || b.LoopType != CFG.LoopType.LoopPretested))
             {
-                var maxEdges = 0;
-                CFG.BasicBlock? maxNode = null;
+                // The follow of a conditional block is the block that a conditional if statement converges
+                // on after the if and the optional else cause a control flow divergence
+                CFG.BasicBlock? followCandidate = null;
+                
+                // The initial candidate for the follow is the block that we immediately dominate with the
+                // most incoming blocks
+                var maxPredecessors = 0;
                 foreach (var d in b.DominanceTreeSuccessors)
                 {
-                    var successorsReq = 2;
-                    // If there is a break or while, the follow node is only going to have one back-edge
+                    // At least two incoming blocks are required for a block to be a follow
+                    var predecessorsRequired = 2;
+                    
+                    // If there is a break or while, the follow node is only going to have one back-edge since the block
+                    // with the break or the while will not necessarily go to the block following the if statement
                     if (b.LoopBreakFollow != null || b.LoopContinueFollow != null)
                     {
-                        successorsReq = 1;
+                        predecessorsRequired = 1;
                     }
-                    if (d.Predecessors.Count >= successorsReq && d.Predecessors.Count > maxEdges && 
+                    
+                    if (d.Predecessors.Count >= predecessorsRequired && d.Predecessors.Count > maxPredecessors && 
                         !d.IsContinueNode && !d.IsBreakNode && d != f.EndBlock)
                     {
-                        maxEdges = d.Predecessors.Count;
-                        maxNode = d;
+                        maxPredecessors = d.Predecessors.Count;
+                        followCandidate = d;
                     }
                 }
-                // Heuristic: if the true branch leads to a return or is if-orphaned and the follow isn't defined already, then the follow is always the false branch
-                // If the true branch also has a follow chain defined that leads to a return or if-orphaned node, then it is also disjoint from the rest of the CFG
-                // and the false branch is the follow
+                
+                // Heuristic: If the true branch leads to a return or is if-orphaned and the follow isn't defined already,
+                // then the follow is always the false branch.
+                // If the true branch also has a follow chain defined that leads to a return or if-orphaned node,
+                // then it is also disjoint from the rest of the CFG and the false branch is the follow
                 var isDisjoint = false;
                 var testFollow = b.EdgeTrue.Follow;
                 while (testFollow != null)
@@ -59,39 +71,42 @@ public class DetectTwoWayConditionalsPass : IPass
                     }
                     testFollow = testFollow.Follow;
                 }
-                if (maxNode == null && (b.EdgeTrue.IsReturn || b.EdgeTrue.IfOrphaned || isDisjoint))
+                
+                if (followCandidate == null && (b.EdgeTrue.IsReturn || b.EdgeTrue.IfOrphaned || isDisjoint))
                 {
-                    // If the false branch leads to an isolated return node or an if-orphaned node, then we are if-orphaned, which essentially means we don't
-                    // have a follow defined in the CFG. This means that to structure this, the if-orphaned node must be adopted by the next node with a CFG
-                    // determined follow and this node will inherit that follow
+                    // If the false branch leads to an isolated return node or an if-orphaned node, then we are if-orphaned,
+                    // which essentially means we don't have a follow defined in the CFG. This means that to structure this,
+                    // the if-orphaned node must be adopted by the next node with a CFG determined follow and this node will
+                    // inherit that follow.
                     if (b.EdgeFalse is { IsReturn: true, Predecessors.Count: 1 } || b.EdgeFalse.IfOrphaned)
                     {
                         b.IfOrphaned = true;
                     }
                     else
                     {
-                        maxNode = b.EdgeFalse;
+                        followCandidate = b.EdgeFalse;
                     }
                 }
+                
                 // If you don't match anything, but you dominate the end node, then it's probably the follow
-                if (maxNode == null && b.DominanceTreeSuccessors.Contains(f.EndBlock))
+                if (followCandidate == null && b.DominanceTreeSuccessors.Contains(f.EndBlock))
                 {
-                    maxNode = f.EndBlock;
+                    followCandidate = f.EndBlock;
                 }
 
                 // If we are a latch and the false node leads to a loop head, then the follow is the loop head
-                if (maxNode == null && b is { IsLoopLatch: true, EdgeFalse.IsLoopHead: true })
+                if (followCandidate == null && b is { IsLoopLatch: true, EdgeFalse.IsLoopHead: true })
                 {
-                    maxNode = b.EdgeFalse;
+                    followCandidate = b.EdgeFalse;
                 }
 
-                if (maxNode != null)
+                if (followCandidate != null)
                 {
-                    b.Follow = maxNode;
+                    b.Follow = followCandidate;
                     var unresolvedClone = new HashSet<CFG.BasicBlock>(unresolved);
                     foreach (var x in unresolvedClone)
                     {
-                        if (x != maxNode && !x.Dominance.Contains(maxNode))
+                        if (x != followCandidate && !x.Dominance.Contains(followCandidate))
                         {
                             var inc = x.DominanceTreeSuccessors.Count == 0;
                             // Do a BFS down the dominance hierarchy to search for a follow
@@ -101,7 +116,7 @@ public class DetectTwoWayConditionalsPass : IPass
                             while (bfsQueue.Count > 0)
                             {
                                 var dominanceSuccessor = bfsQueue.Dequeue();
-                                if (dominanceSuccessor.Successors.Contains(maxNode) || dominanceSuccessor.Follow == maxNode)
+                                if (dominanceSuccessor.Successors.Contains(followCandidate) || dominanceSuccessor.Follow == followCandidate)
                                 {
                                     inc = true;
                                     break;
@@ -115,7 +130,7 @@ public class DetectTwoWayConditionalsPass : IPass
                             }
                             if (inc)
                             {
-                                x.Follow = maxNode;
+                                x.Follow = followCandidate;
                                 unresolved.Remove(x);
                             }
                         }

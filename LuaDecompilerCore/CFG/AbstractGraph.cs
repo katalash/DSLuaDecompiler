@@ -117,32 +117,47 @@ namespace LuaDecompilerCore.CFG
         public void CalculateIntervals()
         {
             Intervals = new Dictionary<Node, HashSet<Node>>();
-            var headers = new HashSet<Node> { BeginNode };
+            var headers = new HashSet<Node>(Nodes.Count) { BeginNode };
+            var toAdd = new HashSet<Node>(10);
             while (headers.Count > 0)
             {
                 var h = headers.First();
                 headers.Remove(h);
-                var interval = new HashSet<Node> { h };
+                var interval = new HashSet<Node>(Nodes.Count / 8) { h };
                 Intervals.Add(h, interval);
                 h.Interval = interval;
                 var lastCount = 0;
                 while (lastCount != interval.Count)
                 {
                     lastCount = interval.Count;
-                    foreach (var start in interval.ToList())
+                    toAdd.Clear();
+                    foreach (var start in interval)
                     {
-                        foreach (var candidate in start.Successors
-                                     .Where(candidate => candidate.Predecessors
-                                         .All(n => interval.Contains(n)) && !Intervals.ContainsKey(candidate)))
+                        foreach (var candidate in start.Successors)
                         {
-                            interval.Add(candidate);
-                            candidate.Interval = interval;
+                            bool allContains = true;
+                            foreach (var predecessor in candidate.Predecessors)
+                            {
+                                allContains = allContains && interval.Contains(predecessor);
+                            }
+                            if (allContains && !Intervals.ContainsKey(candidate))
+                            {
+                                toAdd.Add(candidate);
+                                candidate.Interval = interval;
+                            }
                         }
                     }
+                    interval.UnionWith(toAdd);
                 }
                 foreach (var candidate in interval)
                 {
-                    headers.UnionWith(candidate.Successors.Except(interval).Except(Intervals.Keys));
+                    foreach (var successor in candidate.Successors)
+                    {
+                        if (!interval.Contains(successor) && !Intervals.ContainsKey(successor))
+                        {
+                            headers.Add(successor);
+                        }
+                    }
                 }
             }
         }

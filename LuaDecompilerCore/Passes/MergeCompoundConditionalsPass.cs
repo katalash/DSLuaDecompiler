@@ -9,6 +9,7 @@ namespace LuaDecompilerCore.Passes;
 /// </summary>
 public class MergeCompoundConditionalsPass : IPass
 {
+    public bool MutatesCfg => true;
     public void RunOnFunction(DecompilationContext context, Function f)
     {
         bool changed = true;

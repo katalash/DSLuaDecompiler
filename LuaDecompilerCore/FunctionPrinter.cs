@@ -7,34 +7,35 @@ using LuaDecompilerCore.IR;
 
 namespace LuaDecompilerCore;
 
-public class FunctionPrinter
+public partial class FunctionPrinter
 {
     private StringBuilder _builder = new();
     private int _indentLevel;
+    private bool _insertDebugComments;
     private bool _debugPrint;
 
-    internal static string? DebugPrintFunction(Function function)
+    internal static string DebugPrintFunction(Function function)
     {
         var printer = new FunctionPrinter { _debugPrint = true };
         printer.VisitFunction(function);
         return printer._builder.ToString();
     }
     
-    internal static string? DebugPrintBasicBlock(BasicBlock basicBlock)
+    internal static string DebugPrintBasicBlock(BasicBlock basicBlock)
     {
         var printer = new FunctionPrinter { _debugPrint = true };
         printer.VisitBasicBlock(basicBlock);
         return printer._builder.ToString();
     }
     
-    internal static string? DebugPrintInstruction(Instruction instruction)
+    internal static string DebugPrintInstruction(Instruction instruction)
     {
         var printer = new FunctionPrinter { _debugPrint = true };
         printer.VisitInstruction(instruction);
         return printer._builder.ToString();
     }
     
-    internal static string? DebugPrintExpression(Expression expression)
+    internal static string DebugPrintExpression(Expression expression)
     {
         var printer = new FunctionPrinter { _debugPrint = true };
         printer.VisitExpression(expression);
@@ -43,14 +44,16 @@ public class FunctionPrinter
     
     public string PrintFunction(Function function)
     {
-        _builder = new StringBuilder();
+        _builder = new StringBuilder(128 * 1024);
+        _insertDebugComments = function.InsertDebugComments;
         VisitFunction(function);
         return _builder.ToString();
     }
-    
+
     public void PrintFunctionToStringBuilder(Function function, StringBuilder builder)
     {
         _builder = builder;
+        _insertDebugComments = function.InsertDebugComments;
         VisitFunction(function);
     }
 
@@ -60,6 +63,11 @@ public class FunctionPrinter
     }
 
     private void Append(string value)
+    {
+        _builder.Append(value);
+    }
+    
+    private void Append(double value)
     {
         _builder.Append(value);
     }
@@ -98,8 +106,8 @@ public class FunctionPrinter
             return;
         switch (expression)
         {
-            case EmptyExpression emptyExpression:
-                VisitEmptyExpression(emptyExpression);
+            case EmptyExpression:
+                VisitEmptyExpression();
                 break;
             case Constant constant:
                 VisitConstant(constant);
@@ -137,14 +145,14 @@ public class FunctionPrinter
             case Assignment assignment:
                 VisitAssignment(assignment);
                 break;
-            case Break @break:
-                VisitBreak(@break);
+            case Break:
+                VisitBreak();
                 break;
-            case Continue @continue:
-                VisitContinue(@continue);
+            case Continue:
+                VisitContinue();
                 break;
-            case Data data:
-                VisitData(data);
+            case Data:
+                VisitData();
                 break;
             case GenericFor genericFor:
                 VisitGenericFor(genericFor);
@@ -212,9 +220,18 @@ public class FunctionPrinter
             NewLine();
             _indentLevel += 1;
         }
+        
+        // Print warnings
+        foreach (var warning in function.Warnings)
+        {
+            Indent();
+            Append(warning);
+            NewLine();
+        }
+        
         if (function.IsAst)
         {
-            if (function.InsertDebugComments)
+            if (_insertDebugComments)
             {
                 Indent();
                 Append($"-- Function ID = {function.FunctionId}");
@@ -282,6 +299,14 @@ public class FunctionPrinter
             Append(basicBlock.Name);
             return;
         }
+
+        if (_insertDebugComments)
+        {
+            Indent();
+            Append("-- ");
+            Append(basicBlock.Name);
+            NewLine();
+        }
         
         var count = basicBlock.IsInfiniteLoop && !printInfiniteLoop ? 1 : basicBlock.Instructions.Count;
         var begin = basicBlock.IsInfiniteLoop && printInfiniteLoop ? 1 : 0;
@@ -303,7 +328,7 @@ public class FunctionPrinter
         }
     }
 
-    private void VisitEmptyExpression(EmptyExpression expression)
+    private void VisitEmptyExpression()
     {
         
     }
@@ -313,7 +338,7 @@ public class FunctionPrinter
         switch (constant.ConstType)
         {
             case Constant.ConstantType.ConstNumber:
-                Append(constant.Number.ToString(CultureInfo.InvariantCulture));
+                Append(constant.Number);
                 break;
             case Constant.ConstantType.ConstInteger:
                 _builder.Append(constant.Integer);
@@ -407,7 +432,7 @@ public class FunctionPrinter
         // Pattern match special lua this call
         for (var i = 0; i < initializerList.Expressions.Count; i++)
         {
-            if (initializerList.Assignments != null)
+            if (initializerList.Assignments.Count > 0)
             {
                 Append(initializerList.Assignments[i].String + " = ");
             }
@@ -487,13 +512,16 @@ public class FunctionPrinter
     {
         // Pattern match special lua this call
         var beginArg = 0;
-        if (functionCall.Function is IdentifierReference ir && ir.TableIndices.Count == 1 &&
-            ir.TableIndices[0] is Constant { ConstType: Constant.ConstantType.ConstString } c &&
-            ir.Identifier.Type != Identifier.IdentifierType.GlobalTable)
+        if (functionCall.Function is IdentifierReference
+            {
+                TableIndices.Count: 1, 
+                TableIndex: Constant { ConstType: Constant.ConstantType.ConstString } c, 
+                Identifier.IsGlobalTable: false
+            } ir)
         {
             VisitIdentifier(ir.Identifier);
-            if (functionCall.Args.Count >= 1 && functionCall.Args[0] is IdentifierReference thisIdentifier && 
-                thisIdentifier.TableIndices.Count == 0 && thisIdentifier.Identifier == ir.Identifier)
+            if (functionCall.Args is [IdentifierReference { TableIndices.Count: 0 } thisIdentifier, ..] && 
+                thisIdentifier.Identifier == ir.Identifier)
             {
                 Append($@":{c.String}(");
                 beginArg = 1;
@@ -503,7 +531,7 @@ public class FunctionPrinter
                 Append($@".{c.String}(");
             }
         }
-        else if (functionCall.Function is IdentifierReference ir2 && ir2.TableIndices.Count == 2 &&
+        else if (functionCall.Function is IdentifierReference { TableIndices.Count: 2 } ir2 &&
                  ir2.Identifier.Type == Identifier.IdentifierType.GlobalTable &&
                  ir2.TableIndices[1] is Constant { ConstType: Constant.ConstantType.ConstString } c2 &&
                  ir2.TableIndices[0] is Constant { ConstType: Constant.ConstantType.ConstString } c3 &&
@@ -571,17 +599,17 @@ public class FunctionPrinter
         }
     }
 
-    private void VisitBreak(Break @break)
+    private void VisitBreak()
     {
         Append("break");
     }
 
-    private void VisitContinue(Continue @continue)
+    private void VisitContinue()
     {
         Append("continue");
     }
 
-    private void VisitData(Data data)
+    private void VisitData()
     {
         Append("data");
     }

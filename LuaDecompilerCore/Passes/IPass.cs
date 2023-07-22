@@ -7,5 +7,7 @@ namespace LuaDecompilerCore.Passes;
 /// </summary>
 public interface IPass
 {
+    public bool MutatesCfg => false;
+    
     public void RunOnFunction(DecompilationContext context, Function f);
 }

@@ -8,16 +8,16 @@ namespace LuaDecompilerCore.IR
     /// <summary>
     /// Base class for an expression, which can basically do anything expressive
     /// </summary>
-    public abstract class Expression
+    public abstract class Expression : IMatchable
     {
         public virtual void GetUses(HashSet<Identifier> uses, bool registersOnly)
         {
             
         }
         
-        public virtual HashSet<Identifier> GetUses(bool registersOnly)
+        public HashSet<Identifier> GetUses(bool registersOnly)
         {
-            var uses = new HashSet<Identifier>();
+            var uses = new HashSet<Identifier>(5);
             GetUses(uses, registersOnly);
             return uses;
         }
@@ -47,6 +47,8 @@ namespace LuaDecompilerCore.IR
         {
             return FunctionPrinter.DebugPrintExpression(this);
         }
+
+        public abstract bool MatchAny(Func<IMatchable, bool> condition);
     }
 
     /// <summary>
@@ -55,7 +57,10 @@ namespace LuaDecompilerCore.IR
     /// </summary>
     public sealed class EmptyExpression : Expression
     {
-        
+        public override bool MatchAny(Func<IMatchable, bool> condition)
+        {
+            return condition.Invoke(this);
+        }
     }
 
     public sealed class Constant : Expression
@@ -116,6 +121,11 @@ namespace LuaDecompilerCore.IR
         public override int GetLowestConstantId()
         {
             return ConstantId;
+        }
+
+        public override bool MatchAny(Func<IMatchable, bool> condition)
+        {
+            return condition.Invoke(this);
         }
 
         public override bool Equals(object? obj)
@@ -181,6 +191,11 @@ namespace LuaDecompilerCore.IR
                 }
             }
         }
+
+        public override bool MatchAny(Func<IMatchable, bool> condition)
+        {
+            return condition.Invoke(this);
+        }
     }
 
     public sealed class IdentifierReference : Expression
@@ -202,7 +217,7 @@ namespace LuaDecompilerCore.IR
         public IdentifierReference(Identifier id, Expression index)
         {
             Identifier = id;
-            TableIndices = new List<Expression> { index };
+            TableIndices = new List<Expression>(1) { index };
         }
 
         public override void Parenthesize()
@@ -296,6 +311,16 @@ namespace LuaDecompilerCore.IR
                 }
             }
             return id;
+        }
+
+        public override bool MatchAny(Func<IMatchable, bool> condition)
+        {
+            var result = condition.Invoke(this);
+            foreach (var idx in TableIndices)
+            {
+                result = result || idx.MatchAny(condition);
+            }
+            return result;
         }
     }
 
@@ -393,6 +418,16 @@ namespace LuaDecompilerCore.IR
             }
             return id != int.MaxValue ? id : -1;
         }
+
+        public override bool MatchAny(Func<IMatchable, bool> condition)
+        {
+            var result = condition.Invoke(this);
+            foreach (var idx in Expressions)
+            {
+                result = result || idx.MatchAny(condition);
+            }
+            return result;
+        }
     }
 
     public sealed class InitializerList : Expression
@@ -469,6 +504,16 @@ namespace LuaDecompilerCore.IR
                 }
             }
             return id != int.MaxValue ? id : -1;
+        }
+
+        public override bool MatchAny(Func<IMatchable, bool> condition)
+        {
+            var result = condition.Invoke(this);
+            foreach (var idx in Expressions)
+            {
+                result = result || idx.MatchAny(condition);
+            }
+            return result;
         }
     }
 
@@ -706,6 +751,13 @@ namespace LuaDecompilerCore.IR
             return Math.Min(left, right);
         }
 
+        public override bool MatchAny(Func<IMatchable, bool> condition)
+        {
+            var result = condition.Invoke(this);
+            result = result || Left.MatchAny(condition) || Right.MatchAny(condition);
+            return result;
+        }
+
         public void SetHasParentheses(bool paren)
         {
             HasParentheses = paren;
@@ -766,6 +818,13 @@ namespace LuaDecompilerCore.IR
             return Expression.GetLowestConstantId();
         }
 
+        public override bool MatchAny(Func<IMatchable, bool> condition)
+        {
+            var result = condition.Invoke(this);
+            result = result || Expression.MatchAny(condition);
+            return result;
+        }
+
         public int GetPrecedence()
         {
             return 1;
@@ -824,7 +883,6 @@ namespace LuaDecompilerCore.IR
 
         public override void GetUses(HashSet<Identifier> uses, bool registersOnly)
         {
-            var ret = new HashSet<Identifier>();
             foreach (var arg in Args)
             {
                 arg.GetUses(uses, registersOnly);
@@ -895,6 +953,18 @@ namespace LuaDecompilerCore.IR
                 }
             }
             return id;
+        }
+
+        public override bool MatchAny(Func<IMatchable, bool> condition)
+        {
+            var result = condition.Invoke(this);
+            foreach (var idx in Args)
+            {
+                result = result || idx.MatchAny(condition);
+            }
+
+            result = result || Function.MatchAny(condition);
+            return result;
         }
     }
 }

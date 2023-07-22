@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Text;
 using LuaDecompilerCore.IR;
 using LuaDecompilerCore.Passes;
@@ -12,19 +13,18 @@ public class PassManager
     private readonly List<PassRegistration> _passes;
     private readonly IReadOnlySet<string> _dumpIrPasses;
     private readonly bool _dumpAllIrPasses;
+    private readonly IReadOnlySet<string> _dumpDotGraphPasses;
+    private readonly bool _dumpAllDotGraphPasses;
+    private readonly bool _dumpCfgMutatingDotGraphPasses;
 
     public PassManager(DecompilationOptions options)
     {
         _passes = new List<PassRegistration>();
         _dumpIrPasses = options.DumpIrPasses;
         _dumpAllIrPasses = _dumpIrPasses.Contains("all");
-    }
-    
-    public PassManager(List<PassRegistration> passes, DecompilationOptions options)
-    {
-        _passes = passes;
-        _dumpIrPasses = options.DumpIrPasses;
-        _dumpAllIrPasses = _dumpIrPasses.Contains("all");
+        _dumpDotGraphPasses = options.DumpDotGraphPasses;
+        _dumpAllDotGraphPasses = _dumpDotGraphPasses.Contains("all");
+        _dumpCfgMutatingDotGraphPasses = _dumpDotGraphPasses.Contains("cfg-mutated");
     }
 
     public void AddPass(string name, IPass pass)
@@ -38,28 +38,67 @@ public class PassManager
     /// </summary>
     /// <param name="context">The decompilation context provided to every pass</param>
     /// <param name="functions">The functions to run all the passes on</param>
+    /// <param name="catchExceptions"></param>
     /// <returns>String representation of the first function after each specified pass runs</returns>
-    public string? RunOnFunctions(DecompilationContext context, IReadOnlyList<Function> functions)
+    public DecompilationResult RunOnFunctions(DecompilationContext context,
+        IReadOnlyList<Function> functions,
+        bool catchExceptions)
     {
-        var printPassCount = _dumpAllIrPasses ? _passes.Count : _dumpIrPasses.Count;
-        var output = new StringBuilder(printPassCount * 1024 * 1024);
+        var irResults = new List<PassIrResult>();
+        var dotGraphResults = new List<PassDotGraphResult>();
+        
         var printer = new FunctionPrinter();
+        string? error = null;
         foreach (var pass in _passes)
         {
             foreach (var f in functions)
             {
-                pass.Pass.RunOnFunction(context, f);
+                if (catchExceptions)
+                {
+                    try
+                    {
+                        pass.Pass.RunOnFunction(context, f);
+                    }
+                    catch (Exception e)
+                    {
+                        error = e.Message + "\n\n" + e.StackTrace;
+                        goto Error;
+                    }
+                }
+                else
+                {
+                    pass.Pass.RunOnFunction(context, f);
+                }
             }
             
-            // Skip dumping if the pass isn't enabled
-            if (!_dumpAllIrPasses && !_dumpIrPasses.Contains(pass.Name)) continue;
-
-            output.AppendLine($"-- Begin pass {pass.Name} --");
-            printer.PrintFunctionToStringBuilder(functions[0], output);
-            output.AppendLine($"-- End pass {pass.Name} --");
-            output.AppendLine();
+            // Dump pass IR
+            if (_dumpAllIrPasses || _dumpIrPasses.Contains(pass.Name))
+            {
+                var output = new StringBuilder(128 * 1024);
+                printer.PrintFunctionToStringBuilder(functions[0], output);
+                irResults.Add(new PassIrResult(pass.Name, output.ToString()));
+            }
+            
+            // Dump dot files
+            if (_dumpAllDotGraphPasses || 
+                (_dumpCfgMutatingDotGraphPasses && pass.Pass.MutatesCfg) || 
+                _dumpDotGraphPasses.Contains(pass.Name))
+            {
+                var functionDotResults = new List<FunctionDotGraphResult>();
+                foreach (var f in functions)
+                {
+                    functionDotResults.Add(
+                        new FunctionDotGraphResult(f.FunctionId, printer.PrintDotGraphForFunction(f)));
+                }
+                dotGraphResults.Add(new PassDotGraphResult(pass.Name, functionDotResults.ToArray()));
+            }
         }
-
-        return output.Length > 0 ? output.ToString() : null;
+        
+        Error:
+        return new DecompilationResult(
+             error == null ? printer.PrintFunction(functions[0]) : null, 
+             error, 
+             irResults.ToArray(),
+             dotGraphResults.ToArray());
     }
 }

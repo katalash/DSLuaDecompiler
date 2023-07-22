@@ -192,7 +192,7 @@ namespace LuaDecompilerCore.CFG
             BlockId = blockId;
             Predecessors = new List<BasicBlock>();
             Successors = new List<BasicBlock>();
-            Instructions = new List<Instruction>();
+            Instructions = new List<Instruction>(10);
             PhiFunctions = new Dictionary<Identifier, PhiFunction>();
             Dominance = new HashSet<BasicBlock>();
             ImmediateDominator = this;
@@ -276,21 +276,29 @@ namespace LuaDecompilerCore.CFG
         /// </summary>
         public IEnumerable<Identifier> ComputeKilledAndUpwardExposed()
         {
-            var globals = new HashSet<Identifier>();
+            var definesSet = new HashSet<Identifier>(2);
+            var usesSet = new HashSet<Identifier>(10);
+            var globals = new HashSet<Identifier>(Instructions.Count / 4);
             var instructions = new List<Instruction>(PhiFunctions.Values);
+            UpwardExposedIdentifiers.EnsureCapacity(Instructions.Count / 4);
+            KilledIdentifiers.EnsureCapacity(Instructions.Count / 4);
             instructions.AddRange(Instructions);
             foreach (var inst in instructions)
             {
                 if (inst is not PhiFunction)
                 {
-                    foreach (var use in inst.GetUses(true))
+                    usesSet.Clear();
+                    inst.GetUses(usesSet, true);
+                    foreach (var use in usesSet)
                     {
                         if (KilledIdentifiers.Contains(use)) continue;
                         UpwardExposedIdentifiers.Add(use);
                         globals.Add(use);
                     }
                 }
-                foreach(var def in inst.GetDefines(true))
+                definesSet.Clear();
+                inst.GetDefines(definesSet, true);
+                foreach(var def in definesSet)
                 {
                     KilledIdentifiers.Add(def);
                 }
@@ -298,11 +306,11 @@ namespace LuaDecompilerCore.CFG
             return globals;
         }
 
-        public void MarkCodeGenerated(int debugFuncId)
+        public void MarkCodeGenerated(int debugFuncId, List<string> warnings)
         {
             if (_isCodeGenerated)
             {
-                Console.WriteLine($"Warning: Function {debugFuncId} using already code-generated block {Name}");
+                warnings.Add($"-- Warning: Function {debugFuncId} using already code-generated block {Name}");
             }
             _isCodeGenerated = true;
         }

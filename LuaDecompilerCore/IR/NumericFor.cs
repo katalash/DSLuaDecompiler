@@ -1,4 +1,5 @@
-﻿using System.Linq;
+﻿using System;
+using System.Linq;
 using LuaDecompilerCore.CFG;
 
 namespace LuaDecompilerCore.IR
@@ -30,6 +31,15 @@ namespace LuaDecompilerCore.IR
             Increment = increment;
             Body = body;
             Follow = follow;
+        }
+        
+        public override bool MatchAny(Func<IMatchable, bool> condition)
+        {
+            var result = condition.Invoke(this);
+            result = result || (Initial != null && Initial.MatchAny(condition));
+            result = result || (Limit != null && Limit.MatchAny(condition));
+            result = result || Increment.MatchAny(condition);
+            return result;
         }
     }
 }

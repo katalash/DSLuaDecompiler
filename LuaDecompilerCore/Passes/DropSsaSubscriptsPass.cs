@@ -12,6 +12,10 @@ public class DropSsaSubscriptsPass : IPass
 {
     public void RunOnFunction(DecompilationContext context, Function f)
     {
+        // GetDefines and GetUses calls have a lot of allocation overhead so reusing the same set has huge perf gains.
+        var definesSet = new HashSet<Identifier>(2);
+        var usesSet = new HashSet<Identifier>(10);
+        
         foreach (var b in f.BlockList)
         {
             foreach (var phi in b.PhiFunctions)
@@ -22,12 +26,16 @@ public class DropSsaSubscriptsPass : IPass
             b.PhiFunctions.Clear();
             foreach (var i in b.Instructions)
             {
-                foreach (var def in i.GetDefines(true))
+                definesSet.Clear();
+                usesSet.Clear();
+                i.GetDefines(definesSet, true);
+                i.GetUses(usesSet, true);
+                foreach (var def in definesSet)
                 {
                     if (def.OriginalIdentifier != null)
                         i.RenameDefines(def, def.OriginalIdentifier);
                 }
-                foreach (var use in i.GetUses(true))
+                foreach (var use in usesSet)
                 {
                     if (use.OriginalIdentifier != null)
                         i.RenameUses(use, use.OriginalIdentifier);
@@ -82,7 +90,9 @@ public class DropSsaSubscriptsPass : IPass
                 while (changed)
                 {
                     changed = false;
-                    foreach (var use in instruction.GetUses(true))
+                    usesSet.Clear();
+                    instruction.GetUses(usesSet, true);
+                    foreach (var use in usesSet)
                     {
                         if (newReplacements.TryGetValue(use, out var value) && newReplacements[use] != newDef)
                         {
@@ -90,7 +100,9 @@ public class DropSsaSubscriptsPass : IPass
                             changed = true;
                         }
                     }
-                    foreach (var def in instruction.GetDefines(true))
+                    definesSet.Clear();
+                    instruction.GetDefines(definesSet, true);
+                    foreach (var def in definesSet)
                     {
                         if (instruction is Assignment { LocalAssignments: not null } && !reassigned)
                         {

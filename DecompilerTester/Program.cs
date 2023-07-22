@@ -7,6 +7,7 @@ using LuaDecompilerCore;
 using LuaDecompilerCore.IR;
 using LuaDecompilerCore.LanguageDecompilers;
 using LuaDecompilerCore.Utilities;
+using LuaDecompilerTestFramework;
 
 namespace DecompilerTester
 {
@@ -94,58 +95,6 @@ namespace DecompilerTester
                 };
                 decompiler.DecompileLuaFunction(languageDecompiler, irFunction, luaFile.MainFunction);
 
-#if false
-                string tempFileName1 = Path.GetTempFileName();
-                var printer = new FunctionPrinter();
-                File.WriteAllText(tempFileName1,  printer.PrintFunction(irfun), encoding);
-                string tempFileName2 = Path.GetTempFileName();
-                Process process = new Process();
-                process.StartInfo.FileName = flag ? "hksc.exe" : "luac-5.0.2.exe";
-                process.StartInfo.Arguments = "-s -o " + tempFileName2 + " " + tempFileName1;
-                process.Start();
-                process.WaitForExit();
-                if (process.ExitCode != 0)
-                {
-                    Console.ForegroundColor = ConsoleColor.Red;
-                    Console.WriteLine("        Recompilation Failed!");
-                    Console.ForegroundColor = ConsoleColor.White;
-                    ++compilefails;
-                    if (!Directory.Exists(dirmiss))
-                        Directory.CreateDirectory(dirmiss);
-                    File.WriteAllBytes(dirmiss + "\\" + Path.GetFileName(name), input);
-                    File.Copy(tempFileName1, dirmiss + "\\" + Path.GetFileName(name) + ".decomp");
-                }
-                else
-                {
-                    if (CompareLuaFiles(File.ReadAllBytes(tempFileName2), 
-                            input, 
-                            out var mismatched, 
-                            out var total, 
-                            out var mismatchedFunctionIds))
-                    {
-                        Console.ForegroundColor = ConsoleColor.Green;
-                        Console.WriteLine("        Matched");
-                        Console.ForegroundColor = ConsoleColor.White;
-                        matches.Add(Path.GetFileName(name));
-                    }
-                    else
-                    {
-                        Console.ForegroundColor = ConsoleColor.Yellow;
-                        Console.WriteLine("        Mismatched ({0}/{1} matched)", total - mismatched, total);
-                        var functionIds = mismatchedFunctionIds.Aggregate("            Mismatched Function IDs: ", 
-                            (current, i) => current + $" {i}");
-                        Console.WriteLine(functionIds);
-                        Console.ForegroundColor = ConsoleColor.White;
-                        ++mismatches;
-                        if (!Directory.Exists(dir))
-                            Directory.CreateDirectory(dir);
-                        File.WriteAllBytes(dir + "\\" + Path.GetFileName(name), input);
-                        File.Copy(tempFileName1, dir + "\\" + Path.GetFileName(name) + ".decomp");
-                        File.Copy(tempFileName2, dir + "\\" + Path.GetFileName(name) + ".recomp");
-                    }
-                }
-#endif
-                
                 // Print decompiled output to string
                 var printer = new FunctionPrinter();
                 var decompiledSource = printer.PrintFunction(irFunction);
@@ -219,72 +168,24 @@ namespace DecompilerTester
         {
             Thread.CurrentThread.CurrentCulture = CultureInfo.InvariantCulture;
             Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-            Console.OutputEncoding = Encoding.UTF8;
-            Console.ForegroundColor = ConsoleColor.White;
-            var list1 = Directory.GetFileSystemEntries(args[0], "*.luabnd.dcx").ToList();
-            var list2 = Directory.GetFileSystemEntries(args[0], "*.hks").ToList();
-            var num = 0;
-            var fails = 0;
-            var compilefails = 0;
-            var mismatches = 0;
-            List<string> matches = new();
-            if (Directory.Exists("output"))
-                Directory.Delete("output", true);
-            if (!Directory.Exists("output/mismatches"))
-                Directory.CreateDirectory("output/mismatches");
-            if (!Directory.Exists("output/miscompiles"))
-                Directory.CreateDirectory("output/miscompiles");
-            if (!Directory.Exists("output/failures"))
-                Directory.CreateDirectory("output/failures");
-            foreach (var path in list1)
-            {
-                var str1 = "output/mismatches/" + Path.GetFileNameWithoutExtension(path);
-                var str2 = "output/miscompiles/" + Path.GetFileNameWithoutExtension(path);
-                var str3 = "output/failures/" + Path.GetFileNameWithoutExtension(path);
-                Console.WriteLine("Decompiling luabnd " + Path.GetFileName(path));
-                foreach (var file in SoulsFormats.BND4.Read(path).Files)
+
+            var tester = new DecompilationTester(
+                new Lua50Decompiler(),
+                new Lua50Compiler(),
+                Encoding.GetEncoding("shift_jis"),
+                new DecompilationTesterOptions
                 {
-                    if (file.Name.EndsWith(".lua"))
-                    {
-                        ++num;
-                        TestLua(file.Name, file.Bytes, str1, str2, str3, ref fails, ref compilefails,
-                            ref matches, ref mismatches);
-                    }
-                }
-            }
+                    DumpPassIr = true,
+                    DumpCfg = true,
+                });
+            TestUtilities.AddCompiledLuaBndDirectoryToTester(args[0], tester);
+            var results = tester.Execute();
+            TestUtilities.ConsoleLogTestResults(results);
 
-            foreach (var str4 in list2)
-            {
-                var str5 = "output/mismatches/action";
-                if (!Directory.Exists(str5))
-                    Directory.CreateDirectory(str5);
-                var str6 = "output/miscompiles/action";
-                if (!Directory.Exists(str6))
-                    Directory.CreateDirectory(str6);
-                var str7 = "output/failures/action";
-                if (!Directory.Exists(str7))
-                    Directory.CreateDirectory(str7);
-                var input = File.ReadAllBytes(str4);
-                ++num;
-                TestLua(str4, input, str5, str6, str7, ref fails, ref compilefails, ref matches,
-                    ref mismatches);
-            }
-
-            var matchesDir = "output/matches.txt";
-            File.WriteAllLines(matchesDir, matches);
-
-            Console.WriteLine();
-            Console.WriteLine("Decompilation stats:");
-            Console.WriteLine($"Total Lua Files:      {num}");
-            Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine($"Decompilation Failed: {fails}");
-            Console.ForegroundColor = ConsoleColor.Magenta;
-            Console.WriteLine($"Recompilation Failed: {compilefails}");
-            Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine($"Mismatches:           {mismatches}");
-            Console.ForegroundColor = ConsoleColor.Green;
-            Console.WriteLine($"Matches:              {matches.Count}");
-            Console.ReadLine();
+            if (!Directory.Exists("output"))
+                Directory.CreateDirectory("output");
+            TestUtilities.WriteTestResultArtifactsToDirectory(
+                results, "output", Encoding.GetEncoding("shift_jis"), false);
         }
     }
 }

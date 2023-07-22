@@ -1,4 +1,4 @@
-﻿using System.Linq;
+﻿using System;
 using LuaDecompilerCore.CFG;
 
 namespace LuaDecompilerCore.IR
@@ -20,6 +20,13 @@ namespace LuaDecompilerCore.IR
             Iterator = iterator;
             Body = body;
             Follow = follow;
+        }
+        
+        public override bool MatchAny(Func<IMatchable, bool> condition)
+        {
+            var result = condition.Invoke(this);
+            result = result || Iterator.MatchAny(condition);
+            return result;
         }
     }
 }

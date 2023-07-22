@@ -9,6 +9,17 @@ namespace LuaDecompilerCore;
 public class DecompilationOptions
 {
     /// <summary>
+    /// Extra validation passes and checks will be run to help catch decompilation issues
+    /// </summary>
+    public bool ExtraValidation = false;
+    
+    /// <summary>
+    /// Catch any exceptions that may occur in the decompilation in the pass manager to ensure
+    /// a result can still be returned
+    /// </summary>
+    public bool CatchPassExceptions = true;
+    
+    /// <summary>
     /// Function Ids that are included in the decompilation. For closures, the parent function must also be included for
     /// the closure to be included in the decompilation. Null means all function Ids are compiled.
     /// </summary>
@@ -25,6 +36,12 @@ public class DecompilationOptions
     /// name will dump the IR for all the passes.
     /// </summary>
     public IReadOnlySet<string> DumpIrPasses = new HashSet<string>();
+    
+    /// <summary>
+    /// Debug option to dump a DOT file representing the control flow graph of each function after each named pass.
+    /// Passing "all" as a pass name will dump the CFG for all the passes.
+    /// </summary>
+    public IReadOnlySet<string> DumpDotGraphPasses = new HashSet<string>();
     
     /// <summary>
     /// Add comments to the decompiled output with various debugging info.

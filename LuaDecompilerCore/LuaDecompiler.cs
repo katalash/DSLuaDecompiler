@@ -9,24 +9,24 @@ namespace LuaDecompilerCore
     public class LuaDecompiler
     {
         private DecompilationOptions DecompilationOptions { get; set; }
-        private readonly GlobalSymbolTable _globalSymbolTable = new();
 
         public LuaDecompiler(DecompilationOptions options)
         {
             DecompilationOptions = options;
         }
 
-        public string? DecompileLuaFunction(
+        public DecompilationResult DecompileLuaFunction(
             ILanguageDecompiler languageDecompiler,
             Function main,
             LuaFile.Function luaMain)
         {
+            var globalSymbolTable = new GlobalSymbolTable();
             var functions = new List<Function>();
             
             void Visit(LuaFile.Function luaFunction, Function irFunction)
             {
                 // Language specific initialization
-                languageDecompiler.InitializeFunction(luaFunction, irFunction, _globalSymbolTable);
+                languageDecompiler.InitializeFunction(luaFunction, irFunction, globalSymbolTable);
                 
                 // Enable debug comments if set
                 irFunction.InsertDebugComments = DecompilationOptions.OutputDebugComments;
@@ -40,7 +40,7 @@ namespace LuaDecompilerCore
                 irFunction.SetParameters(parameters);
 
                 // Now generate IR from the bytecode using language specific decompiler
-                languageDecompiler.GenerateIr(luaFunction, irFunction, _globalSymbolTable);
+                languageDecompiler.GenerateIr(luaFunction, irFunction, globalSymbolTable);
                 
                 // Add function to run decompilation passes on
                 functions.Add(irFunction);
@@ -63,7 +63,10 @@ namespace LuaDecompilerCore
             // Create pass manager, add language specific passes, and run
             var passManager = new PassManager(DecompilationOptions);
             languageDecompiler.AddDecompilePasses(passManager);
-            return passManager.RunOnFunctions(new DecompilationContext(_globalSymbolTable), functions);
+            return passManager.RunOnFunctions(
+                new DecompilationContext(globalSymbolTable), 
+                functions,
+                DecompilationOptions.CatchPassExceptions);
         }
     }
 }

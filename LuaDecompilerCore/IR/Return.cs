@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 
 namespace LuaDecompilerCore.IR
 {
@@ -25,12 +26,14 @@ namespace LuaDecompilerCore.IR
             ReturnExpressions.ForEach(x => x.Parenthesize());
         }
 
-        public override void GetUses(HashSet<Identifier> uses, bool registersOnly)
+        public override HashSet<Identifier> GetUses(HashSet<Identifier> uses, bool registersOnly)
         {
             foreach (var exp in ReturnExpressions)
             {
                 exp.GetUses(uses, registersOnly);
             }
+
+            return uses;
         }
 
         public override void RenameUses(Identifier original, Identifier newIdentifier)
@@ -58,6 +61,16 @@ namespace LuaDecompilerCore.IR
             }
             return replace;
         }
+        
+        public override bool MatchAny(Func<IMatchable, bool> condition)
+        {
+            var result = condition.Invoke(this);
+            foreach (var exp in ReturnExpressions)
+            {
+                result = result || exp.MatchAny(condition);
+            }
+            return result;
+        }
 
         public override List<Expression> GetExpressions()
         {
@@ -68,5 +81,6 @@ namespace LuaDecompilerCore.IR
             }
             return ret;
         }
+        
     }
 }

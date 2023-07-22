@@ -11,6 +11,10 @@ public class ValidateLivenessNoInterferencePass : IPass
 {
     public void RunOnFunction(DecompilationContext context, Function f)
     {
+        // GetDefines and GetUses calls have a lot of allocation overhead so reusing the same set has huge perf gains.
+        var definesSet = new HashSet<Identifier>(2);
+        var usesSet = new HashSet<Identifier>(10);
+        
         // Just computes liveout despite the name
         f.ComputeGlobalLiveness(f.SsaVariables);
 
@@ -43,19 +47,23 @@ public class ValidateLivenessNoInterferencePass : IPass
             var liveNow = new HashSet<Identifier>(b.LiveOut);
             for (var i = b.Instructions.Count - 1; i >= 0; i--)
             {
-                var defs = b.Instructions[i].GetDefines(true);
-                foreach (var def in defs)
+                definesSet.Clear();
+                b.Instructions[i].GetDefines(definesSet, true);
+                foreach (var def in definesSet)
                 {
                     foreach (var live in liveNow)
                     {
                         if (live != def && live.OriginalIdentifier == def.OriginalIdentifier)
                         {
-                            Console.WriteLine($@"Warning: SSA live range interference detected in function {f.FunctionId}. Results are probably wrong.");
+                            f.Warnings.Add("-- Warning: SSA live range interference detected in function " +
+                                $"{f.FunctionId} ({live} overlaps with {def}). Results are probably wrong.");
                         }
                     }
                     liveNow.Remove(def);
                 }
-                foreach (var use in b.Instructions[i].GetUses(true))
+                usesSet.Clear();
+                b.Instructions[i].GetUses(usesSet, true);
+                foreach (var use in usesSet)
                 {
                     liveNow.Add(use);
                 }

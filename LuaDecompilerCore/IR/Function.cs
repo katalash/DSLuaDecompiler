@@ -44,7 +44,7 @@ namespace LuaDecompilerCore.IR
         /// <summary>
         /// All the renamed SSA variables
         /// </summary>
-        public HashSet<Identifier> SsaVariables { get; private set; }
+        public HashSet<Identifier> SsaVariables { get; set; }
         
         /// <summary>
         /// Unique identifier for the function used for various purposes
@@ -92,11 +92,16 @@ namespace LuaDecompilerCore.IR
         /// expression propagation
         /// </summary>
         public HashSet<Identifier> LocalVariables { get; private set; } = new();
-        
+
+        public readonly List<string> Warnings = new List<string>();
+
         private int _currentBlockId;
 
-        private readonly Dictionary<string, Identifier> _symbols = new();
+        private readonly Dictionary<uint, Identifier> _registers = new Dictionary<uint, Identifier>(10);
+        private readonly Dictionary<uint, Identifier> _upValues = new();
 
+        public int RegisterCount => _registers.Count;
+        
         public Function(int functionId)
         {
             Parameters = new List<Identifier>();
@@ -134,7 +139,7 @@ namespace LuaDecompilerCore.IR
                 value.UsageCount++;
                 return Labels[pc];
             }
-            var label = new Label
+            var label = new Label(Labels.Count)
             {
                 OpLocation = (int)pc,
                 UsageCount = 1
@@ -150,32 +155,37 @@ namespace LuaDecompilerCore.IR
         /// <returns>Identifier representing this register</returns>
         public Identifier GetRegister(uint reg)
         {
-            if (_symbols.TryGetValue($@"REG{reg}", out var value)) return value;
-            var regi = new Identifier
+            if (_registers.TryGetValue(reg, out var value)) return value;
+            var regIdentifier = new Identifier
             {
                 Type = Identifier.IdentifierType.Register,
-                Name = $@"REG{reg}",
+                Name = $"REG{reg}",
                 RegNum = reg
             };
-            _symbols.Add(regi.Name, regi);
-            return _symbols[$@"REG{reg}"];
+            _registers.Add(reg, regIdentifier);
+            return regIdentifier;
         }
         
         /// <summary>
-        /// Gets all the register identifiers in this function
+        /// Gets all the register identifiers in this function before any renaming
         /// </summary>
         /// <returns>Set of registers in this function</returns>
-        public HashSet<Identifier> GetAllRegisters()
+        public List<Identifier> GetAllRegisters()
         {
-            var ret = new HashSet<Identifier>();
-            foreach (var reg in _symbols)
+            var ret = new List<Identifier>(_registers.Count);
+            foreach (var reg in _registers)
             {
-                if (reg.Value.Type == Identifier.IdentifierType.Register)
-                {
-                    ret.Add(reg.Value);
-                }
+                ret.Add(reg.Value);
             }
             return ret;
+        }
+
+        public void AddAllRegistersToSet(HashSet<Identifier> set)
+        {
+            foreach (var reg in _registers)
+            {
+                set.Add(reg.Value);
+            }
         }
         
         /// <summary>
@@ -185,15 +195,15 @@ namespace LuaDecompilerCore.IR
         /// <returns>Identifier representing this UpValue</returns>
         public Identifier GetUpValue(uint upValue)
         {
-            if (_symbols.TryGetValue($@"UPVAL{upValue}", out var value)) return value;
-            var regi = new Identifier
+            if (_upValues.TryGetValue(upValue, out var value)) return value;
+            var upValueIdentifier = new Identifier
             {
                 Type = Identifier.IdentifierType.UpValue,
                 RegNum = upValue,
-                Name = $@"UPVAL{upValue}"
+                Name = $"UPVAL{upValue}"
             };
-            _symbols.Add(regi.Name, regi);
-            return _symbols[$@"UPVAL{upValue}"];
+            _upValues.Add(upValue, upValueIdentifier);
+            return upValueIdentifier;
         }
 
         public BasicBlock CreateBasicBlock()
@@ -354,7 +364,7 @@ namespace LuaDecompilerCore.IR
 
             HashSet<Identifier> SetFromBitArray(BitArray array)
             {
-                var set = new HashSet<Identifier>();
+                var set = new HashSet<Identifier>(array.Count / 4);
                 for (int i = 0; i < array.Count; i++)
                 {
                     if (array[i])

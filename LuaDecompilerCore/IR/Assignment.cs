@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 
 namespace LuaDecompilerCore.IR
 {
@@ -71,13 +72,13 @@ namespace LuaDecompilerCore.IR
 
         public Assignment(Identifier l, Expression? r)
         {
-            LeftList = new List<IdentifierReference> { new IdentifierReference(l) };
+            LeftList = new List<IdentifierReference>(1) { new IdentifierReference(l) };
             Right = r;
         }
 
         public Assignment(IdentifierReference l, Expression? r)
         {
-            LeftList = new List<IdentifierReference> { l };
+            LeftList = new List<IdentifierReference>(1) { l };
             Right = r;
         }
 
@@ -93,19 +94,37 @@ namespace LuaDecompilerCore.IR
             Right?.Parenthesize();
         }
 
-        public override void GetDefines(HashSet<Identifier> set, bool registersOnly)
+        public override HashSet<Identifier> GetDefines(HashSet<Identifier> set, bool registersOnly)
         {
             foreach (var id in LeftList)
             {
                 // If the reference is not an indirect one (i.e. not an array access), then it is a definition
-                if (!id.HasIndex && (!registersOnly || id.Identifier.Type == Identifier.IdentifierType.Register))
+                if (!id.HasIndex && (!registersOnly || id.Identifier.IsRegister))
                 {
                     set.Add(id.Identifier);
                 }
             }
+            return set;
         }
 
-        public override void GetUses(HashSet<Identifier> uses, bool registersOnly)
+        public override Identifier? GetSingleDefine(bool registersOnly)
+        {
+            Identifier? ret = null;
+            int count = 0;
+            foreach (var id in LeftList)
+            {
+                // If the reference is not an indirect one (i.e. not an array access), then it is a definition
+                if (!id.HasIndex && (!registersOnly || id.Identifier.IsRegister))
+                {
+                    ret = id.Identifier;
+                    count++;
+                }
+            }
+
+            return count == 1 ? ret : null;
+        }
+
+        public override HashSet<Identifier> GetUses(HashSet<Identifier> uses, bool registersOnly)
         {
             foreach (var id in LeftList)
             {
@@ -119,12 +138,13 @@ namespace LuaDecompilerCore.IR
                 {
                     foreach (var idx in id.TableIndices)
                     {
-                        uses.UnionWith(idx.GetUses(registersOnly));
+                        idx.GetUses(uses, registersOnly);
                     }
                 }
             }
 
             Right?.GetUses(uses, registersOnly);
+            return uses;
         }
 
         public override void RenameDefines(Identifier original, Identifier newIdentifier)
@@ -170,6 +190,18 @@ namespace LuaDecompilerCore.IR
                 replaced = replaced || (Right != null && Right.ReplaceUses(orig, sub));
             }
             return replaced;
+        }
+
+        public override bool MatchAny(Func<IMatchable, bool> condition)
+        {
+            var result = condition.Invoke(this);
+            foreach (var exp in LeftList)
+            {
+                result = result || exp.MatchAny(condition);
+            }
+
+            result = result || (Right != null && Right.MatchAny(condition));
+            return result;
         }
 
         public override List<Expression> GetExpressions()

@@ -293,6 +293,8 @@ public class Lua50Decompiler : ILanguageDecompiler
     public void GenerateIr(LuaFile.Function function, Function irFunction, GlobalSymbolTable globalSymbolTable)
     {
         var br = new BinaryReaderEx(false, function.Bytecode);
+        irFunction.BeginBlock.Instructions = new List<Instruction>(function.Bytecode.Length * 6 / 4);
+        List<Instruction> instructions = new List<Instruction>(4);
         for (var i = 0; i < function.Bytecode.Length; i += 4)
         {
             var instruction = br.ReadUInt32();
@@ -304,7 +306,7 @@ public class Lua50Decompiler : ILanguageDecompiler
             var sbx = (int)bx - (((1 << 18) - 1) >> 1);
             var pc = i / 4;
             List<Expression> args;
-            List<Instruction> instructions = new();
+            instructions.Clear();
             Assignment assignment;
 
             bool needsUpValueBinding;

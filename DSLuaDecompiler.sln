@@ -13,6 +13,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SoulsFormats", "SoulsFormat
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LuaCompiler", "LuaCompiler\LuaCompiler.csproj", "{161CA99C-52F3-458B-8344-D07AA2EDD6B2}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LuaDecompilerTestFramework", "LuaDecompilerTestFramework\LuaDecompilerTestFramework.csproj", "{0CB01D80-0844-42C9-92C7-BBD79B77F43D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -39,6 +41,10 @@ Global
 		{161CA99C-52F3-458B-8344-D07AA2EDD6B2}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{161CA99C-52F3-458B-8344-D07AA2EDD6B2}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{161CA99C-52F3-458B-8344-D07AA2EDD6B2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0CB01D80-0844-42C9-92C7-BBD79B77F43D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0CB01D80-0844-42C9-92C7-BBD79B77F43D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0CB01D80-0844-42C9-92C7-BBD79B77F43D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0CB01D80-0844-42C9-92C7-BBD79B77F43D}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

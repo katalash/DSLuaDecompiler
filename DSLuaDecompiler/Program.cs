@@ -17,17 +17,20 @@ namespace DSLuaDecompiler
             private readonly Option<int[]?> _includedFunctionIds;
             private readonly Option<int[]> _excludedFunctionIds;
             private readonly Option<string[]> _dumpIrPasses;
+            private readonly Option<string[]> _dumpDotGraphPasses;
             private readonly Option<bool> _debugComments;
             
             public DecompilationOptionsBinder(
                 Option<int[]?> includedFunctionIds, 
                 Option<int[]> excludedFunctionIds, 
                 Option<string[]> dumpIrPasses, 
+                Option<string[]> dumpDotGraphPasses, 
                 Option<bool> debugComments)
             {
                 _includedFunctionIds = includedFunctionIds;
                 _excludedFunctionIds = excludedFunctionIds;
                 _dumpIrPasses = dumpIrPasses;
+                _dumpDotGraphPasses = dumpDotGraphPasses;
                 _debugComments = debugComments;
             }
 
@@ -38,6 +41,7 @@ namespace DSLuaDecompiler
                         bindingContext.ParseResult.GetValueForOption(_includedFunctionIds)?.ToHashSet() : null,
                     ExcludedFunctionIds = bindingContext.ParseResult.GetValueForOption(_excludedFunctionIds)?.ToHashSet() ?? throw new InvalidOperationException(),
                     DumpIrPasses = bindingContext.ParseResult.GetValueForOption(_dumpIrPasses)?.ToHashSet() ?? throw new InvalidOperationException(),
+                    DumpDotGraphPasses = bindingContext.ParseResult.GetValueForOption(_dumpDotGraphPasses)?.ToHashSet() ?? throw new InvalidOperationException(),
                     OutputDebugComments = bindingContext.ParseResult.GetValueForOption(_debugComments)
                 };
         }
@@ -69,11 +73,17 @@ namespace DSLuaDecompiler
                     AllowMultipleArgumentsPerToken = true
                 };
             var dumpIrPassesOption = new Option<string[]>(
-                name: "--print-ir-passes",
-                description: "List of intermediate passes to print the IR after for debugging.")
+                name: "--dump-ir-passes",
+                description: "List of intermediate passes to dump the IR after for debugging.")
                 {
                     AllowMultipleArgumentsPerToken = true
                 };
+            var dumpDotGraphPassesOption = new Option<string[]>(
+                name: "--dump-cfg-passes",
+                description: "List of intermediate passes to dump the control flow graph as a dot file of all the functions for.")
+            {
+                AllowMultipleArgumentsPerToken = true
+            };
             var insertDebugComments = new Option<bool>(
                 name: "--insert-debug-comments",
                 description: "If enabled, debug comments will be added in the decompiled lua source.");
@@ -85,7 +95,8 @@ namespace DSLuaDecompiler
                 consoleOption, 
                 includedFunctionIdsOption, 
                 excludedFunctionIdsOption, 
-                dumpIrPassesOption, 
+                dumpIrPassesOption,
+                dumpDotGraphPassesOption,
                 insertDebugComments
             };
             rootCommand.SetHandler((file, output, console, decompilationOptions) =>
@@ -98,31 +109,58 @@ namespace DSLuaDecompiler
                 var br = new BinaryReaderEx(false, stream);
                 var lua = new LuaFile(br);
                 var main = new Function(lua.MainFunction.FunctionId);
-                string? passOutput;
+                DecompilationResult result;
                 switch (lua.Version)
                 {
                     case LuaFile.LuaVersion.Lua50:
-                        passOutput = decompiler.DecompileLuaFunction(new Lua50Decompiler(), main, lua.MainFunction);
+                        result = decompiler.DecompileLuaFunction(new Lua50Decompiler(), main, lua.MainFunction);
                         outEncoding = Encoding.GetEncoding("shift_jis");
                         break;
                     case LuaFile.LuaVersion.Lua51Hks:
-                        passOutput = decompiler.DecompileLuaFunction(new HksDecompiler(), main, lua.MainFunction);
+                        result = decompiler.DecompileLuaFunction(new HksDecompiler(), main, lua.MainFunction);
                         outEncoding = Encoding.UTF8;
                         break;
                     case LuaFile.LuaVersion.Lua53Smash:
-                        passOutput = decompiler.DecompileLuaFunction(new Lua53Decompiler(), main, lua.MainFunction);
+                        result = decompiler.DecompileLuaFunction(new Lua53Decompiler(), main, lua.MainFunction);
                         outEncoding = Encoding.UTF8;
                         break;
                     default:
                         throw new ArgumentOutOfRangeException();
                 }
 
-                var printer = new FunctionPrinter();
-                var toWrite = passOutput ?? printer.PrintFunction(main);
+                var toWrite = result.DecompiledSource;
                 var outputFile = output ?? Path.GetFileNameWithoutExtension(file) + ".dec.lua";
                 if (!console)
                 {
                     File.WriteAllText(outputFile, toWrite, outEncoding);
+                    if (output != null)
+                    {
+                        var outputBase = Path.GetDirectoryName(output) + @"\" + Path.GetFileNameWithoutExtension(output);
+                        if (result.IrResults.Length > 0)
+                        {
+                            var passBuilder = new StringBuilder(1024 * 512 * result.IrResults.Length);
+                            foreach (var pass in result.IrResults)
+                            {
+                                passBuilder.Append($"-- Begin pass {pass.Pass} --\n");
+                                passBuilder.Append(pass.Ir);
+                                passBuilder.Append($"-- End pass {pass.Pass} --\n");
+                            }
+                            File.WriteAllText(outputBase + ".passes.txt", passBuilder.ToString(), outEncoding);
+                        }
+                        
+                        if (result.DotGraphResults.Length > 0)
+                        {
+                            foreach (var pass in result.DotGraphResults)
+                            {
+                                foreach (var f in pass.FunctionResults)
+                                {
+                                    File.WriteAllText(
+                                        $@"{outputBase}.{pass.Pass.Replace('-', '_')}.{f.FunctionId}.dot", 
+                                        f.DotGraph);
+                                }
+                            }
+                        }
+                    }
                 }
                 else
                 {
@@ -133,7 +171,8 @@ namespace DSLuaDecompiler
                 consoleOption, 
                 new DecompilationOptionsBinder(includedFunctionIdsOption, 
                     excludedFunctionIdsOption, 
-                    dumpIrPassesOption, 
+                    dumpIrPassesOption,
+                    dumpDotGraphPassesOption,
                     insertDebugComments));
 
             return rootCommand.Invoke(args);

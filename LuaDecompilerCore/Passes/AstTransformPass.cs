@@ -29,6 +29,7 @@ public class AstTransformPass : IPass
         }
 
         // Step 1: build the AST for ifs/loops based on follow information
+        var definesSet = new HashSet<Identifier>(2);
         foreach (var node in f.PostorderTraversal(true))
         {
             // Search instructions for identifiers we need to relocalize
@@ -36,7 +37,8 @@ public class AstTransformPass : IPass
             {
                 if (inst is Assignment asn)
                 {
-                    foreach (var def in inst.GetDefines(true))
+                    definesSet.Clear();
+                    foreach (var def in inst.GetDefines(definesSet, true))
                     {
                         if (relocalize.Contains(def))
                         {
@@ -114,13 +116,13 @@ public class AstTransformPass : IPass
                     }
 
                     var body = node.EdgeFalse;
-                    body.MarkCodeGenerated(f.FunctionId);
+                    body.MarkCodeGenerated(f.FunctionId, f.Warnings);
                     BasicBlock? follow = null;
                     if (!usedFollows.Contains(node.LoopFollow))
                     {
                         follow = node.LoopFollow;
                         usedFollows.Add(node.LoopFollow);
-                        node.LoopFollow.MarkCodeGenerated(f.FunctionId);
+                        node.LoopFollow.MarkCodeGenerated(f.FunctionId, f.Warnings);
                     }
 
                     var numericFor = new NumericFor(initial, limit, increment, body, follow);
@@ -132,7 +134,7 @@ public class AstTransformPass : IPass
                     {
                         loopInitializer.Instructions.Add(numericFor);
                     }
-                    node.MarkCodeGenerated(f.FunctionId);
+                    node.MarkCodeGenerated(f.FunctionId, f.Warnings);
                     // The head might be the follow of an if statement, so do this to not codegen it
                     usedFollows.Add(node);
 
@@ -185,7 +187,7 @@ public class AstTransformPass : IPass
                     var body = 
                         (node.EdgeTrue.ReversePostorderNumber < node.EdgeFalse.ReversePostorderNumber) ? 
                             node.EdgeTrue : node.EdgeFalse;
-                    body.MarkCodeGenerated(f.FunctionId);
+                    body.MarkCodeGenerated(f.FunctionId, f.Warnings);
                     if (body.First is Assignment)
                     {
                         body.Instructions.RemoveAt(0);
@@ -196,7 +198,7 @@ public class AstTransformPass : IPass
                     {
                         follow = node.LoopFollow;
                         usedFollows.Add(node.LoopFollow);
-                        node.LoopFollow.MarkCodeGenerated(f.FunctionId);
+                        node.LoopFollow.MarkCodeGenerated(f.FunctionId, f.Warnings);
                     }
 
                     var genericFor = new GenericFor(iterator, body, follow);
@@ -208,7 +210,7 @@ public class AstTransformPass : IPass
                     {
                         loopInitializer.Instructions.Add(genericFor);
                     }
-                    node.MarkCodeGenerated(f.FunctionId);
+                    node.MarkCodeGenerated(f.FunctionId, f.Warnings);
                     // The head might be the follow of an if statement, so do this to not codegen it
                     usedFollows.Add(node);
                 }
@@ -220,13 +222,13 @@ public class AstTransformPass : IPass
 
                     //whiles.Body = (node.Successors[0].ReversePostorderNumber > node.Successors[1].ReversePostorderNumber) ? node.Successors[0] : node.Successors[1];
                     var body = node.EdgeTrue;
-                    body.MarkCodeGenerated(f.FunctionId);
+                    body.MarkCodeGenerated(f.FunctionId, f.Warnings);
                     BasicBlock? follow = null;
                     if (!usedFollows.Contains(node.LoopFollow))
                     {
                         follow = node.LoopFollow;
                         usedFollows.Add(node.LoopFollow);
-                        node.LoopFollow.MarkCodeGenerated(f.FunctionId);
+                        node.LoopFollow.MarkCodeGenerated(f.FunctionId, f.Warnings);
                     }
                     // If there's a goto to this loop head, replace it with the while. Otherwise replace the last instruction of this node
                     var whiles = new While
@@ -260,7 +262,7 @@ public class AstTransformPass : IPass
                         }
                     }
 
-                    node.MarkCodeGenerated(f.FunctionId);
+                    node.MarkCodeGenerated(f.FunctionId, f.Warnings);
                     // The head might be the follow of an if statement, so do this to not codegen it
                     usedFollows.Add(node);
                 }
@@ -273,13 +275,13 @@ public class AstTransformPass : IPass
 
                     //whiles.Body = (node.Successors[0].ReversePostorderNumber > node.Successors[1].ReversePostorderNumber) ? node.Successors[0] : node.Successors[1];
                     var body = node.EdgeFalse;
-                    body.MarkCodeGenerated(f.FunctionId);
+                    body.MarkCodeGenerated(f.FunctionId, f.Warnings);
                     BasicBlock? follow = null;
                     if (!usedFollows.Contains(node.LoopFollow))
                     {
                         follow = node.LoopFollow;
                         usedFollows.Add(node.LoopFollow);
-                        node.LoopFollow.MarkCodeGenerated(f.FunctionId);
+                        node.LoopFollow.MarkCodeGenerated(f.FunctionId, f.Warnings);
                     }
                     
                     var whiles = new While
@@ -316,7 +318,7 @@ public class AstTransformPass : IPass
                         }
                     }
 
-                    node.MarkCodeGenerated(f.FunctionId);
+                    node.MarkCodeGenerated(f.FunctionId, f.Warnings);
                     // The head might be the follow of an if statement, so do this to not codegen it
                     usedFollows.Add(node);
                 }
@@ -338,7 +340,7 @@ public class AstTransformPass : IPass
                 {
                     follow = node.LoopFollow;
                     usedFollows.Add(node.LoopFollow);
-                    node.LoopFollow.MarkCodeGenerated(f.FunctionId);
+                    node.LoopFollow.MarkCodeGenerated(f.FunctionId, f.Warnings);
                 }
 
                 var whiles = new While
@@ -385,7 +387,7 @@ public class AstTransformPass : IPass
                     }
                 }
 
-                node.MarkCodeGenerated(f.FunctionId);
+                node.MarkCodeGenerated(f.FunctionId, f.Warnings);
                 // The head might be the follow of an if statement, so do this to not codegen it
                 usedFollows.Add(node);
             }
@@ -404,7 +406,7 @@ public class AstTransformPass : IPass
                 {
                     whiles.Follow = node.LoopFollow;
                     usedFollows.Add(node.LoopFollow);
-                    node.LoopFollow.MarkCodeGenerated(f.FunctionId);
+                    node.LoopFollow.MarkCodeGenerated(f.FunctionId, f.Warnings);
                 }
 
                 if (node.Predecessors.Count == 2)
@@ -444,7 +446,7 @@ public class AstTransformPass : IPass
                     }
                 }
 
-                node.MarkCodeGenerated(f.FunctionId);
+                node.MarkCodeGenerated(f.FunctionId, f.Warnings);
                 // The head might be the follow of an if statement, so do this to not codegen it
                 usedFollows.Add(node);
             }
@@ -460,7 +462,7 @@ public class AstTransformPass : IPass
                 if (node.EdgeTrue != node.Follow)
                 {
                     ifStatement.True = node.EdgeTrue;
-                    ifStatement.True.MarkCodeGenerated(f.FunctionId);
+                    ifStatement.True.MarkCodeGenerated(f.FunctionId, f.Warnings);
                     if (ifStatement.True.Last is Jump lj)
                     {
                         if (ifStatement.True.IsBreakNode)
@@ -495,7 +497,7 @@ public class AstTransformPass : IPass
                 if (node.EdgeFalse != node.Follow)
                 {
                     ifStatement.False = node.EdgeFalse;
-                    ifStatement.False.MarkCodeGenerated(f.FunctionId);
+                    ifStatement.False.MarkCodeGenerated(f.FunctionId, f.Warnings);
                     if (ifStatement.False.Last is Jump fj)
                     {
                         if (ifStatement.False.IsBreakNode)
@@ -517,7 +519,7 @@ public class AstTransformPass : IPass
                 if (!usedFollows.Contains(node.Follow))
                 {
                     ifStatement.Follow = node.Follow;
-                    ifStatement.Follow.MarkCodeGenerated(f.FunctionId);
+                    ifStatement.Follow.MarkCodeGenerated(f.FunctionId, f.Warnings);
                     usedFollows.Add(node.Follow);
                 }
                 node.Instructions[^1] = ifStatement;
@@ -536,7 +538,7 @@ public class AstTransformPass : IPass
         // Step 3: For debug walk the CFG and print blocks that haven't been codegened
         foreach (var b in f.PostorderTraversal(true).Where(b => b != f.BeginBlock && !b.IsCodeGenerated))
         {
-            Console.WriteLine($@"Warning: block_{b.BlockId} in function {f.FunctionId} was not used in code generation. THIS IS LIKELY A DECOMPILER BUG!");
+            f.Warnings.Add($@"-- Warning: block_{b.BlockId} in function {f.FunctionId} was not used in code generation. THIS IS LIKELY A DECOMPILER BUG!");
         }
 
         f.IsAst = true;

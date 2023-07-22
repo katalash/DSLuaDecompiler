@@ -14,6 +14,8 @@ namespace LuaDecompilerCore.Passes;
 /// </summary>
 public class BuildControlFlowGraphPass : IPass
 {
+    public bool MutatesCfg => true;
+    
     public void RunOnFunction(DecompilationContext context, Function f)
     {
         // Before CFG creation there should be only a single block. Save the instructions and clear the block list

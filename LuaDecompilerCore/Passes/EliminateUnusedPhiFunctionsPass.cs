@@ -10,15 +10,20 @@ public class EliminateUnusedPhiFunctionsPass : IPass
 {
     public void RunOnFunction(DecompilationContext context, Function f)
     {
-        var phisToKeep = new HashSet<PhiFunction>();
-        var usedIdentifiers = new HashSet<Identifier>();
+        // GetUses calls have a lot of allocation overhead so reusing the same set has huge perf gains.
+        var usesSet = new HashSet<Identifier>(10);
+        
+        var phisToKeep = new HashSet<PhiFunction>(f.BlockList.Count);
+        var usedIdentifiers = new HashSet<Identifier>(f.SsaVariables.Count);
 
         // First, iterate through all the non-phi instructions to get all the used identifiers
         foreach (var b in f.BlockList)
         {
             foreach (var inst in b.Instructions)
             {
-                foreach (var use in inst.GetUses(true))
+                usesSet.Clear();
+                inst.GetUses(usesSet, true);
+                foreach (var use in usesSet)
                 {
                     if (!usedIdentifiers.Contains(use))
                     {

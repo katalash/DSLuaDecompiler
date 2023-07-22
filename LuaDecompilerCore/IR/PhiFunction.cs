@@ -14,18 +14,26 @@ namespace LuaDecompilerCore.IR
             Right = right;
         }
 
-        public override void GetDefines(HashSet<Identifier> defines, bool registersOnly)
+        public override HashSet<Identifier> GetDefines(HashSet<Identifier> defines, bool registersOnly)
         {
             defines.Add(Left);
+            return defines;
+        }
+        
+        public override Identifier GetSingleDefine(bool registersOnly)
+        {
+            return Left;
         }
 
-        public override void GetUses(HashSet<Identifier> uses, bool registersOnly)
+        public override HashSet<Identifier> GetUses(HashSet<Identifier> uses, bool registersOnly)
         {
             foreach (var id in Right)
             {
                 if (id != null)
                     uses.Add(id);
             }
+
+            return uses;
         }
 
         public override void RenameDefines(Identifier original, Identifier newIdentifier)

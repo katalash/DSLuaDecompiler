@@ -1,4 +1,4 @@
-﻿using System.Linq;
+﻿using System;
 using LuaDecompilerCore.CFG;
 
 namespace LuaDecompilerCore.IR
@@ -12,5 +12,12 @@ namespace LuaDecompilerCore.IR
 
         public bool IsPostTested = false;
         public bool IsBlockInlined = false;
+        
+        public override bool MatchAny(Func<IMatchable, bool> condition)
+        {
+            var result = condition.Invoke(this);
+            result = result || Condition.MatchAny(condition);
+            return result;
+        }
     }
 }

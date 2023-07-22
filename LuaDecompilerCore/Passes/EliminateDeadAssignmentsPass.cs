@@ -17,11 +17,18 @@ public class EliminateDeadAssignmentsPass : IPass
     
     public void RunOnFunction(DecompilationContext context, Function f)
     {
+        // GetDefines and GetUses calls have a lot of allocation overhead so reusing the same set has huge perf gains.
+        var definesSet = new HashSet<Identifier>(2);
+        var usesSet = new HashSet<Identifier>(10);
+        
+        var usedUses = new HashSet<Identifier>(10);
+        var usageCounts = new Dictionary<Identifier, int>(f.Parameters.Count + f.SsaVariables.Count);
+        var phiToRemove = new List<Identifier>(10);
         bool changed = true;
         while (changed)
         {
             changed = false;
-            var usageCounts = new Dictionary<Identifier, int>();
+            usageCounts.Clear();
             foreach (var arg in f.Parameters)
             {
                 usageCounts.Add(arg, 0);
@@ -36,11 +43,11 @@ public class EliminateDeadAssignmentsPass : IPass
                 // Defines/uses in phi functions
                 foreach (var phi in b.PhiFunctions)
                 {
-                    var useduses = new HashSet<Identifier>();
+                    usedUses.Clear();
                     foreach (var use in phi.Value.Right)
                     {
                         // If a phi function has multiple uses of the same identifier, only count it as one use for the purposes of this analysis
-                        if (use != null && !useduses.Contains(use))
+                        if (use != null && !usedUses.Contains(use))
                         {
                             usageCounts.TryAdd(use, 0);
                             usageCounts[use]++;
@@ -59,7 +66,7 @@ public class EliminateDeadAssignmentsPass : IPass
                             {
                                 singleUses.Remove(use);
                             }
-                            useduses.Add(use);
+                            usedUses.Add(use);
                         }
                     }
 
@@ -69,12 +76,16 @@ public class EliminateDeadAssignmentsPass : IPass
                 // Defines/uses for everything else
                 foreach (var inst in b.Instructions)
                 {
-                    foreach (var use in inst.GetUses(true))
+                    usesSet.Clear();
+                    definesSet.Clear();
+                    inst.GetUses(usesSet, true);
+                    inst.GetDefines(definesSet, true);
+                    foreach (var use in usesSet)
                     {
                         usageCounts.TryAdd(use, 0);
                         usageCounts[use]++;
                     }
-                    foreach (var def in inst.GetDefines(true))
+                    foreach (var def in definesSet)
                     {
                         usageCounts.TryAdd(def, 0);
                     }
@@ -85,7 +96,7 @@ public class EliminateDeadAssignmentsPass : IPass
             foreach (var b in f.BlockList)
             {
                 // Eliminate unused phi functions
-                var phiToRemove = new List<Identifier>();
+                phiToRemove.Clear();
                 foreach (var phi in b.PhiFunctions)
                 {
                     if (usageCounts[phi.Value.Left] == 0)
@@ -122,8 +133,7 @@ public class EliminateDeadAssignmentsPass : IPass
                 var toRemove = new List<Instruction>();
                 foreach (var inst in b.Instructions)
                 {
-                    var defs = inst.GetDefines(true);
-                    if (defs.Count == 1 && usageCounts[defs.First()] == 0)
+                    if (inst.GetSingleDefine(true) is {} define && usageCounts[define] == 0)
                     {
                         if (inst is Assignment { Right: FunctionCall } a && !_phiOnly)
                         {

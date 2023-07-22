@@ -12,6 +12,8 @@ public class DetectLocalVariablesPass : IPass
 {
     public void RunOnFunction(DecompilationContext context, Function f)
     {
+        var definesSet = new HashSet<Identifier>(2);
+        
         // This is kinda both a pre and post-order traversal of the dominance heirarchy. In the pre traversal,
         // first local definitions are detected, marked, and propogated down the graph so that they aren't marked
         // again. In the postorder traversal, these marked definitions are backpropogated up the dominance heirarchy.
@@ -27,7 +29,8 @@ public class DetectLocalVariablesPass : IPass
             {
                 if (inst is Assignment { IsSingleAssignment: true } a)
                 {
-                    foreach (var def in a.GetDefines(true))
+                    definesSet.Clear();
+                    foreach (var def in a.GetDefines(definesSet, true))
                     {
                         // If the definition has been renamed at this point then it's from a parent closure and should not be made a local
                         if (!def.Renamed && !newDeclared.Contains(def))

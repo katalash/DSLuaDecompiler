@@ -274,6 +274,8 @@ public class HksDecompiler : ILanguageDecompiler
     public void GenerateIr(LuaFile.Function function, Function irFunction, GlobalSymbolTable globalSymbolTable)
     {
         var br = new BinaryReaderEx(false, function.Bytecode) { BigEndian = true };
+        irFunction.BeginBlock.Instructions = new List<Instruction>(function.Bytecode.Length * 6 / 4);
+        List<Instruction> instructions = new List<Instruction>(4);
         for (var i = 0; i < function.Bytecode.Length; i += 4)
         {
             var instruction = br.ReadUInt32();
@@ -305,7 +307,7 @@ public class HksDecompiler : ILanguageDecompiler
             uint addr;
             List<Expression> args;
             List<IdentifierReference> rets;
-            var instructions = new List<Instruction>();
+            instructions.Clear();
             Assignment assignment;
             bool needsUpValueBinding;
             switch ((LuaHksOps)opcode)
