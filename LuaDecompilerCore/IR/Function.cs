@@ -11,10 +11,11 @@ namespace LuaDecompilerCore.IR
     /// </summary>
     public sealed class Function
     {
-        public List<Identifier> Parameters { get; private set; }
         public List<Function> Closures { get; }
 
         public Dictionary<uint, Label> Labels { get; }
+        
+        public LuaFile.Constant[] Constants { get; set; }
 
         /// <summary>
         /// When the CFG has been converted to an AST
@@ -45,6 +46,8 @@ namespace LuaDecompilerCore.IR
         /// All the renamed SSA variables
         /// </summary>
         public HashSet<Identifier> SsaVariables { get; set; }
+
+        public uint[]? RenamedRegisterCounts { get; set; } = null;
         
         /// <summary>
         /// Unique identifier for the function used for various purposes
@@ -58,53 +61,57 @@ namespace LuaDecompilerCore.IR
         public bool IsVarargs = false;
 
         /// <summary>
-        /// Number of upvalues this function uses
-        /// </summary>
-        public int UpValueCount = 0;
-
-        /// <summary>
-        /// For each upvalue in Lua 5.3, the register in the parent its bound to
+        /// For each up value in Lua 5.3, the register in the parent its bound to
         /// </summary>
         public readonly List<int> UpValueRegisterBinding = new();
 
         /// <summary>
-        /// For each upvalue in Lua 5.3, if the upvalue exists on the stack
+        /// For each up value in Lua 5.3, if the up value exists on the stack
         /// </summary>
         public readonly List<bool> UpValueIsStackBinding = new();
 
         /// <summary>
-        /// Upvalue binding symbol from parent closure
+        /// UpValue binding symbol from parent closure
         /// </summary>
         public readonly List<Identifier> UpValueBindings = new();
 
-        /// <summary>
-        /// List of UpValue gets that will need to be mutated once intra-function UpValue closure binding is done
-        /// </summary>
-        public readonly List<Assignment> GetUpValueInstructions = new();
-        
-        /// <summary>
-        /// List of UpValue sets that will need to be mutated once intra-function UpValue closure binding is done
-        /// </summary>
-        public readonly List<Assignment> SetUpValueInstructions = new();
+        public readonly Dictionary<Identifier, string> IdentifierNames = new();
 
         /// <summary>
         /// Identifiers that have been statically determined to be local variables and should not be inlined via
         /// expression propagation
         /// </summary>
         public HashSet<Identifier> LocalVariables { get; private set; } = new();
+        
+        /// <summary>
+        /// Registers that are used by child closures via up values
+        /// </summary>
+        public HashSet<uint> ClosureBoundRegisters { get; private set; } = new();
 
-        public readonly List<string> Warnings = new List<string>();
+        public bool ClosureBound(Identifier identifier) => ClosureBoundRegisters.Contains(identifier.RegNum);
+
+        public readonly List<string> Warnings = new();
 
         private int _currentBlockId;
-
-        private readonly Dictionary<uint, Identifier> _registers = new Dictionary<uint, Identifier>(10);
-        private readonly Dictionary<uint, Identifier> _upValues = new();
-
-        public int RegisterCount => _registers.Count;
         
+        /// <summary>
+        /// Number of parameters in this function
+        /// </summary>
+        public int ParameterCount { get; set; }
+        
+        /// <summary>
+        /// Number of registers (before renaming) that this function uses. This includes the registers
+        /// used for function parameters.
+        /// </summary>
+        public int RegisterCount { get; set; }
+        
+        /// <summary>
+        /// Number of upValues this function uses
+        /// </summary>
+        public int UpValueCount = 0;
+
         public Function(int functionId)
         {
-            Parameters = new List<Identifier>();
             Closures = new List<Function>();
             Labels = new Dictionary<uint, Label>();
             BlockList = new List<BasicBlock>();
@@ -127,11 +134,6 @@ namespace LuaDecompilerCore.IR
             return Closures[(int)i];
         }
 
-        public void SetParameters(List<Identifier> parameters)
-        {
-            Parameters = parameters;
-        }
-
         public Label GetLabel(uint pc)
         {
             if (Labels.TryGetValue(pc, out var value))
@@ -149,45 +151,17 @@ namespace LuaDecompilerCore.IR
         }
         
         /// <summary>
-        /// Gets or looks up a new register identifier and inserts it into the local symbol table
+        /// Gets a register identifier and updates the register count if needed
         /// </summary>
         /// <param name="reg">Register number</param>
         /// <returns>Identifier representing this register</returns>
         public Identifier GetRegister(uint reg)
         {
-            if (_registers.TryGetValue(reg, out var value)) return value;
-            var regIdentifier = new Identifier
-            {
-                Type = Identifier.IdentifierType.Register,
-                Name = $"REG{reg}",
-                RegNum = reg
-            };
-            _registers.Add(reg, regIdentifier);
-            return regIdentifier;
-        }
-        
-        /// <summary>
-        /// Gets all the register identifiers in this function before any renaming
-        /// </summary>
-        /// <returns>Set of registers in this function</returns>
-        public List<Identifier> GetAllRegisters()
-        {
-            var ret = new List<Identifier>(_registers.Count);
-            foreach (var reg in _registers)
-            {
-                ret.Add(reg.Value);
-            }
-            return ret;
+            if (reg + 1 > RegisterCount)
+                RegisterCount = (int)reg + 1;
+            return Identifier.GetRegister(reg);
         }
 
-        public void AddAllRegistersToSet(HashSet<Identifier> set)
-        {
-            foreach (var reg in _registers)
-            {
-                set.Add(reg.Value);
-            }
-        }
-        
         /// <summary>
         /// Gets or looks up a new UpValue identifier and inserts it into the local symbol table
         /// </summary>
@@ -195,15 +169,12 @@ namespace LuaDecompilerCore.IR
         /// <returns>Identifier representing this UpValue</returns>
         public Identifier GetUpValue(uint upValue)
         {
-            if (_upValues.TryGetValue(upValue, out var value)) return value;
-            var upValueIdentifier = new Identifier
-            {
-                Type = Identifier.IdentifierType.UpValue,
-                RegNum = upValue,
-                Name = $"UPVAL{upValue}"
-            };
-            _upValues.Add(upValue, upValueIdentifier);
-            return upValueIdentifier;
+            return Identifier.GetUpValue(upValue);
+        }
+        
+        public Identifier GetStackUpValue(uint upValue)
+        {
+            return Identifier.GetStackUpValue(upValue);
         }
 
         public BasicBlock CreateBasicBlock()
@@ -477,7 +448,7 @@ namespace LuaDecompilerCore.IR
             return ordering;
         }
         
-        public override string? ToString()
+        public override string ToString()
         {
             return FunctionPrinter.DebugPrintFunction(this);
         }

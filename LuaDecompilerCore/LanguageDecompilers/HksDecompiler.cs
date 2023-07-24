@@ -209,13 +209,13 @@ public class HksDecompiler : ILanguageDecompiler
         return new IdentifierReference(function.GetRegister(reg));
     }
 
-    private static Constant ToConstantIr(LuaFile.ConstantHks con, int id)
+    private static Constant ToConstantIr(LuaFile.Constant con, int id)
     {
         return con.Type switch
         {
-            LuaFile.ConstantHks.ConstantType.TypeNumber => new Constant(con.NumberValue, id),
-            LuaFile.ConstantHks.ConstantType.TypeString => new Constant(con.StringValue ?? "", id),
-            LuaFile.ConstantHks.ConstantType.TypeBoolean => new Constant(con.BoolValue, id),
+            LuaFile.Constant.ConstantType.TypeNumber => new Constant(con.NumberValue, id),
+            LuaFile.Constant.ConstantType.TypeString => new Constant(con.StringValue ?? "", id),
+            LuaFile.Constant.ConstantType.TypeBoolean => new Constant(con.BoolValue, id),
             _ => new Constant(Constant.ConstantType.ConstNil, id)
         };
     }
@@ -227,7 +227,7 @@ public class HksDecompiler : ILanguageDecompiler
             return new IdentifierReference(irFunction.GetRegister((uint)val));
         }
 
-        return sZero ? ToConstantIr(function.ConstantsHks[val], val) : ToConstantIr(function.ConstantsHks[-val], -val);
+        return sZero ? ToConstantIr(function.Constants[val], val) : ToConstantIr(function.Constants[-val], -val);
     }
 
     private static void CheckLocal(Assignment a, LuaFile.Function function, int index)
@@ -242,12 +242,7 @@ public class HksDecompiler : ILanguageDecompiler
 
     public void InitializeFunction(LuaFile.Function function, Function irFunction, GlobalSymbolTable globalSymbolTable)
     {
-        var debugCounter = new Identifier
-        {
-            Name = "Global",
-            Type = Identifier.IdentifierType.GlobalTable,
-            IsClosureBound = true
-        };
+        var debugCounter = Identifier.GetGlobalTable();
         irFunction.UpValueBindings.Add(debugCounter);
 
         // Register closures for all the children
@@ -309,7 +304,6 @@ public class HksDecompiler : ILanguageDecompiler
             List<IdentifierReference> rets;
             instructions.Clear();
             Assignment assignment;
-            bool needsUpValueBinding;
             switch ((LuaHksOps)opcode)
             {
                 case LuaHksOps.OpMove:
@@ -319,7 +313,7 @@ public class HksDecompiler : ILanguageDecompiler
                     break;
                 case LuaHksOps.OpLoadK:
                     assignment = new Assignment(irFunction.GetRegister(a),
-                        ToConstantIr(function.ConstantsHks[bx], (int)bx));
+                        ToConstantIr(function.Constants[bx], (int)bx));
                     CheckLocal(assignment, function, pc);
                     instructions.Add(assignment);
                     break;
@@ -348,41 +342,22 @@ public class HksDecompiler : ILanguageDecompiler
                     break;
                 case LuaHksOps.OpGetUpVal:
                     var up = irFunction.GetUpValue((uint)b);
-                    if (function.UpValueNames.Length > 0 && !up.UpValueResolved)
-                    {
-                        up.Name = function.UpValueNames[b].Name ?? throw new Exception();
-                        up.UpValueResolved = true;
-                    }
-
                     instructions.Add(new Assignment(irFunction.GetRegister(a), new IdentifierReference(up)));
                     break;
                 case LuaHksOps.OpSetUpVal:
                     up = irFunction.GetUpValue((uint)b);
-                    needsUpValueBinding = false;
-                    if (function.UpValueNames.Length > 0 && !up.UpValueResolved)
+                    if (b > irFunction.UpValueCount || irFunction.UpValueCount == 0)
                     {
-                        up.Name = function.UpValueNames[b].Name ?? throw new Exception();
-                        up.UpValueResolved = true;
-                    }
-                    else
-                    {
-                        if (b > irFunction.UpValueCount || irFunction.UpValueCount == 0)
-                        {
-                            throw new Exception("Reference to unbound upvalue: " + up);
-                        }
-
-                        needsUpValueBinding = true;
+                        throw new Exception("Reference to unbound upvalue: " + up);
                     }
 
                     instructions.Add(new Assignment(up, new IdentifierReference(irFunction.GetRegister(a))));
-                    if (needsUpValueBinding)
-                        irFunction.SetUpValueInstructions.Add(instructions[^1] as Assignment ?? throw new Exception());
                     break;
                 case LuaHksOps.OpGetGlobalMem:
                 case LuaHksOps.OpGetGlobal:
                     assignment = new Assignment(irFunction.GetRegister(a),
                         new IdentifierReference(
-                            globalSymbolTable.GetGlobal(function.ConstantsHks[bx].ToString(), (int)bx)));
+                            globalSymbolTable.GetGlobal(function.Constants[bx].ToString(), (int)bx)));
                     CheckLocal(assignment, function, pc);
                     instructions.Add(assignment);
                     break;
@@ -396,7 +371,7 @@ public class HksDecompiler : ILanguageDecompiler
                     break;
                 case LuaHksOps.OpSetGlobal:
                     instructions.Add(new Assignment(
-                        globalSymbolTable.GetGlobal(function.ConstantsHks[bx].ToString(), (int)bx),
+                        globalSymbolTable.GetGlobal(function.Constants[bx].ToString(), (int)bx),
                         new IdentifierReference(irFunction.GetRegister(a))));
                     break;
                 case LuaHksOps.OpNewTable:
@@ -426,7 +401,7 @@ public class HksDecompiler : ILanguageDecompiler
                 case LuaHksOps.OpAddBk:
                     assignment = new Assignment(
                         irFunction.GetRegister(a),
-                        new BinOp(ToConstantIr(function.ConstantsHks[b], b),
+                        new BinOp(ToConstantIr(function.Constants[b], b),
                             Register(irFunction, (uint)c), BinOp.OperationType.OpAdd));
                     CheckLocal(assignment, function, pc);
                     instructions.Add(assignment);
@@ -442,7 +417,7 @@ public class HksDecompiler : ILanguageDecompiler
                 case LuaHksOps.OpSubBk:
                     assignment = new Assignment(
                         irFunction.GetRegister(a),
-                        new BinOp(ToConstantIr(function.ConstantsHks[b], b),
+                        new BinOp(ToConstantIr(function.Constants[b], b),
                             Register(irFunction, (uint)c), BinOp.OperationType.OpSub));
                     CheckLocal(assignment, function, pc);
                     instructions.Add(assignment);
@@ -458,7 +433,7 @@ public class HksDecompiler : ILanguageDecompiler
                 case LuaHksOps.OpMulBk:
                     assignment = new Assignment(
                         irFunction.GetRegister(a),
-                        new BinOp(ToConstantIr(function.ConstantsHks[b], b),
+                        new BinOp(ToConstantIr(function.Constants[b], b),
                             Register(irFunction, (uint)c), BinOp.OperationType.OpMul));
                     CheckLocal(assignment, function, pc);
                     instructions.Add(assignment);
@@ -474,7 +449,7 @@ public class HksDecompiler : ILanguageDecompiler
                 case LuaHksOps.OpDivBk:
                     assignment = new Assignment(
                         irFunction.GetRegister(a),
-                        new BinOp(ToConstantIr(function.ConstantsHks[b], b),
+                        new BinOp(ToConstantIr(function.Constants[b], b),
                             Register(irFunction, (uint)c), BinOp.OperationType.OpDiv));
                     CheckLocal(assignment, function, pc);
                     instructions.Add(assignment);
@@ -490,7 +465,7 @@ public class HksDecompiler : ILanguageDecompiler
                 case LuaHksOps.OpModBk:
                     assignment = new Assignment(
                         irFunction.GetRegister(a),
-                        new BinOp(ToConstantIr(function.ConstantsHks[b], b),
+                        new BinOp(ToConstantIr(function.Constants[b], b),
                             Register(irFunction, (uint)c), BinOp.OperationType.OpMod));
                     CheckLocal(assignment, function, pc);
                     instructions.Add(assignment);
@@ -506,7 +481,7 @@ public class HksDecompiler : ILanguageDecompiler
                 case LuaHksOps.OpPowBk:
                     assignment = new Assignment(
                         irFunction.GetRegister(a),
-                        new BinOp(ToConstantIr(function.ConstantsHks[b], b),
+                        new BinOp(ToConstantIr(function.Constants[b], b),
                             Register(irFunction, (uint)c), BinOp.OperationType.OpPow));
                     CheckLocal(assignment, function, pc);
                     instructions.Add(assignment);
@@ -592,14 +567,14 @@ public class HksDecompiler : ILanguageDecompiler
                     {
                         instructions.Add(
                             new ConditionalJumpLabel(irFunction.GetLabel((uint)(i / 4 + 2)),
-                                new BinOp(ToConstantIr(function.ConstantsHks[b], b),
+                                new BinOp(ToConstantIr(function.Constants[b], b),
                                     Register(irFunction, (uint)c), BinOp.OperationType.OpLessThan)));
                     }
                     else
                     {
                         instructions.Add(
                             new ConditionalJumpLabel(irFunction.GetLabel((uint)(i / 4 + 2)),
-                                new BinOp(ToConstantIr(function.ConstantsHks[b], b),
+                                new BinOp(ToConstantIr(function.Constants[b], b),
                                     Register(irFunction, (uint)c), BinOp.OperationType.OpGreaterEqual)));
                     }
 
@@ -626,13 +601,13 @@ public class HksDecompiler : ILanguageDecompiler
                     {
                         instructions.Add(
                             new ConditionalJumpLabel(irFunction.GetLabel((uint)(i / 4 + 2)),
-                                new BinOp(ToConstantIr(function.ConstantsHks[b], b),
+                                new BinOp(ToConstantIr(function.Constants[b], b),
                                     Register(irFunction, (uint)c), BinOp.OperationType.OpLessEqual)));
                     }
                     else
                     {
                         instructions.Add(new ConditionalJumpLabel(irFunction.GetLabel((uint)(i / 4 + 2)),
-                            new BinOp(ToConstantIr(function.ConstantsHks[b], b),
+                            new BinOp(ToConstantIr(function.Constants[b], b),
                                 Register(irFunction, (uint)c), BinOp.OperationType.OpGreaterThan)));
                     }
 
@@ -679,7 +654,7 @@ public class HksDecompiler : ILanguageDecompiler
                     instructions.Add(
                         new Assignment(
                             new IdentifierReference(irFunction.GetRegister(a),
-                                ToConstantIr(function.ConstantsHks[b], b)),
+                                ToConstantIr(function.Constants[b], b)),
                             RkIrHks(irFunction, function, c, false)));
                     break;
                 case LuaHksOps.OpCallI:
@@ -822,7 +797,7 @@ public class HksDecompiler : ILanguageDecompiler
                 case LuaHksOps.OpGetFieldR1:
                     assignment = new Assignment(Register(irFunction, a),
                         new IdentifierReference(irFunction.GetRegister((uint)b),
-                            new Constant(function.ConstantsHks[c].ToString(), -1)));
+                            new Constant(function.Constants[c].ToString(), -1)));
                     CheckLocal(assignment, function, pc);
                     instructions.Add(assignment);
                     break;
@@ -833,7 +808,7 @@ public class HksDecompiler : ILanguageDecompiler
                     break;
                 case LuaHksOps.OpSetField:
                     assignment = new Assignment(new IdentifierReference(irFunction.GetRegister(a),
-                            new Constant(function.ConstantsHks[b].ToString(), b)),
+                            new Constant(function.Constants[b].ToString(), b)),
                         Register(irFunction, (uint)c));
                     CheckLocal(assignment, function, pc);
                     instructions.Add(assignment);

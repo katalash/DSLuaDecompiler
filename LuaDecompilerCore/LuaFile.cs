@@ -150,6 +150,32 @@ namespace LuaDecompilerCore
             public Constant(LuaFile file, BinaryReaderEx br, LuaVersion version)
             {
                 var type = br.ReadByte();
+
+                if (version == LuaVersion.Lua51Hks)
+                {
+                    switch (type)
+                    {
+                        case 0:
+                            Type = ConstantType.TypeNil;
+                            break;
+                        case 1:
+                            Type = ConstantType.TypeBoolean;
+                            BoolValue = br.ReadBoolean();
+                            break;
+                        case 3:
+                            NumberValue = br.ReadSingle();
+                            Type = ConstantType.TypeNumber;
+                            break;
+                        case 4:
+                            StringValue = ReadLuaString(br, LuaVersion.Lua51Hks);
+                            Type = ConstantType.TypeString;
+                            break;
+                        default:
+                            throw new Exception("Unimplemented HKS type");
+                    }
+                    return;
+                }
+                
                 if (type == 1)
                 {
                     Type = ConstantType.TypeBoolean;
@@ -180,66 +206,6 @@ namespace LuaDecompilerCore
                 else
                 {
                     Type = ConstantType.TypeNil;
-                }
-            }
-
-            public override string ToString()
-            {
-                return Type switch
-                {
-                    ConstantType.TypeString when StringValue != null => StringValue,
-                    ConstantType.TypeNumber => NumberValue.ToString(CultureInfo.InvariantCulture),
-                    _ => "NULL"
-                };
-            }
-        }
-
-        public class ConstantHks
-        {
-            public enum ConstantType
-            {
-                TypeNil,
-                TypeBoolean,
-                TypeLightUserdata,
-                TypeNumber,
-                TypeString,
-                TypeTable,
-                TypeFunction,
-                TypeUserdata,
-                TypeThread,
-                TypeIFunction,
-                TypeCFunction,
-                TypeUInt64,
-                TypeStruct,
-            }
-
-            public readonly ConstantType Type;
-            public readonly bool BoolValue;
-            public readonly string? StringValue;
-            public readonly float NumberValue;
-
-            public ConstantHks(LuaFile file, BinaryReaderEx br)
-            {
-                var type = br.ReadByte();
-                switch (type)
-                {
-                    case 0:
-                        Type = ConstantType.TypeNil;
-                        break;
-                    case 1:
-                        Type = ConstantType.TypeBoolean;
-                        BoolValue = br.ReadBoolean();
-                        break;
-                    case 3:
-                        NumberValue = br.ReadSingle();
-                        Type = ConstantType.TypeNumber;
-                        break;
-                    case 4:
-                        StringValue = ReadLuaString(br, LuaVersion.Lua51Hks);
-                        Type = ConstantType.TypeString;
-                        break;
-                    default:
-                        throw new Exception("Unimplemented HKS type");
                 }
             }
 
@@ -309,7 +275,6 @@ namespace LuaDecompilerCore
             public int LocalVarsCount;
             public int UpValuesCount;
             public Constant[] Constants = Array.Empty<Constant>();
-            public ConstantHks[] ConstantsHks = Array.Empty<ConstantHks>();
             public Local[] Locals = Array.Empty<Local>();
             public Dictionary<int, List<Local>> LocalMap = new();
             public UpValue[] UpValues = Array.Empty<UpValue>();
@@ -444,10 +409,10 @@ namespace LuaDecompilerCore
                     br.Pad(4);
                     Bytecode = br.ReadBytes(bytecodeCount * 4);
                     var constantsCount = br.ReadInt32();
-                    ConstantsHks = new ConstantHks[constantsCount];
+                    Constants = new Constant[constantsCount];
                     for (var i = 0; i < constantsCount; i++)
                     {
-                        ConstantsHks[i] = new ConstantHks(file, br);
+                        Constants[i] = new Constant(file, br, LuaVersion.Lua51Hks);
                     }
                     br.ReadInt32(); // unk
                     br.ReadInt32(); // unk

@@ -14,10 +14,10 @@ public class DetectLocalVariablesPass : IPass
     {
         var definesSet = new HashSet<Identifier>(2);
         
-        // This is kinda both a pre and post-order traversal of the dominance heirarchy. In the pre traversal,
-        // first local definitions are detected, marked, and propogated down the graph so that they aren't marked
-        // again. In the postorder traversal, these marked definitions are backpropogated up the dominance heirarchy.
-        // If a node gets multiple marked nodes for the same variable from its children in the dominance heirarchy,
+        // This is kinda both a pre and post-order traversal of the dominance hierarchy. In the pre traversal,
+        // first local definitions are detected, marked, and propagated down the graph so that they aren't marked
+        // again. In the postorder traversal, these marked definitions are backpropagated up the dominance hierarchy.
+        // If a node gets multiple marked nodes for the same variable from its children in the dominance hierarchy,
         // a new local assignment must be inserted right before the node splits.
         Dictionary<Identifier, List<Assignment>> Visit(CFG.BasicBlock b, HashSet<Identifier> declared)
         {
@@ -32,8 +32,9 @@ public class DetectLocalVariablesPass : IPass
                     definesSet.Clear();
                     foreach (var def in a.GetDefines(definesSet, true))
                     {
-                        // If the definition has been renamed at this point then it's from a parent closure and should not be made a local
-                        if (!def.Renamed && !newDeclared.Contains(def))
+                        // If the definition hasn't been renamed at this point then it's from a parent closure and
+                        // should not be made a local.
+                        if (!def.IsRenamedRegister && !newDeclared.Contains(def))
                         {
                             newDeclared.Add(def);
                             a.IsLocalDeclaration = true;
@@ -43,7 +44,7 @@ public class DetectLocalVariablesPass : IPass
                 }
             }
 
-            // Visit and merge the children in the dominance heirarchy
+            // Visit and merge the children in the dominance hierarchy
             var inherited = new Dictionary<Identifier, List<Assignment>>();
             var phiInduced = new HashSet<Identifier>();
             foreach (var successor in b.DominanceTreeSuccessors)
@@ -87,6 +88,11 @@ public class DetectLocalVariablesPass : IPass
             return declaredAssignments;
         }
 
-        Visit(f.BeginBlock, new HashSet<Identifier>(f.Parameters));
+        var root = new HashSet<Identifier>(f.ParameterCount);
+        for (uint i = 0; i < f.ParameterCount; i++)
+        {
+            root.Add(Identifier.GetRegister(i));
+        }
+        Visit(f.BeginBlock, root);
     }
 }

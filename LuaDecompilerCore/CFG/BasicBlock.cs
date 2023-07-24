@@ -14,7 +14,7 @@ namespace LuaDecompilerCore.CFG
         public List<BasicBlock> Predecessors;
         public List<BasicBlock> Successors;
         public List<Instruction> Instructions;
-        public Dictionary<Identifier, PhiFunction> PhiFunctions;
+        public Dictionary<uint, PhiFunction> PhiFunctions;
 
         public readonly HashSet<Identifier> PhiMerged = new();
 
@@ -193,7 +193,7 @@ namespace LuaDecompilerCore.CFG
             Predecessors = new List<BasicBlock>();
             Successors = new List<BasicBlock>();
             Instructions = new List<Instruction>(10);
-            PhiFunctions = new Dictionary<Identifier, PhiFunction>();
+            PhiFunctions = new Dictionary<uint, PhiFunction>();
             Dominance = new HashSet<BasicBlock>();
             ImmediateDominator = this;
             DominanceFrontier = new HashSet<BasicBlock>();

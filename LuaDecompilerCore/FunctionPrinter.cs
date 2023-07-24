@@ -1,5 +1,5 @@
 ﻿using System;
-using System.Globalization;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using LuaDecompilerCore.CFG;
@@ -10,6 +10,7 @@ namespace LuaDecompilerCore;
 public partial class FunctionPrinter
 {
     private StringBuilder _builder = new();
+    private readonly List<Function> _functionStack = new();
     private int _indentLevel;
     private bool _insertDebugComments;
     private bool _debugPrint;
@@ -39,6 +40,13 @@ public partial class FunctionPrinter
     {
         var printer = new FunctionPrinter { _debugPrint = true };
         printer.VisitExpression(expression);
+        return printer._builder.ToString();
+    }
+    
+    internal static string DebugPrintIdentifier(Identifier identifier)
+    {
+        var printer = new FunctionPrinter { _debugPrint = true };
+        printer.VisitIdentifier(identifier);
         return printer._builder.ToString();
     }
     
@@ -85,6 +93,26 @@ public partial class FunctionPrinter
     private void PopIndent()
     {
         _indentLevel--;
+    }
+
+    private void PushFunction(Function function)
+    {
+        _functionStack.Add(function);
+    }
+
+    private void PopFunction()
+    {
+        _functionStack.RemoveAt(_functionStack.Count - 1);
+    }
+
+    private Function? CurrentFunction()
+    {
+        return _functionStack.Count > 0 ? _functionStack[^1] : null;
+    }
+    
+    private Function? LastFunction()
+    {
+        return _functionStack.Count > 1 ? _functionStack[^2] : null;
     }
 
     private void Indent(bool half = false)
@@ -197,26 +225,30 @@ public partial class FunctionPrinter
 
     private void VisitFunction(Function function, string? name = null)
     {
+        PushFunction(function);
         if (function.FunctionId != 0 || _debugPrint)
         {
             Append(name == null ? @"function (" : $@"function {name}(");
-            for (var i = 0; i < function.Parameters.Count; i++)
+            for (var i = 0; i < function.ParameterCount; i++)
             {
-                VisitIdentifier(function.Parameters[i]);
-                if (i != function.Parameters.Count - 1)
+                VisitIdentifier(Identifier.GetRegister((uint)i));
+                if (i != function.ParameterCount - 1)
                 {
                     Append(", ");
                 }
             }
             if (function.IsVarargs)
             {
-                Append(function.Parameters.Count > 0 ? ", ..." : "...");
+                Append(function.ParameterCount > 0 ? ", ..." : "...");
             }
             Append(')');
-            
+
             if (_debugPrint)
+            {
+                PopFunction();
                 return;
-            
+            }
+
             NewLine();
             _indentLevel += 1;
         }
@@ -231,13 +263,17 @@ public partial class FunctionPrinter
         
         if (function.IsAst)
         {
-            if (_insertDebugComments)
+            if (function.Warnings.Count == 0)
             {
-                Indent();
-                Append($"-- Function ID = {function.FunctionId}");
-                NewLine();
+                if (_insertDebugComments)
+                {
+                    Indent();
+                    Append($"-- Function ID = {function.FunctionId}");
+                    NewLine();
+                }
+
+                VisitBasicBlock(function.BeginBlock);
             }
-            VisitBasicBlock(function.BeginBlock);
         }
         else
         {
@@ -290,6 +326,8 @@ public partial class FunctionPrinter
             }
             Append("end");
         }
+
+        PopFunction();
     }
 
     private void VisitBasicBlock(BasicBlock basicBlock, bool printInfiniteLoop = false)
@@ -368,20 +406,64 @@ public partial class FunctionPrinter
         VisitFunction(closure.Function);
     }
 
+    private string? LookupIdentifierName(Identifier identifier, Function? currentFunction)
+    {
+        if (currentFunction == null)
+            return null;
+        return identifier.Type switch
+        {
+            Identifier.IdentifierType.Register or Identifier.IdentifierType.RenamedRegister =>
+                currentFunction.IdentifierNames.TryGetValue(identifier, out var name) ? name : null,
+            Identifier.IdentifierType.Global => currentFunction.Constants[(int)identifier.ConstantId].ToString(),
+            Identifier.IdentifierType.UpValue when currentFunction.UpValueBindings.Count > 0 => 
+                LookupIdentifierName(currentFunction.UpValueBindings[(int)identifier.UpValueNum], LastFunction()),
+            _ => null
+        };
+    }
+    
     private void VisitIdentifier(Identifier identifier)
     {
-        if (identifier.Type == Identifier.IdentifierType.Varargs)
+        if (identifier.IsVarArgs)
         {
             Append("...");
             return;
         }
-        Append(identifier.Name);
+
+        if (LookupIdentifierName(identifier, CurrentFunction()) is { } name)
+        {
+            Append(name);
+            return;
+        }
+
+        if (identifier.IsRegister)
+        {
+            Append("REG");
+            Append(identifier.RegNum);
+            if (identifier.IsRenamedRegister)
+            {
+                Append('_');
+                Append(identifier.RegSubscriptNum);
+            }
+            return;
+        }
+
+        if (identifier.IsUpValue)
+        {
+            Append("UPVAL");
+            Append(identifier.UpValueNum);
+            return;
+        }
+
+        if (identifier.IsGlobalTable)
+        {
+            Append("_G");
+        }
     }
 
     private void VisitIdentifierReference(IdentifierReference identifierReference)
     {
         // Detect a Lua 5.3 global variable and don't display it as a table reference
-        var isGlobal = identifierReference.Identifier.Type == Identifier.IdentifierType.GlobalTable;
+        var isGlobal = identifierReference.Identifier.IsGlobalTable;
         if (!isGlobal) 
             VisitIdentifier(identifierReference.Identifier);
         foreach (var idx in identifierReference.TableIndices)
@@ -532,7 +614,7 @@ public partial class FunctionPrinter
             }
         }
         else if (functionCall.Function is IdentifierReference { TableIndices.Count: 2 } ir2 &&
-                 ir2.Identifier.Type == Identifier.IdentifierType.GlobalTable &&
+                 ir2.Identifier.IsGlobalTable &&
                  ir2.TableIndices[1] is Constant { ConstType: Constant.ConstantType.ConstString } c2 &&
                  ir2.TableIndices[0] is Constant { ConstType: Constant.ConstantType.ConstString } c3 &&
                  functionCall.Args.Count >= 1 && functionCall.Args[0] is IdentifierReference thisIdentifier && 
@@ -568,7 +650,7 @@ public partial class FunctionPrinter
         }
         if (assignment is { IsFunctionDeclaration: true, Right: Closure c })
         {
-            VisitFunction(c.Function, assignment.Left.Identifier.Name);
+            VisitFunction(c.Function, LookupIdentifierName(assignment.Left.Identifier, CurrentFunction()));
             return;
         }
         //if (assignment.IsSingleAssignment && assignment.Left.HasIndex && assignment.Right is Closure)
@@ -755,7 +837,7 @@ public partial class FunctionPrinter
         Append(" = phi(");
         for (var i = 0; i < phiFunction.Right.Count; i++)
         {
-            if (phiFunction.Right[i] is { } right)
+            if (phiFunction.Right[i] is { IsNull: false } right)
             {
                 VisitIdentifier(right);
             }
@@ -763,6 +845,7 @@ public partial class FunctionPrinter
             {
                 Append("undefined");
             }
+            
             if (i != phiFunction.Right.Count - 1)
             {
                 Append(", ");

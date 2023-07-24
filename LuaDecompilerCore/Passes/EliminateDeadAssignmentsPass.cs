@@ -22,16 +22,16 @@ public class EliminateDeadAssignmentsPass : IPass
         var usesSet = new HashSet<Identifier>(10);
         
         var usedUses = new HashSet<Identifier>(10);
-        var usageCounts = new Dictionary<Identifier, int>(f.Parameters.Count + f.SsaVariables.Count);
+        var usageCounts = new Dictionary<Identifier, int>(f.ParameterCount + f.SsaVariables.Count);
         var phiToRemove = new List<Identifier>(10);
         bool changed = true;
         while (changed)
         {
             changed = false;
             usageCounts.Clear();
-            foreach (var arg in f.Parameters)
+            for (uint reg = 0; reg < f.ParameterCount; reg++)
             {
-                usageCounts.Add(arg, 0);
+                usageCounts.Add(Identifier.GetRegister(reg), 0);
             }
 
             // Used for phi function cycle detection
@@ -47,7 +47,7 @@ public class EliminateDeadAssignmentsPass : IPass
                     foreach (var use in phi.Value.Right)
                     {
                         // If a phi function has multiple uses of the same identifier, only count it as one use for the purposes of this analysis
-                        if (use != null && !usedUses.Contains(use))
+                        if (!use.IsNull && !usedUses.Contains(use))
                         {
                             usageCounts.TryAdd(use, 0);
                             usageCounts[use]++;
@@ -113,21 +113,10 @@ public class EliminateDeadAssignmentsPass : IPass
                     {
                         changed = true;
                         phiToRemove.Add(phi.Value.Left);
-                        singleUses[phi.Value.Left].RenameUses(phi.Value.Left, null);
+                        singleUses[phi.Value.Left].RenameUses(phi.Value.Left, Identifier.GetNull());
                     }
                 }
-                foreach (var rem in phiToRemove)
-                {
-                    Debug.Assert(rem.OriginalIdentifier != null);
-                    foreach (var i in b.PhiFunctions[rem.OriginalIdentifier].Right)
-                    {
-                        if (i != null)
-                        {
-                            i.UseCount--;
-                        }
-                    }
-                }
-                phiToRemove.ForEach(x => b.PhiFunctions.Remove(x.OriginalIdentifier ?? throw new Exception()));
+                phiToRemove.ForEach(x => b.PhiFunctions.Remove(x.RegNum));
 
                 // Eliminate unused assignments
                 var toRemove = new List<Instruction>();

@@ -175,8 +175,10 @@ namespace DecompilerTester
                 Encoding.GetEncoding("shift_jis"),
                 new DecompilationTesterOptions
                 {
-                    DumpPassIr = true,
-                    DumpCfg = true,
+                    DumpPassIr = false,
+                    DumpCfg = false,
+                    MultiThreaded = true,
+                    HandleDecompilationExceptions = true
                 });
             TestUtilities.AddCompiledLuaBndDirectoryToTester(args[0], tester);
             var results = tester.Execute();

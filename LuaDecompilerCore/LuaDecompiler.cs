@@ -32,12 +32,11 @@ namespace LuaDecompilerCore
                 irFunction.InsertDebugComments = DecompilationOptions.OutputDebugComments;
 
                 // Initialize function parameters
-                var parameters = new List<Identifier>();
-                for (uint i = 0; i < luaFunction.NumParams; i++)
-                {
-                    parameters.Add(irFunction.GetRegister(i));
-                }
-                irFunction.SetParameters(parameters);
+                irFunction.ParameterCount = (int)luaFunction.NumParams;
+                irFunction.RegisterCount = (int)luaFunction.NumParams;
+
+                // Give constant table
+                irFunction.Constants = luaFunction.Constants;
 
                 // Now generate IR from the bytecode using language specific decompiler
                 languageDecompiler.GenerateIr(luaFunction, irFunction, globalSymbolTable);

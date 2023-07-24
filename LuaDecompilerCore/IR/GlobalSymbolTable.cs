@@ -18,27 +18,12 @@ namespace LuaDecompilerCore.IR
 
         public Identifier GetGlobal(string global, int constantId)
         {
-            if (_symbols.TryGetValue(global, out var value)) return value;
-            var regi = new Identifier
-            {
-                Type = Identifier.IdentifierType.Global,
-                Name = global,
-                ConstantId = constantId
-            };
-            _symbols.Add(regi.Name, regi);
-            return _symbols[global];
+            return Identifier.GetGlobal((uint)constantId);
         }
 
         public Identifier GetVarargs()
         {
-            if (_symbols.TryGetValue("$VARARGS", out var value)) return value;
-            var regi = new Identifier
-            {
-                Type = Identifier.IdentifierType.Varargs,
-                Name = "$VARARGS"
-            };
-            _symbols.Add(regi.Name, regi);
-            return _symbols["$VARARGS"];
+            return Identifier.GetVarArgs();
         }
     }
 }

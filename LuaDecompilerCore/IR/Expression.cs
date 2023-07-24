@@ -43,7 +43,7 @@ namespace LuaDecompilerCore.IR
             return -1;
         }
 
-        public override string? ToString()
+        public override string ToString()
         {
             return FunctionPrinter.DebugPrintExpression(this);
         }
@@ -187,7 +187,6 @@ namespace LuaDecompilerCore.IR
                 if (Function.UpValueBindings[i] == original)
                 {
                     Function.UpValueBindings[i] = newIdentifier;
-                    newIdentifier.IsClosureBound = true;
                 }
             }
         }
@@ -230,7 +229,7 @@ namespace LuaDecompilerCore.IR
 
         public override void GetUses(HashSet<Identifier> uses, bool registersOnly)
         {
-            if ((!registersOnly || Identifier.IsRegister) && !Identifier.IsClosureBound)
+            if (!registersOnly || Identifier.IsRegister)
             {
                 uses.Add(Identifier);
             }
@@ -242,10 +241,9 @@ namespace LuaDecompilerCore.IR
 
         public override void RenameUses(Identifier original, Identifier newIdentifier)
         {
-            if (Identifier == original && !Identifier.IsClosureBound)
+            if (Identifier == original)
             {
                 Identifier = newIdentifier;
-                Identifier.UseCount++;
             }
             foreach (var idx in TableIndices)
             {
@@ -297,7 +295,7 @@ namespace LuaDecompilerCore.IR
 
         public override int GetLowestConstantId()
         {
-            var id = Identifier.ConstantId;
+            var id = Identifier.IsGlobal ? (int)Identifier.ConstantId : 0;
             foreach (var idx in TableIndices)
             {
                 var nid = idx.GetLowestConstantId();

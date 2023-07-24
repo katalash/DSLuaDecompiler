@@ -1,5 +1,4 @@
 ﻿using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using LuaDecompilerCore.IR;
 
@@ -20,8 +19,7 @@ public class DropSsaSubscriptsPass : IPass
         {
             foreach (var phi in b.PhiFunctions)
             {
-                Debug.Assert(phi.Value.Left.OriginalIdentifier != null);
-                b.PhiMerged.Add(phi.Value.Left.OriginalIdentifier);
+                b.PhiMerged.Add(Identifier.GetRegister(phi.Value.Left.RegNum));
             }
             b.PhiFunctions.Clear();
             foreach (var i in b.Instructions)
@@ -32,31 +30,21 @@ public class DropSsaSubscriptsPass : IPass
                 i.GetUses(usesSet, true);
                 foreach (var def in definesSet)
                 {
-                    if (def.OriginalIdentifier != null)
-                        i.RenameDefines(def, def.OriginalIdentifier);
+                    if (def.IsRenamedRegister)
+                        i.RenameDefines(def, Identifier.GetRegister(def.RegNum));
                 }
                 foreach (var use in usesSet)
                 {
-                    if (use.OriginalIdentifier != null)
-                        i.RenameUses(use, use.OriginalIdentifier);
+                    if (use.IsRenamedRegister)
+                        i.RenameUses(use, Identifier.GetRegister(use.RegNum));
                 }
             }
-        }
-        for (var a = 0; a < f.Parameters.Count; a++)
-        {
-            if (f.Parameters[a].OriginalIdentifier is { } identifier)
-                f.Parameters[a] = identifier;
         }
 
         var counter = 0;
         Identifier NewName(Identifier orig)
         {
-            var newName = new Identifier
-            {
-                Name = orig.Name + $@"_{counter}",
-                Type = Identifier.IdentifierType.Register,
-                OriginalIdentifier = orig
-            };
+            var newName = Identifier.GetRenamedRegister(orig.RegNum, (uint)counter);
             counter++;
             return newName;
         }

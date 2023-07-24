@@ -98,7 +98,7 @@ public class DropSsaNaivePass : IPass
                 var def = phi.Value.Left;
                 foreach (var use in phi.Value.Right)
                 {
-                    if (use == null) 
+                    if (use.IsNull) 
                         continue;
                     
                     phiUses.Add(use);
@@ -158,19 +158,7 @@ public class DropSsaNaivePass : IPass
             }
             processed.Add(b);
 
-            // If we are the first block, rename the function arguments
-            if (b == f.BeginBlock)
-            {
-                for (int a = 0; a < f.Parameters.Count; a++)
-                {
-                    if (replacements.ContainsKey(f.Parameters[a]))
-                    {
-                        f.Parameters[a] = replacements[f.Parameters[a]];
-                    }
-                }
-            }
-
-            // Propogate the replacements to children if this is a latch (i.e. induces a loop) and the head was already processed
+            // Propagate the replacements to children if this is a latch (i.e. induces a loop) and the head was already processed
             foreach (var succ in b.Successors)
             {
                 if (processed.Contains(succ) && succ.IsLoopHead)

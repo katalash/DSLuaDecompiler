@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using LuaDecompilerCore.IR;
 
 namespace LuaDecompilerCore.Passes;
@@ -17,11 +18,10 @@ public class SsaTransformPass : IPass
         var definesSet = new HashSet<Identifier>(2);
         var usesSet = new HashSet<Identifier>(10);
         
-        var allRegisters = new HashSet<Identifier>(f.RegisterCount + f.Parameters.Count);
-        f.AddAllRegistersToSet(allRegisters);
-        foreach (var p in f.Parameters)
+        var allRegisters = new HashSet<Identifier>(f.RegisterCount);
+        for (uint r = 0; r < f.RegisterCount; r++)
         {
-            allRegisters.Add(p);
+            allRegisters.Add(Identifier.GetRegister(r));
         }
 
         f.ComputeGlobalLiveness(allRegisters);
@@ -46,7 +46,7 @@ public class SsaTransformPass : IPass
                 var b = work.Dequeue();
                 foreach (var d in b.DominanceFrontier)
                 {
-                    if (d != f.EndBlock && !d.PhiFunctions.ContainsKey(g))
+                    if (d != f.EndBlock && !d.PhiFunctions.ContainsKey(g.RegNum))
                     {
                         // Heuristic: if the block is just a single return, we don't need phi functions
                         if (d.First is Return { ReturnExpressions.Count: 0 })
@@ -54,12 +54,12 @@ public class SsaTransformPass : IPass
                             continue;
                         }
 
-                        var phiArgs = new List<Identifier?>();
+                        var phiArgs = new List<Identifier>();
                         for (var i = 0; i < d.Predecessors.Count; i++)
                         {
                             phiArgs.Add(g);
                         }
-                        d.PhiFunctions.Add(g, new PhiFunction(g, phiArgs));
+                        d.PhiFunctions.Add(g.RegNum, new PhiFunction(g, phiArgs));
                         //if (!visitedSet.Contains(d))
                         //{
                         work.Enqueue(d);
@@ -71,26 +71,20 @@ public class SsaTransformPass : IPass
         }
 
         // Prepare for renaming
-        var counters = new Dictionary<Identifier, int>();
-        var stacks = new Dictionary<Identifier, Stack<Identifier>>();
+        var counters = new uint[allRegisters.Count];
+        var stacks = new Stack<Identifier>[allRegisters.Count];
         foreach (var reg in allRegisters)
         {
-            counters.Add(reg, 0);
-            stacks.Add(reg, new Stack<Identifier>());
+            stacks[reg.RegNum] = new Stack<Identifier>();
         }
 
         // Creates a new identifier based on an original identifier
         Identifier NewName(Identifier orig)
         {
-            var newName = new Identifier
-            {
-                Name = $@"{orig.Name}_{counters[orig]}",
-                Type = Identifier.IdentifierType.Register,
-                OriginalIdentifier = orig,
-                IsClosureBound = orig.IsClosureBound
-            };
-            stacks[orig].Push(newName);
-            counters[orig]++;
+            var regNum = orig.RegNum;
+            var newName = Identifier.GetRenamedRegister(regNum, counters[regNum]);
+            stacks[regNum].Push(newName);
+            counters[regNum]++;
             f.SsaVariables.Add(newName);
             return newName;
         }
@@ -102,7 +96,8 @@ public class SsaTransformPass : IPass
             // Rewrite phi function definitions
             foreach (var phi in b.PhiFunctions)
             {
-                phi.Value.RenameDefines(phi.Key, NewName(phi.Key));
+                var identifier = Identifier.GetRegister(phi.Key);
+                phi.Value.RenameDefines(identifier, NewName(identifier));
             }
 
             // Rename other instructions
@@ -112,20 +107,20 @@ public class SsaTransformPass : IPass
                 inst.GetUses(usesSet, true);
                 foreach (var use in usesSet)
                 {
-                    if (use.IsClosureBound)
+                    if (f.ClosureBound(use))
                     {
                         continue;
                     }
-                    if (stacks[use].Count != 0)
+                    if (stacks[use.RegNum].Count != 0)
                     {
-                        inst.RenameUses(use, stacks[use].Peek());
+                        inst.RenameUses(use, stacks[use.RegNum].Peek());
                     }
                 }
                 definesSet.Clear();
                 inst.GetDefines(definesSet, true);
                 foreach (var def in definesSet)
                 {
-                    if (def.IsClosureBound)
+                    if (f.ClosureBound(def))
                     {
                         continue;
                     }
@@ -140,17 +135,16 @@ public class SsaTransformPass : IPass
                 var index = successor.Predecessors.IndexOf(b);
                 foreach (var phi in successor.PhiFunctions)
                 {
-                    if (phi.Value.Right[index] is { } k && stacks[k].Count > 0)
+                    if (phi.Value.Right[index] is { RegNum: var k } && stacks[k].Count > 0)
                     {
                         phi.Value.Right[index] = stacks[k].Peek();
-                        stacks[k].Peek().UseCount++;
                     }
                     else
                     {
                         // Sometimes a phi function is forced when one of the predecessor paths don't actually define the register.
                         // These phi functions are usually not needed and optimized out in a later pass, so we set it to null to detect
                         // errors in case the phi function result is actually used.
-                        phi.Value.Right[index] = null;
+                        phi.Value.Right[index] = Identifier.GetNull();
                     }
                 }
             }
@@ -177,8 +171,7 @@ public class SsaTransformPass : IPass
             // Pop off anything we pushed
             foreach (var phi in b.PhiFunctions)
             {
-                Debug.Assert(phi.Value.Left.OriginalIdentifier != null);
-                stacks[phi.Value.Left.OriginalIdentifier].Pop();
+                stacks[phi.Value.Left.RegNum].Pop();
             }
             foreach (var inst in b.Instructions)
             {
@@ -186,23 +179,25 @@ public class SsaTransformPass : IPass
                 inst.GetDefines(definesSet, true);
                 foreach (var def in definesSet)
                 {
-                    if (def.IsClosureBound)
+                    if (f.ClosureBound(def))
                     {
                         continue;
                     }
-                    Debug.Assert(def.OriginalIdentifier != null);
-                    stacks[def.OriginalIdentifier].Pop();
+                    stacks[def.RegNum].Pop();
                 }
             }
         }
-
+        
         // Rename the arguments first
-        for (var i = 0; i < f.Parameters.Count; i++)
+        for (var i = 0; i < f.ParameterCount; i++)
         {
-            f.Parameters[i] = NewName(f.Parameters[i]);
+            NewName(Identifier.GetRegister((uint)i));
         }
 
         // Rename everything else recursively
         RenameBlock(f.BeginBlock);
+
+        // Save rename counts for future use
+        f.RenamedRegisterCounts = counters;
     }
 }

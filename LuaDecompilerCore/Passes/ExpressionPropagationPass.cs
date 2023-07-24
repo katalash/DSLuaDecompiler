@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using LuaDecompilerCore.Analyzers;
 using LuaDecompilerCore.IR;
 
 namespace LuaDecompilerCore.Passes;
@@ -59,7 +60,7 @@ public class ExpressionPropagationPass : IPass
                             break;
                         }
                         // Detect tail calls
-                        case Return r when r.ReturnExpressions.Count == 1 && r.ReturnExpressions[0] is FunctionCall
+                        case Return { ReturnExpressions.Count: 1 } r when r.ReturnExpressions[0] is FunctionCall
                         {
                             Function: IdentifierReference fir2
                         } fc2:
@@ -84,16 +85,16 @@ public class ExpressionPropagationPass : IPass
         // we can exploit this to figure out local variables in the original source code even if they only had one use: If the next register defined
         // within the scope (dominance hierarchy) after the first use of a recently defined register is not that register, then it's likely an actual
         // local variable.
-        int LocalIdentifyVisit(CFG.BasicBlock b, HashSet<Identifier> localRegs)
+        int LocalIdentifyVisit(CFG.BasicBlock b, HashSet<uint> localRegs)
         {
-            var thisLocalRegs = new HashSet<Identifier>(localRegs.Count * 2);
+            var thisLocalRegs = new HashSet<uint>(localRegs.Count * 2);
             thisLocalRegs.UnionWith(localRegs);
 
             // Set of defines that are never used in this block (very very likely to be locals)
             var unusedDefines = new HashSet<Identifier>(b.Instructions.Count / 2);
 
             // Set of recently used registers that are candidates for locals
-            var recentlyUsed = new Dictionary<Identifier, Identifier>(b.Instructions.Count / 2);
+            var recentlyUsed = new Dictionary<uint, Identifier>(b.Instructions.Count / 2);
             for (var i = 0; i < b.Instructions.Count; i++)
             {
                 // First add registers such the set contains all the registers used up to this point
@@ -107,8 +108,7 @@ public class ExpressionPropagationPass : IPass
                         unusedDefines.Remove(use);
                     }
                     
-                    Debug.Assert(use.OriginalIdentifier != null);
-                    if (thisLocalRegs.Contains(use.OriginalIdentifier))
+                    if (thisLocalRegs.Contains(use.RegNum))
                     {
                         // Already marked as a local
                         continue;
@@ -117,20 +117,20 @@ public class ExpressionPropagationPass : IPass
                     if (f.LocalVariables.Contains(use))
                     {
                         // Add it to the local regs
-                        thisLocalRegs.Add(use.OriginalIdentifier);
+                        thisLocalRegs.Add(use.RegNum);
                         continue;
                     }
 
-                    if (!recentlyUsed.ContainsKey(use.OriginalIdentifier))
+                    if (!recentlyUsed.ContainsKey(use.RegNum))
                     {
-                        recentlyUsed.Add(use.OriginalIdentifier, use);
+                        recentlyUsed.Add(use.RegNum, use);
                     }
                     else
                     {
                         // Double use. Definitely a local
                         f.LocalVariables.Add(use);
-                        thisLocalRegs.Add(use.OriginalIdentifier);
-                        recentlyUsed.Remove(use.OriginalIdentifier);
+                        thisLocalRegs.Add(use.RegNum);
+                        recentlyUsed.Remove(use.RegNum);
                     }
                 }
 
@@ -145,12 +145,11 @@ public class ExpressionPropagationPass : IPass
                     foreach (var def in definesSet)
                     {
                         // Unfortunately this pretty much kills any previous def of this in scope's chances to actually be a local
-                        Debug.Assert(def.OriginalIdentifier != null);
-                        if (recentlyUsed.ContainsKey(def.OriginalIdentifier))
+                        if (recentlyUsed.ContainsKey(def.RegNum))
                         {
-                            recentlyUsed.Remove(def.OriginalIdentifier);
+                            recentlyUsed.Remove(def.RegNum);
                             f.LocalVariables.Add(def);
-                            thisLocalRegs.Add(def.OriginalIdentifier);
+                            thisLocalRegs.Add(def.RegNum);
                         }
                     }
                 }
@@ -163,12 +162,11 @@ public class ExpressionPropagationPass : IPass
                     if (b.Instructions[i] is Assignment { IsSelfAssignment: true })
                     {
                         var def2 = b.Instructions[i + 1].GetSingleDefine(true) ?? throw new Exception();
-                        Debug.Assert(def2.OriginalIdentifier != null);
 
                         foreach (var k in recentlyUsed.Keys)
                         {
                             // If the reg number is less than the second define then it's a local
-                            if (k.RegNum < def2.OriginalIdentifier.RegNum)
+                            if (k < def2.RegNum)
                             {
                                 f.LocalVariables.Add(recentlyUsed[k]);
                                 thisLocalRegs.Add(k);
@@ -183,14 +181,13 @@ public class ExpressionPropagationPass : IPass
                     var def = b.Instructions[i].GetSingleDefine(true) ?? throw new Exception();
 
                     // Skip upValue
-                    if (def.IsClosureBound || def.Renamed)
+                    if (f.ClosureBound(def))
                     {
                         continue;
                     }
 
                     // Move on if it's a known local
-                    Debug.Assert(def.OriginalIdentifier != null);
-                    if (thisLocalRegs.Contains(def.OriginalIdentifier))
+                    if (thisLocalRegs.Contains(def.RegNum))
                     {
                         // Make sure the def is marked as local
                         f.LocalVariables.Add(def);
@@ -201,12 +198,12 @@ public class ExpressionPropagationPass : IPass
                     unusedDefines.Add(def);
 
                     // Otherwise a quick redefine is likely a temp. Mark below as locals and above as temps
-                    if (recentlyUsed.ContainsKey(def.OriginalIdentifier))
+                    if (recentlyUsed.ContainsKey(def.RegNum))
                     {
                         foreach (var k in recentlyUsed.Keys)
                         {
                             // If the reg number is less than the second define then it's a local
-                            if (k.RegNum < def.OriginalIdentifier.RegNum)
+                            if (k < def.RegNum)
                             {
                                 f.LocalVariables.Add(recentlyUsed[k]);
                                 thisLocalRegs.Add(k);
@@ -229,8 +226,7 @@ public class ExpressionPropagationPass : IPass
             foreach (var unused in unusedDefines)
             {
                 f.LocalVariables.Add(unused);
-                Debug.Assert(unused.OriginalIdentifier != null);
-                thisLocalRegs.Add(unused.OriginalIdentifier);
+                thisLocalRegs.Add(unused.RegNum);
             }
 
             // Visit next blocks in scope
@@ -250,7 +246,7 @@ public class ExpressionPropagationPass : IPass
                 foreach (var k in recentlyUsed.Keys)
                 {
                     // If the reg number is less than the second define then it's a local
-                    if (k.RegNum < childFirstDef)
+                    if (k < childFirstDef)
                     {
                         f.LocalVariables.Add(recentlyUsed[k]);
                         thisLocalRegs.Add(k);
@@ -264,10 +260,9 @@ public class ExpressionPropagationPass : IPass
             {
                 if (inst.GetSingleDefine(true) is { } def)
                 {
-                    if (!f.LocalVariables.Contains(def) && def is { Renamed: false, IsClosureBound: false })
+                    if (!f.LocalVariables.Contains(def) && !f.ClosureBound(def))
                     {
-                        Debug.Assert(def.OriginalIdentifier != null);
-                        firstTempDef = (int)def.OriginalIdentifier.RegNum;
+                        firstTempDef = (int)def.RegNum;
                         if (inst is Assignment { IsSelfAssignment: true })
                         {
                             // Again a SELF op generates two assignments-the second one being the lower reg number
@@ -281,14 +276,16 @@ public class ExpressionPropagationPass : IPass
         }
         if (_firstPass)
         {
-            var argRegisters = new HashSet<Identifier>();
-            foreach (var i in f.Parameters)
+            var argRegisters = new HashSet<uint>();
+            for (uint i = 0; i < f.ParameterCount; i++)
             {
-                Debug.Assert(i.OriginalIdentifier != null);
-                argRegisters.Add(i.OriginalIdentifier);
+                argRegisters.Add(i);
             }
-            LocalIdentifyVisit(f.BeginBlock, new HashSet<Identifier>(argRegisters));
+            LocalIdentifyVisit(f.BeginBlock, new HashSet<uint>(argRegisters));
         }
+
+        var defineUseAnalysis = new IdentifierDefinitionUseAnalyzer();
+        defineUseAnalysis.Run(f);
 
         bool changed;
         do
@@ -296,34 +293,35 @@ public class ExpressionPropagationPass : IPass
             changed = false;
             foreach (var b in f.BlockList)
             {
-                for (var i = 0; i < b.Instructions.Count; i++)
+                for (var i = 1; i < b.Instructions.Count; i++)
                 {
                     var inst = b.Instructions[i];
                     usesSet.Clear();
                     inst.GetUses(usesSet, true);
                     foreach (var use in usesSet)
                     {
-                        if (use.DefiningInstruction is Assignment
+                        var definingInstruction = defineUseAnalysis.DefiningInstruction(use);
+                        if (definingInstruction is Assignment
                             {
                                 IsSingleAssignment: true, 
                                 LocalAssignments: null, 
                                 Right: not null
                             } a &&
-                            ((use.UseCount == 1 && 
-                              ((i - 1 >= 0 && b.Instructions[i - 1] == use.DefiningInstruction) || 
+                            ((defineUseAnalysis.UseCount(use) == 1 && 
+                              ((i - 1 >= 0 && b.Instructions[i - 1] == definingInstruction) || 
                                inst is Assignment { IsListAssignment: true }) && 
                               !f.LocalVariables.Contains(use)) || 
-                             a.PropagateAlways) && !a.Left.Identifier.IsClosureBound)
+                             a.PropagateAlways) && !f.ClosureBound(a.Left.Identifier))
                         {
                             // Don't substitute if this use's define was defined before the code gen for the function call even began
                             if (!a.PropagateAlways && inst is Assignment { Right: FunctionCall fc } && 
-                                use.DefiningInstruction.PrePropagationIndex < fc.FunctionDefIndex)
+                                definingInstruction.PrePropagationIndex < fc.FunctionDefIndex)
                             {
                                 continue;
                             }
                             if (!a.PropagateAlways && inst is Return r && r.ReturnExpressions.Count == 1 && 
                                 r.ReturnExpressions[0] is FunctionCall fc2 && 
-                                use.DefiningInstruction.PrePropagationIndex < fc2.FunctionDefIndex)
+                                definingInstruction.PrePropagationIndex < fc2.FunctionDefIndex)
                             {
                                 continue;
                             }
@@ -355,8 +353,10 @@ public class ExpressionPropagationPass : IPass
                 {
                     var inst = b.Instructions[i];
                     if (inst is Assignment { Right: FunctionCall { Args.Count: > 0 } fc } a &&
-                        fc.Args[0] is IdentifierReference { HasIndex: false, Identifier.UseCount: 2 } ir &&
-                        i > 0 && b.Instructions[i - 1] is Assignment { IsSingleAssignment: true, Left.HasIndex: false } a2 && a2.Left.Identifier == ir.Identifier &&
+                        fc.Args[0] is IdentifierReference { HasIndex: false } ir &&
+                        defineUseAnalysis.UseCount(ir.Identifier) == 2 &&
+                        i > 0 && b.Instructions[i - 1] is Assignment { IsSingleAssignment: true, Left.HasIndex: false } a2 && 
+                        a2.Left.Identifier == ir.Identifier &&
                         a2.Right is IdentifierReference or Constant)
                     {
                         a.ReplaceUses(a2.Left.Identifier, a2.Right);

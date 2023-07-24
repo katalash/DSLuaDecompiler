@@ -145,19 +145,11 @@ public class Lua53Decompiler : ILanguageDecompiler
 
     private static Identifier UpValue53(Function irFunction, LuaFile.Function function, uint upValueId)
     {
-        var up = irFunction.GetUpValue(upValueId);
         if (upValueId < function.UpValues.Length && function.UpValues[upValueId].InStack)
         {
-            up.StackUpValue = true;
+            return irFunction.GetStackUpValue(upValueId);
         }
-
-        if (function.UpValueNames.Length > 0 && !up.UpValueResolved)
-        {
-            up.Name = function.UpValueNames[upValueId].Name ?? throw new Exception("Expected non-empty name");
-            up.UpValueResolved = true;
-        }
-
-        return up;
+        return irFunction.GetUpValue(upValueId);
     }
 
     public void InitializeFunction(LuaFile.Function function, Function irFunction, GlobalSymbolTable globalSymbolTable)
@@ -176,12 +168,7 @@ public class Lua53Decompiler : ILanguageDecompiler
         // Create the global table as the first upValue for the root function
         if (function.FunctionId == 0)
         {
-            var globalTable = new Identifier
-            {
-                Name = "Global",
-                Type = Identifier.IdentifierType.GlobalTable,
-                IsClosureBound = true
-            };
+            var globalTable = Identifier.GetGlobalTable();
             irFunction.UpValueBindings.Add(globalTable);
         }
         
@@ -272,7 +259,7 @@ public class Lua53Decompiler : ILanguageDecompiler
 
                     up = irFunction.UpValueBindings[(int)b];
                     var rkir = RkIr53(irFunction, function, c);
-                    if (up.StackUpValue && rkir is Constant c1 && c1.ConstType == Constant.ConstantType.ConstString)
+                    if (up.IsStackUpValue && rkir is Constant c1 && c1.ConstType == Constant.ConstantType.ConstString)
                     {
                         assignment = new Assignment(irFunction.GetRegister(a),
                             new IdentifierReference(globalSymbolTable.GetGlobal(c1.String, -1)));
@@ -300,7 +287,7 @@ public class Lua53Decompiler : ILanguageDecompiler
 
                     up = irFunction.UpValueBindings[(int)a];
                     rkir = RkIr53(irFunction, function, b);
-                    if (up.StackUpValue && rkir is Constant { ConstType: Constant.ConstantType.ConstString } c2)
+                    if (up.IsStackUpValue && rkir is Constant { ConstType: Constant.ConstantType.ConstString } c2)
                     {
                         instructions.Add(new Assignment(globalSymbolTable.GetGlobal(c2.String, -1),
                             RkIr53(irFunction, function, c)));
@@ -314,12 +301,6 @@ public class Lua53Decompiler : ILanguageDecompiler
                     break;
                 case Lua53Ops.OpSetUpVal:
                     var up2 = UpValue53(irFunction, function, b);
-                    if (function.UpValueNames.Length > 0 && !up2.UpValueResolved)
-                    {
-                        up2.Name = function.UpValueNames[b].Name ?? throw new Exception();
-                        up2.UpValueResolved = true;
-                    }
-
                     instructions.Add(new Assignment(up2, new IdentifierReference(irFunction.GetRegister(a))));
                     break;
                 case Lua53Ops.OpNewTable:

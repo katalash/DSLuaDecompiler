@@ -14,16 +14,17 @@ public class RenameVariablesPass : IPass
         var renamed = new HashSet<Identifier>();
         
         // Rename function arguments
-        for (var i = 0; i < f.Parameters.Count; i++)
+        for (var i = 0; i < f.ParameterCount; i++)
         {
-            renamed.Add(f.Parameters[i]);
+            var identifier = Identifier.GetRegister((uint)i);
+            renamed.Add(identifier);
             if (f.ArgumentNames != null && f.ArgumentNames.Count > i && f.ArgumentNames[i].Name is { } n)
             {
-                f.Parameters[i].Name = n;
+                f.IdentifierNames[identifier] = n;
             }
             else
             {
-                f.Parameters[i].Name = $@"arg{i}";
+                f.IdentifierNames[identifier] = $@"arg{i}";
             }
         }
         
@@ -40,22 +41,20 @@ public class RenameVariablesPass : IPass
                     {
                         if (l is
                             {
-                                HasIndex: false, Identifier: { IsRegister: true, Renamed: false }
+                                HasIndex: false, Identifier: { IsRegister: true }
                             } && !renamed.Contains(l.Identifier))
                         {
                             renamed.Add(l.Identifier);
                             if (a.LocalAssignments != null && ll < a.LocalAssignments.Count &&
                                 a.LocalAssignments[ll].Name is { } n)
                             {
-                                l.Identifier.Name = n;
+                                f.IdentifierNames[l.Identifier] = n;
                             }
                             else
                             {
-                                l.Identifier.Name = $@"f{f.FunctionId}_local{localCounter}";
+                                f.IdentifierNames[l.Identifier] = $@"f{f.FunctionId}_local{localCounter}";
                                 localCounter++;
                             }
-                            // Needed so upval uses by closures don't rename this
-                            l.Identifier.Renamed = true;
                         }
                         ll++;
                     }

@@ -25,7 +25,7 @@ public class ValidateLivenessNoInterferencePass : IPass
             globalLiveness.Add(id, new HashSet<Identifier> { id });
         }
 
-        // Do a super shitty unoptimal union find algorithm to merge all the global ranges using phi functions
+        // Do a super shitty suboptimal union find algorithm to merge all the global ranges using phi functions
         // Rewrite this with a proper union-find if performance becomes an issue (lol)
         foreach (var b in f.BlockList)
         {
@@ -33,7 +33,7 @@ public class ValidateLivenessNoInterferencePass : IPass
             {
                 foreach (var r in phi.Right)
                 {
-                    if (phi.Left != null && r != null && globalLiveness[phi.Left] != globalLiveness[r])
+                    if (!r.IsNull && globalLiveness[phi.Left] != globalLiveness[r])
                     {
                         globalLiveness[phi.Left].UnionWith(globalLiveness[r]);
                         globalLiveness[r] = globalLiveness[phi.Left];
@@ -53,7 +53,7 @@ public class ValidateLivenessNoInterferencePass : IPass
                 {
                     foreach (var live in liveNow)
                     {
-                        if (live != def && live.OriginalIdentifier == def.OriginalIdentifier)
+                        if (live != def && live.RegNum == def.RegNum)
                         {
                             f.Warnings.Add("-- Warning: SSA live range interference detected in function " +
                                 $"{f.FunctionId} ({live} overlaps with {def}). Results are probably wrong.");

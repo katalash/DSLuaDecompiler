@@ -10,15 +10,13 @@ public class ResolveClosureUpValues53Pass : IPass
 {
     public void RunOnFunction(DecompilationContext context, Function f)
     {
-        var allRegisters = f.GetAllRegisters();
         foreach (var c in f.Closures)
         {
             for (int i = 0; i < c.UpValueCount; i++)
             {
                 if (c.UpValueIsStackBinding[i])
                 {
-                    var reg = allRegisters.First((x => x.RegNum == c.UpValueRegisterBinding[i]));
-                    c.UpValueBindings.Add(reg);
+                    c.UpValueBindings.Add(Identifier.GetRegister((uint)c.UpValueRegisterBinding[i]));
                 }
                 else
                 {

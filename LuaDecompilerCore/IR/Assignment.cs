@@ -129,7 +129,7 @@ namespace LuaDecompilerCore.IR
             foreach (var id in LeftList)
             {
                 // If the reference is an indirect one (i.e. an array access), then it is a use
-                if (id.HasIndex && (!registersOnly || id.Identifier.Type == Identifier.IdentifierType.Register))
+                if (id.HasIndex && (!registersOnly || id.Identifier.IsRegister))
                 {
                     id.GetUses(uses, registersOnly);
                 }
@@ -155,7 +155,6 @@ namespace LuaDecompilerCore.IR
                 if (!id.HasIndex && id.Identifier == original)
                 {
                     id.Identifier = newIdentifier;
-                    id.Identifier.DefiningInstruction = this;
                 }
             }
         }

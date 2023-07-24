@@ -7,7 +7,7 @@ namespace LuaDecompilerCore.Passes;
 /// <summary>
 /// Try to replace string or number env/act IDs with constant defines
 /// </summary>
-public class AnnotateEnvActFunctionsPass : IPass
+/*public class AnnotateEnvActFunctionsPass : IPass
 {
     public void RunOnFunction(DecompilationContext context, Function f)
     {
@@ -63,4 +63,4 @@ public class AnnotateEnvActFunctionsPass : IPass
             }
         }
     }
-}
+}*/

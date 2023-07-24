@@ -25,10 +25,7 @@ public class EliminateUnusedPhiFunctionsPass : IPass
                 inst.GetUses(usesSet, true);
                 foreach (var use in usesSet)
                 {
-                    if (!usedIdentifiers.Contains(use))
-                    {
-                        usedIdentifiers.Add(use);
-                    }
+                    usedIdentifiers.Add(use);
                 }
             }
         }
@@ -44,7 +41,7 @@ public class EliminateUnusedPhiFunctionsPass : IPass
                     phisToKeep.Add(phi.Value);
                     foreach (var use in phi.Value.Right)
                     {
-                        if (use != null)
+                        if (!use.IsNull)
                         {
                             usedIdentifiers.Add(use);
                         }
@@ -57,18 +54,11 @@ public class EliminateUnusedPhiFunctionsPass : IPass
         // Now prune any phi functions that aren't marked
         foreach (var b in f.BlockList)
         {
-            var phiToRemove = new List<Identifier>();
+            var phiToRemove = new List<uint>();
             foreach (var phi in b.PhiFunctions)
             {
                 if (!phisToKeep.Contains(phi.Value))
                 {
-                    foreach (var i in phi.Value.Right)
-                    {
-                        if (i != null)
-                        {
-                            i.UseCount--;
-                        }
-                    }
                     phiToRemove.Add(phi.Key);
                 }
             }

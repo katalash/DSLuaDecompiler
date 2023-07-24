@@ -23,7 +23,7 @@ public class ResolveAmbiguousCallArguments : IPass
                         throw new Exception("Error: Ambiguous argument function call without preceding ambiguous return function call");
                     case Assignment { Right: FunctionCall { HasAmbiguousArgumentCount: true } fc2 }:
                     {
-                        for (var r = fc2.BeginArg; r <= lastAmbiguousReturn.RegNum; r++)
+                        for (var r = fc2.BeginArg; r <= lastAmbiguousReturn.Value.RegNum; r++)
                         {
                             fc2.Args.Add(new IdentifierReference(f.GetRegister(r)));
                         }
@@ -34,7 +34,7 @@ public class ResolveAmbiguousCallArguments : IPass
                         throw new Exception("Error: Ambiguous return without preceding ambiguous return function call");
                     case Return { IsAmbiguousReturnCount: true } ret:
                     {
-                        for (var r = ret.BeginRet; r <= lastAmbiguousReturn.RegNum; r++)
+                        for (var r = ret.BeginRet; r <= lastAmbiguousReturn.Value.RegNum; r++)
                         {
                             ret.ReturnExpressions.Add(new IdentifierReference(f.GetRegister(r)));
                         }

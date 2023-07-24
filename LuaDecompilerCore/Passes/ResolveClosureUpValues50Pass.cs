@@ -29,25 +29,13 @@ public class ResolveClosureUpValues50Pass : IPass
                             })
                         {
                             c.Function.UpValueBindings.Add(ir.Identifier);
-                            ir.Identifier.IsClosureBound = true;
+                            f.ClosureBoundRegisters.Add(ir.Identifier.RegNum);
                             b.Instructions.RemoveAt(i + 1);
                         }
                         else
                         {
                             throw new Exception("Unrecognized upvalue binding pattern following closure");
                         }
-                    }
-                    
-                    // Update upValue get/set instructions to new parent identifiers
-                    foreach (var get in c.Function.GetUpValueInstructions)
-                    {
-                        if (get.Right is IdentifierReference right) 
-                            right.Identifier = c.Function.UpValueBindings[(int)right.Identifier.RegNum];
-                    }
-                    
-                    foreach (var get in c.Function.SetUpValueInstructions)
-                    {
-                        get.Left.Identifier = c.Function.UpValueBindings[(int)get.Left.Identifier.RegNum];
                     }
                 }
             }

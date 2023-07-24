@@ -6,9 +6,9 @@ namespace LuaDecompilerCore.IR
     public sealed class PhiFunction : Instruction
     {
         public Identifier Left;
-        public readonly List<Identifier?> Right;
+        public readonly List<Identifier> Right;
 
-        public PhiFunction(Identifier left, List<Identifier?> right)
+        public PhiFunction(Identifier left, List<Identifier> right)
         {
             Left = left;
             Right = right;
@@ -20,7 +20,7 @@ namespace LuaDecompilerCore.IR
             return defines;
         }
         
-        public override Identifier GetSingleDefine(bool registersOnly)
+        public override Identifier? GetSingleDefine(bool registersOnly)
         {
             return Left;
         }
@@ -29,7 +29,7 @@ namespace LuaDecompilerCore.IR
         {
             foreach (var id in Right)
             {
-                if (id != null)
+                if (!id.IsNull)
                     uses.Add(id);
             }
 
@@ -44,15 +44,12 @@ namespace LuaDecompilerCore.IR
             }
         }
 
-        public override void RenameUses(Identifier original, Identifier? newIdentifier)
+        public override void RenameUses(Identifier original, Identifier newIdentifier)
         {
             for (var i = 0; i < Right.Count; i++)
             {
                 if (Right[i] != original) continue;
-                original.UseCount--;
                 Right[i] = newIdentifier;
-                if (newIdentifier != null)
-                    newIdentifier.UseCount++;
             }
         }
     }
