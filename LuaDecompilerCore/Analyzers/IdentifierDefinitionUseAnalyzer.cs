@@ -9,7 +9,7 @@ namespace LuaDecompilerCore.Analyzers;
 /// <summary>
 /// Analyzer that analyzes the definitions and use counts of all the identifiers. 
 /// </summary>
-public class IdentifierDefinitionUseAnalyzer
+public class IdentifierDefinitionUseAnalyzer : IAnalyzer
 {
     private struct IdentifierInfo
     {
@@ -37,7 +37,7 @@ public class IdentifierDefinitionUseAnalyzer
         _identifierInfos[IdentifierIndex(identifier)].DefiningInstruction = instruction;
     }
     
-    public void Run(Function function)
+    public void Run(DecompilationContext decompilationContext, FunctionContext functionContext, Function function)
     {
         if (function.RenamedRegisterCounts == null)
         {
@@ -45,14 +45,18 @@ public class IdentifierDefinitionUseAnalyzer
         }
 
         uint totalSum = 0;
-        _renamedRegisterOffsets = new uint[function.RenamedRegisterCounts.Length];
+        _renamedRegisterOffsets = ArrayPool<uint>.Shared.Rent(function.RenamedRegisterCounts.Length);
         for (var i = 0; i < function.RegisterCount; i++)
         {
             _renamedRegisterOffsets[i] = totalSum;
             totalSum += function.RenamedRegisterCounts[i];
         }
 
-        _identifierInfos = new IdentifierInfo[totalSum];
+        _identifierInfos = ArrayPool<IdentifierInfo>.Shared.Rent((int)totalSum);
+        for (var i = 0; i < totalSum; i++)
+        {
+            _identifierInfos[i] = new IdentifierInfo();
+        }
 
         var definesSet = new HashSet<Identifier>(2);
         var usesSet = new HashSet<Identifier>(10);
@@ -111,5 +115,13 @@ public class IdentifierDefinitionUseAnalyzer
             return 0;
         
         return _identifierInfos[IdentifierIndex(identifier)].UseCount;
+    }
+
+    public void Dispose()
+    {
+        if (_renamedRegisterOffsets != null)
+            ArrayPool<uint>.Shared.Return(_renamedRegisterOffsets);
+        if (_identifierInfos != null)
+            ArrayPool<IdentifierInfo>.Shared.Return(_identifierInfos);
     }
 }

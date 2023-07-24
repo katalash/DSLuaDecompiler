@@ -11,7 +11,7 @@ namespace LuaDecompilerCore.Passes;
 /// </summary>
 public class DetectLoopBreakContinuePass : IPass
 {
-    public void RunOnFunction(DecompilationContext context, Function f)
+    public void RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
     {
         var visited = new HashSet<CFG.BasicBlock>();
         void Visit(CFG.BasicBlock b, CFG.BasicBlock? loopHead)

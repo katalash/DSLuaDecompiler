@@ -240,7 +240,7 @@ public class HksDecompiler : ILanguageDecompiler
         d.Locals = function.LocalsAt(index + 1);
     }
 
-    public void InitializeFunction(LuaFile.Function function, Function irFunction, GlobalSymbolTable globalSymbolTable)
+    public void InitializeFunction(LuaFile.Function function, Function irFunction)
     {
         var debugCounter = Identifier.GetGlobalTable();
         irFunction.UpValueBindings.Add(debugCounter);
@@ -266,7 +266,7 @@ public class HksDecompiler : ILanguageDecompiler
         return null;
     }
 
-    public void GenerateIr(LuaFile.Function function, Function irFunction, GlobalSymbolTable globalSymbolTable)
+    public void GenerateIr(LuaFile.Function function, Function irFunction)
     {
         var br = new BinaryReaderEx(false, function.Bytecode) { BigEndian = true };
         irFunction.BeginBlock.Instructions = new List<Instruction>(function.Bytecode.Length * 6 / 4);
@@ -356,8 +356,7 @@ public class HksDecompiler : ILanguageDecompiler
                 case LuaHksOps.OpGetGlobalMem:
                 case LuaHksOps.OpGetGlobal:
                     assignment = new Assignment(irFunction.GetRegister(a),
-                        new IdentifierReference(
-                            globalSymbolTable.GetGlobal(function.Constants[bx].ToString(), (int)bx)));
+                        new IdentifierReference(Identifier.GetGlobal(bx)));
                     CheckLocal(assignment, function, pc);
                     instructions.Add(assignment);
                     break;
@@ -370,8 +369,7 @@ public class HksDecompiler : ILanguageDecompiler
                     instructions.Add(assignment);
                     break;
                 case LuaHksOps.OpSetGlobal:
-                    instructions.Add(new Assignment(
-                        globalSymbolTable.GetGlobal(function.Constants[bx].ToString(), (int)bx),
+                    instructions.Add(new Assignment(Identifier.GetGlobal(bx),
                         new IdentifierReference(irFunction.GetRegister(a))));
                     break;
                 case LuaHksOps.OpNewTable:
@@ -822,12 +820,12 @@ public class HksDecompiler : ILanguageDecompiler
 
                     if (b != 0)
                     {
-                        assignment = new Assignment(varArgs, new IdentifierReference(globalSymbolTable.GetVarargs()));
+                        assignment = new Assignment(varArgs, new IdentifierReference(Identifier.GetVarArgs()));
                     }
                     else
                     {
                         assignment = new Assignment(irFunction.GetRegister(a),
-                            new IdentifierReference(globalSymbolTable.GetVarargs()))
+                            new IdentifierReference(Identifier.GetVarArgs()))
                         {
                             IsAmbiguousVararg = true,
                             VarargAssignmentReg = a

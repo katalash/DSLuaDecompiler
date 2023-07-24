@@ -46,8 +46,7 @@ public interface ILanguageDecompiler
     /// </summary>
     /// <param name="function">The lua function to process</param>
     /// <param name="irFunction">The IR function to initialize</param>
-    /// <param name="globalSymbolTable">The symbol table with the symbol context</param>
-    public void InitializeFunction(LuaFile.Function function, Function irFunction, GlobalSymbolTable globalSymbolTable);
+    public void InitializeFunction(LuaFile.Function function, Function irFunction);
     
     /// <summary>
     /// Disassembles a function into Lua opcodes, which may be useful for debugging purposes.
@@ -61,8 +60,7 @@ public interface ILanguageDecompiler
     /// </summary>
     /// <param name="function">The lua function to process</param>
     /// <param name="irFunction">The IR function to insert IR instructions into</param>
-    /// <param name="globalSymbolTable">The symbol table with the symbol context</param>
-    public void GenerateIr(LuaFile.Function function, Function irFunction, GlobalSymbolTable globalSymbolTable);
+    public void GenerateIr(LuaFile.Function function, Function irFunction);
 
     /// <summary>
     /// Add all the decompiler passes to the pass manager to decompile this language

@@ -122,7 +122,7 @@ public class Lua50Decompiler : ILanguageDecompiler
         a.LocalAssignments = function.LocalsAt(index + 1);
     }
 
-    public void InitializeFunction(LuaFile.Function function, Function irFunction, GlobalSymbolTable globalSymbolTable)
+    public void InitializeFunction(LuaFile.Function function, Function irFunction)
     {
         // Register closures for all the children
         foreach (var t in function.ChildFunctions)
@@ -290,7 +290,7 @@ public class Lua50Decompiler : ILanguageDecompiler
         return builder.ToString();
     }
 
-    public void GenerateIr(LuaFile.Function function, Function irFunction, GlobalSymbolTable globalSymbolTable)
+    public void GenerateIr(LuaFile.Function function, Function irFunction)
     {
         var br = new BinaryReaderEx(false, function.Bytecode);
         irFunction.BeginBlock.Instructions = new List<Instruction>(function.Bytecode.Length * 6 / 4);
@@ -357,7 +357,7 @@ public class Lua50Decompiler : ILanguageDecompiler
                 case Lua50Ops.OpGetGlobal:
                     assignment = new Assignment(
                         irFunction.GetRegister(a),
-                        new IdentifierReference(globalSymbolTable.GetGlobal(function.Constants[bx].ToString(), (int)bx)));
+                        new IdentifierReference(Identifier.GetGlobal(bx)));
                     CheckLocal(assignment, function, pc);
                     instructions.Add(assignment);
                     break;
@@ -369,8 +369,7 @@ public class Lua50Decompiler : ILanguageDecompiler
                     instructions.Add(assignment);
                     break;
                 case Lua50Ops.OpSetGlobal:
-                    instructions.Add(new Assignment(
-                        globalSymbolTable.GetGlobal(function.Constants[bx].ToString(), (int)bx),
+                    instructions.Add(new Assignment(Identifier.GetGlobal(bx), 
                         new IdentifierReference(irFunction.GetRegister(a))));
                     break;
                 case Lua50Ops.OpSetUpVal:

@@ -152,7 +152,7 @@ public class Lua53Decompiler : ILanguageDecompiler
         return irFunction.GetUpValue(upValueId);
     }
 
-    public void InitializeFunction(LuaFile.Function function, Function irFunction, GlobalSymbolTable globalSymbolTable)
+    public void InitializeFunction(LuaFile.Function function, Function irFunction)
     {
         // Register closures for all the children
         foreach (var t in function.ChildFunctions)
@@ -181,7 +181,7 @@ public class Lua53Decompiler : ILanguageDecompiler
         return null;
     }
 
-    public void GenerateIr(LuaFile.Function function, Function irFunction, GlobalSymbolTable globalSymbolTable)
+    public void GenerateIr(LuaFile.Function function, Function irFunction)
     {
         var br = new BinaryReaderEx(false, function.Bytecode);
         irFunction.BeginBlock.Instructions = new List<Instruction>(function.Bytecode.Length * 6 / 4);
@@ -251,7 +251,8 @@ public class Lua53Decompiler : ILanguageDecompiler
                     instructions.Add(assignment);
                     break;
                 case Lua53Ops.OpGetTabUp:
-                    up = UpValue53(irFunction, function, b);
+                    throw new Exception("Fixme");
+                    /*up = UpValue53(irFunction, function, b);
                     if (b > irFunction.UpValueBindings.Count)
                     {
                         throw new Exception("Reference to unbound upvalue");
@@ -271,7 +272,7 @@ public class Lua53Decompiler : ILanguageDecompiler
 
                     CheckLocal(assignment, function, pc);
                     instructions.Add(assignment);
-                    break;
+                    break;*/
                 case Lua53Ops.OpGetTable:
                     assignment = new Assignment(irFunction.GetRegister(a),
                         new IdentifierReference(irFunction.GetRegister(b), RkIr53(irFunction, function, c)));
@@ -279,7 +280,8 @@ public class Lua53Decompiler : ILanguageDecompiler
                     instructions.Add(assignment);
                     break;
                 case Lua53Ops.OpSetTabUp:
-                    up = UpValue53(irFunction, function, a);
+                    throw new Exception("Fixme");
+                    /*up = UpValue53(irFunction, function, a);
                     if (a > irFunction.UpValueBindings.Count)
                     {
                         throw new Exception("Reference to unbound upvalue");
@@ -298,7 +300,7 @@ public class Lua53Decompiler : ILanguageDecompiler
                             RkIr53(irFunction, function, c)));
                     }
 
-                    break;
+                    break;*/
                 case Lua53Ops.OpSetUpVal:
                     var up2 = UpValue53(irFunction, function, b);
                     instructions.Add(new Assignment(up2, new IdentifierReference(irFunction.GetRegister(a))));

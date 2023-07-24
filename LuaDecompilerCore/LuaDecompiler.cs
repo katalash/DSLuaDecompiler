@@ -20,13 +20,12 @@ namespace LuaDecompilerCore
             Function main,
             LuaFile.Function luaMain)
         {
-            var globalSymbolTable = new GlobalSymbolTable();
             var functions = new List<Function>();
             
             void Visit(LuaFile.Function luaFunction, Function irFunction)
             {
                 // Language specific initialization
-                languageDecompiler.InitializeFunction(luaFunction, irFunction, globalSymbolTable);
+                languageDecompiler.InitializeFunction(luaFunction, irFunction);
                 
                 // Enable debug comments if set
                 irFunction.InsertDebugComments = DecompilationOptions.OutputDebugComments;
@@ -39,7 +38,7 @@ namespace LuaDecompilerCore
                 irFunction.Constants = luaFunction.Constants;
 
                 // Now generate IR from the bytecode using language specific decompiler
-                languageDecompiler.GenerateIr(luaFunction, irFunction, globalSymbolTable);
+                languageDecompiler.GenerateIr(luaFunction, irFunction);
                 
                 // Add function to run decompilation passes on
                 functions.Add(irFunction);
@@ -63,7 +62,7 @@ namespace LuaDecompilerCore
             var passManager = new PassManager(DecompilationOptions);
             languageDecompiler.AddDecompilePasses(passManager);
             return passManager.RunOnFunctions(
-                new DecompilationContext(globalSymbolTable), 
+                new DecompilationContext(), 
                 functions,
                 DecompilationOptions.CatchPassExceptions);
         }

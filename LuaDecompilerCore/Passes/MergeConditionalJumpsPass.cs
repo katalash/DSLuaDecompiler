@@ -8,7 +8,7 @@ public class MergeConditionalJumpsPass : IPass
     /// <summary>
     /// Simple analysis pass to recognize lua conditional jumping patterns and merge them into a single instruction
     /// </summary>
-    public void RunOnFunction(DecompilationContext context, Function f)
+    public void RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
     {
         // Lua conditional jumps often follow this pattern when naively translated into the IR:
         //   if REGA == b then goto Label_1:

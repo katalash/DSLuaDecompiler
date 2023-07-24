@@ -25,7 +25,7 @@ namespace LuaDecompilerCore.Passes;
 /// </summary>
 public class SimplifyIfElseFollowChainPass : IPass
 {
-    public void RunOnFunction(DecompilationContext context, Function f)
+    public void RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
     {
         bool IsIsolated(CFG.BasicBlock b, CFG.BasicBlock target)
         {

@@ -8,7 +8,7 @@ namespace LuaDecompilerCore.Passes;
 /// </summary>
 public class EliminateUnusedPhiFunctionsPass : IPass
 {
-    public void RunOnFunction(DecompilationContext context, Function f)
+    public void RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
     {
         // GetUses calls have a lot of allocation overhead so reusing the same set has huge perf gains.
         var usesSet = new HashSet<Identifier>(10);

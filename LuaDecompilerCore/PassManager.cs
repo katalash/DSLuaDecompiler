@@ -1,11 +1,69 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
+using LuaDecompilerCore.Analyzers;
 using LuaDecompilerCore.IR;
 using LuaDecompilerCore.Passes;
 
 namespace LuaDecompilerCore;
 
+/// <summary>
+/// Stores contextual information of functions in between passes
+/// </summary>
+public class FunctionContext
+{
+    private readonly DecompilationContext _context;
+    private readonly Function _function;
+    private readonly List<IAnalyzer> _analyzers = new List<IAnalyzer>(5);
+
+    public FunctionContext(DecompilationContext context, Function function)
+    {
+        _context = context;
+        _function = function;
+    }
+    
+    /// <summary>
+    /// Gets an analyzer analysis. If one already exists the cached analysis will be returned. Otherwise a new one
+    /// will be created and ran.
+    /// </summary>
+    /// <typeparam name="T">The analyzer to run</typeparam>
+    /// <returns>The result of the analyzer</returns>
+    public T GetAnalysis<T>() where T : IAnalyzer, new()
+    {
+        foreach (var analyzer in _analyzers)
+        {
+            if (analyzer is T a)
+                return a;
+        }
+
+        var newAnalyzer = new T();
+        newAnalyzer.Run(_context, this, _function);
+        _analyzers.Add(newAnalyzer);
+        return newAnalyzer;
+    }
+
+    /// <summary>
+    /// Invalidates a cached analysis. Should be used if modifications occur such that the analysis is no longer
+    /// valid.
+    /// </summary>
+    /// <typeparam name="T">The analyzer to invalidate</typeparam>
+    public void InvalidateAnalysis<T>()
+    {
+        for (var i = 0; i < _analyzers.Count; i++)
+        {
+            if (_analyzers[i] is not T) continue;
+            _analyzers[i].Dispose();
+            _analyzers.RemoveAt(i);
+            return;
+        }
+    }
+}
+
+/// <summary>
+/// Pass manager to run all the passes on functions and allow debugging of passes.
+/// </summary>
 public class PassManager
 {
     public record struct PassRegistration(string Name, IPass Pass);
@@ -44,20 +102,26 @@ public class PassManager
         IReadOnlyList<Function> functions,
         bool catchExceptions)
     {
-        var irResults = new List<PassIrResult>();
-        var dotGraphResults = new List<PassDotGraphResult>();
+        var irResults = new List<PassIrResult>(_passes.Count);
+        var dotGraphResults = new List<PassDotGraphResult>(_passes.Count);
+        var functionContexts = ArrayPool<FunctionContext>.Shared.Rent(functions.Count);
+
+        for (var i = 0; i < functions.Count; i++)
+        {
+            functionContexts[i] = new FunctionContext(context, functions[i]);
+        }
         
         var printer = new FunctionPrinter();
         string? error = null;
         foreach (var pass in _passes)
         {
-            foreach (var f in functions)
+            for (var i = 0; i < functions.Count; i++)
             {
                 if (catchExceptions)
                 {
                     try
                     {
-                        pass.Pass.RunOnFunction(context, f);
+                        pass.Pass.RunOnFunction(context, functionContexts[i], functions[i]);
                     }
                     catch (Exception e)
                     {
@@ -67,7 +131,7 @@ public class PassManager
                 }
                 else
                 {
-                    pass.Pass.RunOnFunction(context, f);
+                    pass.Pass.RunOnFunction(context, functionContexts[i], functions[i]);
                 }
             }
             
@@ -95,6 +159,7 @@ public class PassManager
         }
         
         Error:
+        ArrayPool<FunctionContext>.Shared.Return(functionContexts);
         return new DecompilationResult(
              error == null ? printer.PrintFunction(functions[0]) : null, 
              error, 

@@ -9,7 +9,7 @@ namespace LuaDecompilerCore.Passes;
 /// </summary>
 public class RenameVariablesPass : IPass
 {
-    public void RunOnFunction(DecompilationContext context, Function f)
+    public void RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
     {
         var renamed = new HashSet<Identifier>();
         

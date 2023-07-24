@@ -12,7 +12,7 @@ namespace LuaDecompilerCore.Passes;
 /// </summary>
 public class AstTransformPass : IPass
 {
-    public void RunOnFunction(DecompilationContext context, Function f)
+    public void RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
     {
         // Traverse all the nodes in post-order and try to convert jumps to if statements
         var usedFollows = new HashSet<BasicBlock>();

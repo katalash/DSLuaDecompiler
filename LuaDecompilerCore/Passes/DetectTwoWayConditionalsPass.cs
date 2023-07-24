@@ -11,7 +11,7 @@ namespace LuaDecompilerCore.Passes;
 /// </summary>
 public class DetectTwoWayConditionalsPass : IPass
 {
-    public void RunOnFunction(DecompilationContext context, Function f)
+    public void RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
     {
         var debugVisited = new HashSet<CFG.BasicBlock>();
         HashSet<CFG.BasicBlock> Visit(CFG.BasicBlock b)

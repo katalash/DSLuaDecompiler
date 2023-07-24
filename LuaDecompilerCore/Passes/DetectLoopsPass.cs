@@ -119,7 +119,7 @@ public class DetectLoopsPass : IPass
         }
     }
         
-    public void RunOnFunction(DecompilationContext context, Function f)
+    public void RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
     {
         // Build an abstract graph to analyze with
         var blockIdMap = new Dictionary<CFG.BasicBlock, int>();

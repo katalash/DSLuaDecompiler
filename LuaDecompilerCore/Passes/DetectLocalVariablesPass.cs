@@ -10,7 +10,7 @@ namespace LuaDecompilerCore.Passes;
 /// </summary>
 public class DetectLocalVariablesPass : IPass
 {
-    public void RunOnFunction(DecompilationContext context, Function f)
+    public void RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
     {
         var definesSet = new HashSet<Identifier>(2);
         

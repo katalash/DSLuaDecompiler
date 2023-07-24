@@ -7,10 +7,5 @@ namespace LuaDecompilerCore;
 /// </summary>
 public class DecompilationContext
 {
-    public GlobalSymbolTable GlobalSymbolTable { get; private set; }
-    
-    public DecompilationContext(GlobalSymbolTable globalSymbolTable)
-    {
-        GlobalSymbolTable = globalSymbolTable;
-    }
+
 }

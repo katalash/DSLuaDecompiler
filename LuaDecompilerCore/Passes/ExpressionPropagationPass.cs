@@ -20,7 +20,7 @@ public class ExpressionPropagationPass : IPass
         _firstPass = firstPass;
     }
     
-    public void RunOnFunction(DecompilationContext context, Function f)
+    public void RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
     {
         // GetDefines and GetUses calls have a lot of allocation overhead so reusing the same set has huge perf gains.
         var definesSet = new HashSet<Identifier>(2);
@@ -284,8 +284,7 @@ public class ExpressionPropagationPass : IPass
             LocalIdentifyVisit(f.BeginBlock, new HashSet<uint>(argRegisters));
         }
 
-        var defineUseAnalysis = new IdentifierDefinitionUseAnalyzer();
-        defineUseAnalysis.Run(f);
+        var defineUseAnalysis = functionContext.GetAnalysis<IdentifierDefinitionUseAnalyzer>();
 
         bool changed;
         do
@@ -367,5 +366,7 @@ public class ExpressionPropagationPass : IPass
                 }
             }
         } while (changed);
+        
+        functionContext.InvalidateAnalysis<IdentifierDefinitionUseAnalyzer>();
     }
 }
