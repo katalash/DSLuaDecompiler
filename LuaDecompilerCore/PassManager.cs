@@ -12,7 +12,7 @@ namespace LuaDecompilerCore;
 /// <summary>
 /// Stores contextual information of functions in between passes
 /// </summary>
-public class FunctionContext
+public class FunctionContext : IDisposable
 {
     private readonly DecompilationContext _context;
     private readonly Function _function;
@@ -57,6 +57,14 @@ public class FunctionContext
             _analyzers[i].Dispose();
             _analyzers.RemoveAt(i);
             return;
+        }
+    }
+
+    public void Dispose()
+    {
+        foreach (var analyzer in _analyzers)
+        {
+            analyzer.Dispose();
         }
     }
 }
@@ -159,6 +167,10 @@ public class PassManager
         }
         
         Error:
+        for (var i = 0; i < functions.Count; i++)
+        {
+            functionContexts[i].Dispose();
+        }
         ArrayPool<FunctionContext>.Shared.Return(functionContexts);
         return new DecompilationResult(
              error == null ? printer.PrintFunction(functions[0]) : null, 

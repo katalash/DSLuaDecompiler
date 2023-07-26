@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
+using LuaDecompilerCore.Analyzers;
 using LuaDecompilerCore.IR;
 
 namespace LuaDecompilerCore.Passes;
@@ -12,6 +13,7 @@ public class DetectLocalVariablesPass : IPass
 {
     public void RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
     {
+        var dominance = functionContext.GetAnalysis<DominanceAnalyzer>();
         var definesSet = new HashSet<Identifier>(2);
         
         // This is kinda both a pre and post-order traversal of the dominance hierarchy. In the pre traversal,
@@ -47,7 +49,7 @@ public class DetectLocalVariablesPass : IPass
             // Visit and merge the children in the dominance hierarchy
             var inherited = new Dictionary<Identifier, List<Assignment>>();
             var phiInduced = new HashSet<Identifier>();
-            foreach (var successor in b.DominanceTreeSuccessors)
+            dominance.RunOnDominanceTreeSuccessors(f, b, successor =>
             {
                 var cDeclared = Visit(successor, newDeclared);
                 foreach (var entry in cDeclared)
@@ -61,8 +63,9 @@ public class DetectLocalVariablesPass : IPass
                         inherited[entry.Key].AddRange(entry.Value);
                     }
                 }
+
                 phiInduced.UnionWith(successor.PhiMerged);
-            }
+            });
             foreach (var entry in inherited)
             {
                 if (entry.Value.Count > 1 && phiInduced.Contains(entry.Key))

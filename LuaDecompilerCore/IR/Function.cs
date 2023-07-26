@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using LuaDecompilerCore.CFG;
+using LuaDecompilerCore.Utilities;
 
 namespace LuaDecompilerCore.IR
 {
@@ -198,121 +199,12 @@ namespace LuaDecompilerCore.IR
         }
 
         /// <summary>
-        /// Computes the dominance sets for all the nodes as well as the dominance tree
-        /// </summary>
-        public void ComputeDominance()
-        {
-            // Use Cooper-Harvey-Kennedy algorithm for fast computation of dominance
-            // http://www.hipersoft.rice.edu/grads/publications/dom14.pdf
-
-            // List the blocks in reverse postorder and initialize the immediate dominator
-            var reversePostorderBlocks = NumberReversePostorder(false);
-            foreach (var block in reversePostorderBlocks)
-            {
-                block.ImmediateDominator = block;
-                block.Dominance.Clear();
-                block.DominanceTreeSuccessors.Clear();
-            }
-
-            BasicBlock Intersect(BasicBlock b1, BasicBlock b2)
-            {
-                var finger1 = b1;
-                var finger2 = b2;
-                while (finger1 != finger2)
-                {
-                    while (finger1.ReversePostorderNumber > finger2.ReversePostorderNumber)
-                    {
-                        finger1 = reversePostorderBlocks[finger1.ReversePostorderNumber].ImmediateDominator;
-                    }
-
-                    while (finger2.ReversePostorderNumber > finger1.ReversePostorderNumber)
-                    {
-                        finger2 = reversePostorderBlocks[finger2.ReversePostorderNumber].ImmediateDominator;
-                    }
-                }
-
-                return finger1;
-            }
-            
-            var changed = true;
-            while (changed)
-            {
-                changed = false;
-                foreach (var block in reversePostorderBlocks)
-                {
-                    // Begin block is always its only dominator
-                    if (block == BeginBlock) continue;
-                    
-                    // Intersect all the predecessors to find the new dominator
-                    var firstProcessed = block.Predecessors
-                        .First(b => block.ReversePostorderNumber > b.ReversePostorderNumber);
-                    var newDominator = firstProcessed;
-                    foreach (var predecessor in block.Predecessors)
-                    {
-                        if (predecessor == firstProcessed) continue;
-                        if (predecessor.ImmediateDominator != predecessor || predecessor == BeginBlock)
-                        {
-                            newDominator = Intersect(predecessor, newDominator);
-                        }
-                    }
-
-                    // if dominator is unchanged go to the next block
-                    if (block.ImmediateDominator == newDominator) continue;
-                    
-                    // We have a new dominator
-                    block.ImmediateDominator = newDominator;
-                    changed = true;
-                }
-            }
-            
-            // Now build the dominance set and dominance tree
-            foreach (var block in reversePostorderBlocks)
-            {
-                block.Dominance.Add(block);
-                if (block.ImmediateDominator == block) continue;
-                block.Dominance.Add(block.ImmediateDominator);
-                block.ImmediateDominator.DominanceTreeSuccessors.Add(block);
-                block.Dominance.UnionWith(block.ImmediateDominator.Dominance);
-            }
-        }
-
-        /// <summary>
-        /// Compute the dominance frontier for each blockFollow = {BasicBlock} null 
-        /// </summary>
-        public void ComputeDominanceFrontier()
-        {
-            ComputeDominance();
-            foreach (var t in BlockList)
-            {
-                if (t.Predecessors.Count > 1)
-                {
-                    foreach (var p in t.Predecessors)
-                    {
-                        var runner = p;
-                        while (runner != t.ImmediateDominator)
-                        {
-                            runner.DominanceFrontier.UnionWith(new[] { t });
-                            runner = runner.ImmediateDominator;
-                        }
-                    }
-                }
-            }
-        }
-
-        /// <summary>
         /// Compute global liveness information for all registers in the function
         /// </summary>
         public void ComputeGlobalLiveness(HashSet<Identifier> allRegisters)
         {
-            ComputeDominanceFrontier();
             RefreshBlockIndices();
-            foreach (var block in BlockList)
-            {
-                block.KilledIdentifiers.Clear();
-                block.UpwardExposedIdentifiers.Clear();
-                GlobalIdentifiers.UnionWith(block.ComputeKilledAndUpwardExposed());
-            }
-            
+
             // Map each identifier to an ID
             var identifierToId = new Dictionary<Identifier, int>(allRegisters.Count);
             int index = 0;
@@ -322,58 +214,74 @@ namespace LuaDecompilerCore.IR
                 identifierToId[register] = index++;
             }
 
-            BitArray BitArrayFromSet(HashSet<Identifier> set, bool invert = false)
+            void BitSetFromSet(BitSetArray.BitSet target, HashSet<Identifier> set, bool invert = false)
             {
-                var array = new BitArray(allRegisters.Count, invert);
                 foreach (var identifier in set)
                 {
-                    array.Set(identifierToId[identifier], !invert);
+                    target[identifierToId[identifier]] = !invert;
                 }
-
-                return array;
             }
 
-            HashSet<Identifier> SetFromBitArray(BitArray array)
+            HashSet<Identifier> SetFromBitSet(BitSetArray.BitSet set)
             {
-                var set = new HashSet<Identifier>(array.Count / 4);
-                for (int i = 0; i < array.Count; i++)
+                var ret = new HashSet<Identifier>(set.Count / 4);
+                for (int i = 0; i < set.Count; i++)
                 {
-                    if (array[i])
-                        set.Add(allRegistersArray[i]);
+                    if (set[i])
+                        ret.Add(allRegistersArray[i]);
                 }
 
-                return set;
+                return ret;
             }
 
-            // Because the class doesn't have a built in way to compare for some reason...
-            bool BitArrayEqual(BitArray a, BitArray b)
+            // Compute killed and upward exposed for each block
+            using var killedIdentifiers = new BitSetArray(BlockList.Count, allRegisters.Count, true);
+            using var upwardExposedIdentifiers = new BitSetArray(BlockList.Count, allRegisters.Count);
+            using var globalIdentifiers = new BitSetArray(1, allRegisters.Count);
+            var definesSet = new HashSet<Identifier>(2);
+            var usesSet = new HashSet<Identifier>(10);
+            foreach (var block in BlockList)
             {
-                if (a.Count != b.Count)
-                    return false;
+                foreach (var phi in block.PhiFunctions)
+                {
+                    definesSet.Clear();
+                    phi.Value.GetDefines(definesSet, true);
+                    foreach(var def in definesSet)
+                    {
+                        killedIdentifiers.Set(block.BlockIndex, identifierToId[def], true);
+                    }
+                }
                 
-                for (var i = 0; i < a.Count; i++)
+                foreach (var inst in block.Instructions)
                 {
-                    if (a[i] != b[i])
-                        return false;
+                    if (inst is not PhiFunction)
+                    {
+                        usesSet.Clear();
+                        inst.GetUses(usesSet, true);
+                        foreach (var use in usesSet)
+                        {
+                            if (killedIdentifiers[block.BlockIndex][identifierToId[use]]) continue;
+                            upwardExposedIdentifiers.Set(block.BlockIndex, identifierToId[use], true);
+                            globalIdentifiers.Set(0, identifierToId[use], true);
+                        }
+                    }
+                    definesSet.Clear();
+                    inst.GetDefines(definesSet, true);
+                    foreach(var def in definesSet)
+                    {
+                        killedIdentifiers.Set(block.BlockIndex, identifierToId[def], true);
+                    }
                 }
-
-                return true;
+                
+                killedIdentifiers.Not(block.BlockIndex);
             }
             
             // Build bitsets for needed sets from the blocks
-            var killedIdentifiers = new List<BitArray>(BlockList.Count);
-            var upwardExposedIdentifiers = new List<BitArray>(BlockList.Count);
-            var liveOut = new List<BitArray>(BlockList.Count);
-            foreach (var block in BlockList)
-            {
-                killedIdentifiers.Add(BitArrayFromSet(block.KilledIdentifiers, true));
-                upwardExposedIdentifiers.Add(BitArrayFromSet(block.UpwardExposedIdentifiers));
-                liveOut.Add(new BitArray(allRegisters.Count, false));
-            }
+            using var liveOut = new BitSetArray(BlockList.Count + 2, allRegisters.Count);
 
-            // Compute live out for each block iteratively
-            var equation = new BitArray(allRegisters.Count);
-            var temp = new BitArray(allRegisters.Count);
+            // Compute live out for each block iteratively. Working sets are the last 2 of the liveout array
+            var equation = liveOut[^2];
+            var temp = liveOut[^1];
             var changed = true;
             while (changed)
             {
@@ -389,9 +297,8 @@ namespace LuaDecompilerCore.IR
                         equation.Or(upwardExposedIdentifiers[successor.BlockIndex]);
                         temp.Or(equation);
                     }
-                    if (!BitArrayEqual(liveOut[block.BlockIndex], temp))
+                    if (!liveOut[block.BlockIndex].CompareCopyFrom(temp))
                     {
-                        (liveOut[block.BlockIndex], temp) = (temp, liveOut[block.BlockIndex]);
                         changed = true;
                     }
                 }
@@ -399,37 +306,46 @@ namespace LuaDecompilerCore.IR
 
             foreach (var block in BlockList)
             {
-                block.LiveOut = SetFromBitArray(liveOut[block.BlockIndex]);
+                block.LiveOut = SetFromBitSet(liveOut[block.BlockIndex]);
+                killedIdentifiers.Not(block.BlockIndex);
+                block.KilledIdentifiers = SetFromBitSet(killedIdentifiers[block.BlockIndex]);
             }
         }
 
-        public List<BasicBlock> PostorderTraversal(bool reverse, bool skipEndBlock = true)
+        public BasicBlock[] PostorderTraversal(bool reverse, bool skipEndBlock = true)
         {
-            var ret = new List<BasicBlock>();
-            var visited = new HashSet<BasicBlock>();
+            var ret = new BasicBlock[skipEndBlock ? BlockList.Count - 1 : BlockList.Count];
+            using var visitedArray = new BitSetArray(1, BlockList.Count);
+            var visited = visitedArray[0];
+            RefreshBlockIndices();
             if (skipEndBlock)
             {
-                visited.Add(EndBlock);
+                visited[EndBlock.BlockIndex] = true;
             }
 
+            var counter = 0;
             void Visit(BasicBlock b)
             {
-                visited.Add(b);
+                visited[b.BlockIndex] = true;
                 foreach (var successor in b.Successors)
                 {
-                    if (!visited.Contains(successor))
+                    if (!visited[successor.BlockIndex])
                     {
                         Visit(successor);
                     }
                 }
-                ret.Add(b);
+                ret[counter] = b;
+                counter++;
             }
 
             Visit(BeginBlock);
 
             if (reverse)
             {
-                ret.Reverse();
+                for (var i = 0; i < ret.Length / 2; i++)
+                {
+                    (ret[i], ret[ret.Length - i - 1]) = (ret[ret.Length - i - 1], ret[i]);
+                }
             }
             return ret;
         }
@@ -437,10 +353,10 @@ namespace LuaDecompilerCore.IR
         /// <summary>
         /// Labels all the blocks in the CFG with a number in order of their reverse postorder traversal
         /// </summary>
-        public List<BasicBlock> NumberReversePostorder(bool skipEndBlock = true)
+        public BasicBlock[] NumberReversePostorder(bool skipEndBlock = true)
         {
             var ordering = PostorderTraversal(true, skipEndBlock);
-            for (var i = 0; i < ordering.Count; i++)
+            for (var i = 0; i < ordering.Length; i++)
             {
                 ordering[i].ReversePostorderNumber = i;
             }

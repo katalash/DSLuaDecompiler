@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using LuaDecompilerCore.Analyzers;
 using LuaDecompilerCore.IR;
 
 namespace LuaDecompilerCore.Passes;
@@ -14,18 +15,20 @@ public class DetectTwoWayConditionalsPass : IPass
     public void RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
     {
         var debugVisited = new HashSet<CFG.BasicBlock>();
+        var dominance = functionContext.GetAnalysis<DominanceAnalyzer>();
         HashSet<CFG.BasicBlock> Visit(CFG.BasicBlock b)
         {
             var unresolved = new HashSet<CFG.BasicBlock>();
-            foreach (var successor in b.DominanceTreeSuccessors)
+            dominance.RunOnDominanceTreeSuccessors(f, b, successor =>
             {
                 if (debugVisited.Contains(successor))
                 {
                     throw new Exception("Revisited dom tree node " + successor);
                 }
+
                 debugVisited.Add(successor);
                 unresolved.UnionWith(Visit(successor));
-            }
+            });
 
             if (b.IsConditionalJump && (!b.IsLoopHead || b.LoopType != CFG.LoopType.LoopPretested))
             {
@@ -36,25 +39,26 @@ public class DetectTwoWayConditionalsPass : IPass
                 // The initial candidate for the follow is the block that we immediately dominate with the
                 // most incoming blocks
                 var maxPredecessors = 0;
-                foreach (var d in b.DominanceTreeSuccessors)
+                dominance.RunOnDominanceTreeSuccessors(f, b, d =>
                 {
                     // At least two incoming blocks are required for a block to be a follow
                     var predecessorsRequired = 2;
-                    
+
                     // If there is a break or while, the follow node is only going to have one back-edge since the block
                     // with the break or the while will not necessarily go to the block following the if statement
                     if (b.LoopBreakFollow != null || b.LoopContinueFollow != null)
                     {
                         predecessorsRequired = 1;
                     }
-                    
-                    if (d.Predecessors.Count >= predecessorsRequired && d.Predecessors.Count > maxPredecessors && 
+
+                    if (d.Predecessors.Count >= predecessorsRequired && d.Predecessors.Count > maxPredecessors &&
                         !d.IsContinueNode && !d.IsBreakNode && d != f.EndBlock)
                     {
                         maxPredecessors = d.Predecessors.Count;
                         followCandidate = d;
                     }
-                }
+                });
+                
                 
                 // Heuristic: If the true branch leads to a return or is if-orphaned and the follow isn't defined already,
                 // then the follow is always the false branch.
@@ -89,7 +93,7 @@ public class DetectTwoWayConditionalsPass : IPass
                 }
                 
                 // If you don't match anything, but you dominate the end node, then it's probably the follow
-                if (followCandidate == null && b.DominanceTreeSuccessors.Contains(f.EndBlock))
+                if (followCandidate == null && dominance.DominanceTreeSuccessors(b.BlockIndex).Contains((uint)f.EndBlock.BlockIndex))
                 {
                     followCandidate = f.EndBlock;
                 }
@@ -106,22 +110,24 @@ public class DetectTwoWayConditionalsPass : IPass
                     var unresolvedClone = new HashSet<CFG.BasicBlock>(unresolved);
                     foreach (var x in unresolvedClone)
                     {
-                        if (x != followCandidate && !x.Dominance.Contains(followCandidate))
+                        if (x != followCandidate && !dominance.Dominance(x.BlockIndex).Contains((uint)followCandidate.BlockIndex))
                         {
-                            var inc = x.DominanceTreeSuccessors.Count == 0;
+                            var inc = dominance.DominanceTreeSuccessors(x.BlockIndex).Length == 0;
                             // Do a BFS down the dominance hierarchy to search for a follow
-                            var bfsQueue = new Queue<CFG.BasicBlock>(x.DominanceTreeSuccessors);
+                            var bfsQueue = new Queue<uint>();
+                            foreach (var d in dominance.DominanceTreeSuccessors(x.BlockIndex))
+                                bfsQueue.Enqueue(d);
                             //foreach (var domsucc in x.DominanceTreeSuccessors)
                             //{
                             while (bfsQueue.Count > 0)
                             {
-                                var dominanceSuccessor = bfsQueue.Dequeue();
+                                var dominanceSuccessor = f.BlockList[(int)bfsQueue.Dequeue()];
                                 if (dominanceSuccessor.Successors.Contains(followCandidate) || dominanceSuccessor.Follow == followCandidate)
                                 {
                                     inc = true;
                                     break;
                                 }
-                                dominanceSuccessor.DominanceTreeSuccessors.ForEach(s => bfsQueue.Enqueue(s));
+                                dominance.RunOnDominanceTreeSuccessors(f, dominanceSuccessor, s => bfsQueue.Enqueue((uint)s.BlockIndex));
                             }
                             //}
                             if (x.IfOrphaned)

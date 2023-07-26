@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using LuaDecompilerCore.Analyzers;
 using LuaDecompilerCore.IR;
 
 namespace LuaDecompilerCore.Passes;
@@ -13,6 +14,7 @@ public class DetectLoopBreakContinuePass : IPass
 {
     public void RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
     {
+        var dominance = functionContext.GetAnalysis<DominanceAnalyzer>();
         var visited = new HashSet<CFG.BasicBlock>();
         void Visit(CFG.BasicBlock b, CFG.BasicBlock? loopHead)
         {
@@ -31,8 +33,9 @@ public class DetectLoopBreakContinuePass : IPass
                 
                 // An if statement is unstructured but recoverable if it has a forward edge to the loop follow (break)
                 // or head (continue) on the left or right
-                foreach (var successor in b.DominanceTreeSuccessors)
+                foreach (var s in dominance.DominanceTreeSuccessors(b.BlockIndex))
                 {
+                    var successor = f.BlockList[(int)s];
                     if (successor.IsLoopLatch)
                     {
                         continue;

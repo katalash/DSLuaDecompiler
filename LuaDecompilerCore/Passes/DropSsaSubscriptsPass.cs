@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
+using LuaDecompilerCore.Analyzers;
 using LuaDecompilerCore.IR;
 
 namespace LuaDecompilerCore.Passes;
@@ -11,6 +12,8 @@ public class DropSsaSubscriptsPass : IPass
 {
     public void RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
     {
+        var dominance = functionContext.GetAnalysis<DominanceAnalyzer>();
+        
         // GetDefines and GetUses calls have a lot of allocation overhead so reusing the same set has huge perf gains.
         var definesSet = new HashSet<Identifier>(2);
         var usesSet = new HashSet<Identifier>(10);
@@ -119,10 +122,10 @@ public class DropSsaSubscriptsPass : IPass
             }
 
             // Propagate to children in the dominance hierarchy
-            foreach (var successor in b.DominanceTreeSuccessors)
+            dominance.RunOnDominanceTreeSuccessors(f, b, successor =>
             {
                 Visit(successor, newReplacements);
-            }
+            });
         }
         Visit(f.BeginBlock, new Dictionary<Identifier, Identifier>());
     }

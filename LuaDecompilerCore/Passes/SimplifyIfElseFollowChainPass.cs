@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
+using LuaDecompilerCore.Analyzers;
 using LuaDecompilerCore.IR;
 
 namespace LuaDecompilerCore.Passes;
@@ -27,6 +28,8 @@ public class SimplifyIfElseFollowChainPass : IPass
 {
     public void RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
     {
+        var dominance = functionContext.GetAnalysis<DominanceAnalyzer>();
+        
         bool IsIsolated(CFG.BasicBlock b, CFG.BasicBlock target)
         {
             var visited = new HashSet<CFG.BasicBlock>();
@@ -99,10 +102,11 @@ public class SimplifyIfElseFollowChainPass : IPass
                             {
                                 v.Follow = newFollow;
                             }
-                            foreach (var d in v.DominanceTreeSuccessors)
+
+                            dominance.RunOnDominanceTreeSuccessors(f, v, d =>
                             {
                                 toVisit.Push(d);
-                            }
+                            });
                         }
                         c.Follow = newFollow;
                     }

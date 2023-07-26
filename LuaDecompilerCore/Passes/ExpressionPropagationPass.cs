@@ -22,6 +22,8 @@ public class ExpressionPropagationPass : IPass
     
     public void RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
     {
+        var dominance = functionContext.GetAnalysis<DominanceAnalyzer>();
+        
         // GetDefines and GetUses calls have a lot of allocation overhead so reusing the same set has huge perf gains.
         var definesSet = new HashSet<Identifier>(2);
         var usesSet = new HashSet<Identifier>(10);
@@ -231,14 +233,14 @@ public class ExpressionPropagationPass : IPass
 
             // Visit next blocks in scope
             var childFirstDef = int.MaxValue;
-            foreach (var successor in b.DominanceTreeSuccessors)
+            dominance.RunOnDominanceTreeSuccessors(f, b, successor =>
             {
                 var fd = LocalIdentifyVisit(successor, thisLocalRegs);
                 if (fd < childFirstDef && fd != -1)
                 {
                     childFirstDef = fd;
                 }
-            }
+            });
 
             // Localize remaining identifiers with reg numbers below the first presumed temp define in the following blocks in scope
             if (childFirstDef != int.MaxValue)

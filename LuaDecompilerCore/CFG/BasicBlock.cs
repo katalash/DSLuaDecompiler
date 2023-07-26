@@ -18,24 +18,8 @@ namespace LuaDecompilerCore.CFG
 
         public readonly HashSet<Identifier> PhiMerged = new();
 
-        /// <summary>
-        /// Set of basic blocks that dominate this function
-        /// </summary>
-        public HashSet<BasicBlock> Dominance;
-
-        /// <summary>
-        /// The closest node that dominates this block
-        /// </summary>
-        public BasicBlock ImmediateDominator;
-
-        /// <summary>
-        /// Blocks that have this block as their immediate dominator
-        /// </summary>
-        public List<BasicBlock> DominanceTreeSuccessors;
-
         // Live analysis stuff
         public int BlockIndex;
-        public HashSet<Identifier> UpwardExposedIdentifiers;
         public HashSet<Identifier> KilledIdentifiers;
         public HashSet<Identifier> LiveOut;
 
@@ -63,11 +47,6 @@ namespace LuaDecompilerCore.CFG
         // Code gen
         public bool IsInfiniteLoop = false;
         private bool _isCodeGenerated;
-
-        /// <summary>
-        /// Used for SSA construction
-        /// </summary>
-        public HashSet<BasicBlock> DominanceFrontier;
 
         /// <summary>
         /// Printer friendly name of the basic block
@@ -194,11 +173,6 @@ namespace LuaDecompilerCore.CFG
             Successors = new List<BasicBlock>();
             Instructions = new List<Instruction>(10);
             PhiFunctions = new Dictionary<uint, PhiFunction>();
-            Dominance = new HashSet<BasicBlock>();
-            ImmediateDominator = this;
-            DominanceFrontier = new HashSet<BasicBlock>();
-            DominanceTreeSuccessors = new List<BasicBlock>();
-            UpwardExposedIdentifiers = new HashSet<Identifier>();
             KilledIdentifiers = new HashSet<Identifier>();
             LiveOut = new HashSet<Identifier>();
         }
@@ -244,68 +218,6 @@ namespace LuaDecompilerCore.CFG
             return null;
         }
 
-        /// <summary>
-        /// Once dominance information is computed, compute the immediate (closest) dominator using BFS
-        /// </summary>
-        public void ComputeImmediateDominator()
-        {
-            // Use BFS to encounter the closest dominating node guaranteed
-            var queue = new Queue<BasicBlock>(Predecessors);
-            while (queue.Count != 0)
-            {
-                var b = queue.Dequeue();
-                if (Dominance.Contains(b))
-                {
-                    ImmediateDominator = b;
-                    if (b != this)
-                    {
-                        ImmediateDominator.DominanceTreeSuccessors.Add(this);
-                    }
-                    break;
-                }
-                foreach (var p in b.Predecessors)
-                {
-                    queue.Enqueue(p);
-                }
-            }
-        }
-
-        /// <summary>
-        /// Prerequisite information for global liveness analysis and SSA generation. Determines the variables used from
-        /// predecessor blocks (upwards exposed) and variables that are redefined in this block (killed)
-        /// </summary>
-        public IEnumerable<Identifier> ComputeKilledAndUpwardExposed()
-        {
-            var definesSet = new HashSet<Identifier>(2);
-            var usesSet = new HashSet<Identifier>(10);
-            var globals = new HashSet<Identifier>(Instructions.Count / 4);
-            var instructions = new List<Instruction>(PhiFunctions.Values);
-            UpwardExposedIdentifiers.EnsureCapacity(Instructions.Count / 4);
-            KilledIdentifiers.EnsureCapacity(Instructions.Count / 4);
-            instructions.AddRange(Instructions);
-            foreach (var inst in instructions)
-            {
-                if (inst is not PhiFunction)
-                {
-                    usesSet.Clear();
-                    inst.GetUses(usesSet, true);
-                    foreach (var use in usesSet)
-                    {
-                        if (KilledIdentifiers.Contains(use)) continue;
-                        UpwardExposedIdentifiers.Add(use);
-                        globals.Add(use);
-                    }
-                }
-                definesSet.Clear();
-                inst.GetDefines(definesSet, true);
-                foreach(var def in definesSet)
-                {
-                    KilledIdentifiers.Add(def);
-                }
-            }
-            return globals;
-        }
-
         public void MarkCodeGenerated(int debugFuncId, List<string> warnings)
         {
             if (_isCodeGenerated)
@@ -319,7 +231,7 @@ namespace LuaDecompilerCore.CFG
 
         public string ToStringWithDF()
         {
-            var ret = $@"basicblock_{BlockId}: (DF = {{ ";
+            /*var ret = $@"basicblock_{BlockId}: (DF = {{ ";
             for (var i = 0; i < DominanceFrontier.Count; i++)
             {
                 ret += DominanceFrontier.ToArray()[i].Name;
@@ -329,12 +241,13 @@ namespace LuaDecompilerCore.CFG
                 }
             }
             ret += " })";
-            return ret;
+            return ret;*/
+            return "";
         }
 
         public string ToStringWithUpwardExposed()
         {
-            var ret = $@"basicblock_{BlockId}: (DF = {{ ";
+            /*var ret = $@"basicblock_{BlockId}: (DF = {{ ";
             for (var i = 0; i < UpwardExposedIdentifiers.Count; i++)
             {
                 ret += UpwardExposedIdentifiers.ToArray()[i].ToString();
@@ -343,8 +256,8 @@ namespace LuaDecompilerCore.CFG
                     ret += ", ";
                 }
             }
-            ret += " })";
-            return ret;
+            ret += " })";*/
+            return "";
         }
 
         public string ToStringWithLiveOut()
@@ -364,7 +277,7 @@ namespace LuaDecompilerCore.CFG
 
         public string ToStringWithFollow()
         {
-            var ret = $@"basicblock_{BlockId}:";
+            /*var ret = $@"basicblock_{BlockId}:";
             if (Follow != null)
             {
                 ret += $@" (Follow: {Follow})";
@@ -379,7 +292,8 @@ namespace LuaDecompilerCore.CFG
                 }
             }
             ret += " })";
-            return ret;
+            return ret;*/
+            return "";
         }
 
         public string ToStringWithLoop()

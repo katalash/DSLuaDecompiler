@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
+using LuaDecompilerCore.Analyzers;
 using LuaDecompilerCore.IR;
 
 namespace LuaDecompilerCore.Passes;
@@ -137,6 +138,6 @@ public class MergeCompoundConditionalsPass : IPass
                 }
             }
         }
-        f.ComputeDominance();
+        functionContext.InvalidateAnalysis<DominanceAnalyzer>();
     }
 }

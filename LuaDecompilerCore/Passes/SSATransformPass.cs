@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using LuaDecompilerCore.Analyzers;
 using LuaDecompilerCore.IR;
 
 namespace LuaDecompilerCore.Passes;
@@ -28,6 +29,8 @@ public class SsaTransformPass : IPass
 
         f.SsaVariables = new HashSet<Identifier>(f.BlockList.Count * 10);
 
+        var dominance = functionContext.GetAnalysis<DominanceAnalyzer>();
+        
         // Now insert all the needed phi functions
         foreach (var g in f.GlobalIdentifiers)
         {
@@ -44,25 +47,26 @@ public class SsaTransformPass : IPass
             while (work.Count > 0)
             {
                 var b = work.Dequeue();
-                foreach (var d in b.DominanceFrontier)
+                foreach (var d in dominance.DominanceFrontier(b.BlockIndex))
                 {
-                    if (d != f.EndBlock && !d.PhiFunctions.ContainsKey(g.RegNum))
+                    var dBlock = f.BlockList[(int)d];
+                    if (d != f.EndBlock.BlockIndex && !dBlock.PhiFunctions.ContainsKey(g.RegNum))
                     {
                         // Heuristic: if the block is just a single return, we don't need phi functions
-                        if (d.First is Return { ReturnExpressions.Count: 0 })
+                        if (dBlock.First is Return { ReturnExpressions.Count: 0 })
                         {
                             continue;
                         }
 
                         var phiArgs = new List<Identifier>();
-                        for (var i = 0; i < d.Predecessors.Count; i++)
+                        for (var i = 0; i < dBlock.Predecessors.Count; i++)
                         {
                             phiArgs.Add(g);
                         }
-                        d.PhiFunctions.Add(g.RegNum, new PhiFunction(g, phiArgs));
+                        dBlock.PhiFunctions.Add(g.RegNum, new PhiFunction(g, phiArgs));
                         //if (!visitedSet.Contains(d))
                         //{
-                        work.Enqueue(d);
+                        work.Enqueue(dBlock);
                         //visitedSet.Add(d);
                         //}
                     }
@@ -75,7 +79,7 @@ public class SsaTransformPass : IPass
         var stacks = new Stack<Identifier>[allRegisters.Count];
         foreach (var reg in allRegisters)
         {
-            stacks[reg.RegNum] = new Stack<Identifier>();
+            stacks[reg.RegNum] = new Stack<Identifier>(5);
         }
 
         // Creates a new identifier based on an original identifier
@@ -150,8 +154,9 @@ public class SsaTransformPass : IPass
             }
                 
             // Rename successors in the dominator tree
-            foreach (var successor in b.DominanceTreeSuccessors)
+            foreach (var s in dominance.DominanceTreeSuccessors(b.BlockIndex))
             {
+                var successor = f.BlockList[(int)s];
                 if (successor != f.EndBlock)
                 {
                     RenameBlock(successor);
