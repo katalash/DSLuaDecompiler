@@ -41,7 +41,7 @@ namespace LuaDecompilerCore.IR
         /// <summary>
         /// Identifiers that are used in more than one basic block
         /// </summary>
-        public HashSet<Identifier> GlobalIdentifiers { get; }
+        public HashSet<Identifier> GlobalIdentifiers { get; set; }
 
         /// <summary>
         /// All the renamed SSA variables
@@ -260,7 +260,7 @@ namespace LuaDecompilerCore.IR
                         inst.GetUses(usesSet, true);
                         foreach (var use in usesSet)
                         {
-                            if (killedIdentifiers[block.BlockIndex][identifierToId[use]]) continue;
+                            if (killedIdentifiers.Get(block.BlockIndex, identifierToId[use])) continue;
                             upwardExposedIdentifiers.Set(block.BlockIndex, identifierToId[use], true);
                             globalIdentifiers.Set(0, identifierToId[use], true);
                         }
@@ -311,6 +311,8 @@ namespace LuaDecompilerCore.IR
                 block.KilledIdentifiers = SetFromBitSet(killedIdentifiers[block.BlockIndex]);
                 block.UpwardExposed = SetFromBitSet(upwardExposedIdentifiers[block.BlockIndex]);
             }
+
+            GlobalIdentifiers = SetFromBitSet(globalIdentifiers[0]);
         }
 
         public BasicBlock[] PostorderTraversal(bool reverse, bool skipEndBlock = true)

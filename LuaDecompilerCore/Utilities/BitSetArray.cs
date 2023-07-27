@@ -8,6 +8,7 @@ using System.Runtime.InteropServices;
 using System.Runtime.Intrinsics;
 using System.Runtime.Intrinsics.X86;
 using System.Runtime.Intrinsics.Arm;
+using System.Text;
 
 namespace LuaDecompilerCore.Utilities;
 
@@ -78,6 +79,23 @@ public class BitSetArray : IDisposable
         {
             _parent.Not(_setIndex);
         }
+
+        public override string ToString()
+        {
+            var popCount = (int)_parent.PopCount(_setIndex);
+            StringBuilder b = new StringBuilder(popCount * 3);
+            var elements = new uint[popCount];
+            _parent.CopySetIndicesToSpan(_setIndex, new Span<uint>(elements));
+            b.Append('{');
+            for (var i = 0; i < elements.Length; i++)
+            {
+                b.Append(elements[i]);
+                if (i != elements.Length - 1)
+                    b.Append(", ");
+            }
+            b.Append('}');
+            return b.ToString();
+        }
     }
     
     /*=========================================================================
@@ -138,6 +156,20 @@ public class BitSetArray : IDisposable
     }
 
     public BitSet this[int index] => new BitSet(this, index);
+
+    /// <summary>
+    /// Mostly for debugger support
+    /// </summary>
+    public BitSet[] Sets
+    {
+        get
+        {
+            var sets = new BitSet[_setCount];
+            for (var i = 0; i < _setCount; i++)
+                sets[i] = new BitSet(this, i);
+            return sets;
+        }
+    }
 
     /*=========================================================================
     ** Returns the bit value at position index.
@@ -702,7 +734,12 @@ public class BitSetArray : IDisposable
             thisSpan[i] = ~thisSpan[i];
 
         Done:
-        ;
+        // clear high bit values in the last int
+        Div32Rem(_setLength, out int extraBits);
+        if (extraBits > 0)
+        {
+            thisSpan[^1] &= (1 << extraBits) - 1;
+        }
     }
 
     public int SetLength => _setLength;
