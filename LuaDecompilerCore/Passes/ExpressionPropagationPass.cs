@@ -231,24 +231,29 @@ public class ExpressionPropagationPass : IPass
                 thisLocalRegs.Add(unused.RegNum);
             }
 
-            // Visit next blocks in scope
-            var childFirstDef = int.MaxValue;
+            // Visit next blocks in scope. Here we get the lowest register defined in the successor blocks that
+            // isn't already a redefinition of an already identified local, as that represents the baseline of what
+            // the Lua compiler can select for a new temporary register. Any pending registers used in this block
+            // that have a register number below that are very likely to be local variables since Lua doesn't select
+            // them for temporaries.
+            var childFirstNonLocalDefine = int.MaxValue;
             dominance.RunOnDominanceTreeSuccessors(f, b, successor =>
             {
                 var fd = LocalIdentifyVisit(successor, thisLocalRegs);
-                if (fd < childFirstDef && fd != -1)
+                if (fd < childFirstNonLocalDefine && fd != -1)
                 {
-                    childFirstDef = fd;
+                    childFirstNonLocalDefine = fd;
                 }
             });
 
-            // Localize remaining identifiers with reg numbers below the first presumed temp define in the following blocks in scope
-            if (childFirstDef != int.MaxValue)
+            if (childFirstNonLocalDefine != int.MaxValue)
             {
                 foreach (var k in recentlyUsed.Keys)
                 {
-                    // If the reg number is less than the second define then it's a local
-                    if (k < childFirstDef)
+                    // If the reg number is less than the first assigned register in the dominance successors that
+                    // isn't a redefinition of an already identified local, then k likely represents a local since
+                    // the Lua compiler isn't selecting it for a temporary or new local.
+                    if (k < childFirstNonLocalDefine)
                     {
                         f.LocalVariables.Add(recentlyUsed[k]);
                         thisLocalRegs.Add(k);
@@ -262,7 +267,7 @@ public class ExpressionPropagationPass : IPass
             {
                 if (inst.GetSingleDefine(true) is { } def)
                 {
-                    if (!f.LocalVariables.Contains(def) && !f.ClosureBound(def))
+                    if (!localRegs.Contains(def.RegNum) && !f.ClosureBound(def))
                     {
                         firstTempDef = (int)def.RegNum;
                         if (inst is Assignment { IsSelfAssignment: true })
