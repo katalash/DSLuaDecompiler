@@ -146,7 +146,7 @@ public class DetectLoopsPass : IPass
             }
         }
 
-        // Calculate intervals and the graph sequence in preperation for loop detection
+        // Calculate intervals and the graph sequence in preparation for loop detection
         var headGraph = new CFG.AbstractGraph
         {
             BeginNode = abstractNodes[blockIdMap[f.BeginBlock]],

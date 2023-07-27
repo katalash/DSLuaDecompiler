@@ -235,7 +235,7 @@ namespace LuaDecompilerCore.IR
             }
 
             // Compute killed and upward exposed for each block
-            using var killedIdentifiers = new BitSetArray(BlockList.Count, allRegisters.Count, true);
+            using var killedIdentifiers = new BitSetArray(BlockList.Count, allRegisters.Count);
             using var upwardExposedIdentifiers = new BitSetArray(BlockList.Count, allRegisters.Count);
             using var globalIdentifiers = new BitSetArray(1, allRegisters.Count);
             var definesSet = new HashSet<Identifier>(2);
@@ -309,6 +309,7 @@ namespace LuaDecompilerCore.IR
                 block.LiveOut = SetFromBitSet(liveOut[block.BlockIndex]);
                 killedIdentifiers.Not(block.BlockIndex);
                 block.KilledIdentifiers = SetFromBitSet(killedIdentifiers[block.BlockIndex]);
+                block.UpwardExposed = SetFromBitSet(upwardExposedIdentifiers[block.BlockIndex]);
             }
         }
 

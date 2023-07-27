@@ -175,8 +175,8 @@ namespace DecompilerTester
                 Encoding.GetEncoding("shift_jis"),
                 new DecompilationTesterOptions
                 {
-                    DumpPassIr = false,
-                    DumpCfg = false,
+                    DumpPassIr = true,
+                    DumpCfg = true,
                     MultiThreaded = true,
                     HandleDecompilationExceptions = true
                 });

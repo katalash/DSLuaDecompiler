@@ -21,6 +21,7 @@ namespace LuaDecompilerCore.CFG
         // Live analysis stuff
         public int BlockIndex;
         public HashSet<Identifier> KilledIdentifiers;
+        public HashSet<Identifier> UpwardExposed;
         public HashSet<Identifier> LiveOut;
 
         /// <summary>
