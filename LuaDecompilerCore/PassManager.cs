@@ -167,8 +167,11 @@ public class PassManager
         }
         
         Error:
+        List<int> functionsWithWarnings = new List<int>(functions.Count);
         for (var i = 0; i < functions.Count; i++)
         {
+            if (functions[i].Warnings.Count > 0)
+                functionsWithWarnings.Add(i);
             functionContexts[i].Dispose();
         }
         ArrayPool<FunctionContext>.Shared.Return(functionContexts);
@@ -176,6 +179,7 @@ public class PassManager
              error == null ? printer.PrintFunction(functions[0]) : null, 
              error, 
              irResults.ToArray(),
-             dotGraphResults.ToArray());
+             dotGraphResults.ToArray(),
+             functionsWithWarnings.ToArray());
     }
 }

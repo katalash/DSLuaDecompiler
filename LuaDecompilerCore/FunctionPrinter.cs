@@ -382,7 +382,7 @@ public partial class FunctionPrinter
                 _builder.Append(constant.Integer);
                 break;
             case Constant.ConstantType.ConstString:
-                Append("\"" + constant.String + "\"");
+                Append($@"""{constant.String}""");
                 break;
             case Constant.ConstantType.ConstBool:
                 Append(constant.Boolean ? "true" : "false");

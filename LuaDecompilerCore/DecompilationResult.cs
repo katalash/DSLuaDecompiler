@@ -13,4 +13,5 @@ public record DecompilationResult(
     string? DecompiledSource,
     string? ErrorMessage,
     PassIrResult[] IrResults,
-    PassDotGraphResult[] DotGraphResults);
+    PassDotGraphResult[] DotGraphResults,
+    int[] FunctionsWithWarnings);

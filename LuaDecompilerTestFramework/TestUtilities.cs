@@ -202,6 +202,10 @@ public static class TestUtilities
                     Console.ForegroundColor = ConsoleColor.Yellow;
                     Console.WriteLine("    Mismatched ({0}/{1} matched)",
                         result.TotalFunctionIds - result.MismatchedFunctionIds?.Length, result.TotalFunctionIds);
+                    var warningIds = result.DecompilationResult?.FunctionsWithWarnings
+                        .Aggregate("            Function IDs with warnings: ", (current, i) => current + $" {i}");
+                    if (result.DecompilationResult?.FunctionsWithWarnings is { Length: > 0 })
+                        Console.WriteLine(warningIds);
                     var functionIds = result.MismatchedFunctionIds?
                         .Aggregate("            Mismatched Function IDs: ", (current, i) => current + $" {i}");
                     Console.WriteLine(functionIds);
