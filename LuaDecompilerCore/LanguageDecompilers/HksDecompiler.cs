@@ -880,7 +880,6 @@ public class HksDecompiler : ILanguageDecompiler
         passManager.AddPass("merge-multiple-bool-assignment", new MergeMultipleBoolAssignmentPass());
         passManager.AddPass("eliminate-redundant-assignments", new EliminateRedundantAssignmentsPass());
         passManager.AddPass("merge-conditional-jumps", new MergeConditionalJumpsPass());
-        passManager.AddPass("merge-conditional-assignments", new MergeConditionalAssignmentsPass());
         passManager.AddPass("validate-jump-dest-labels", new ValidateJumpDestinationLabelsPass());
 
         passManager.AddPass("build-cfg", new BuildControlFlowGraphPass());
@@ -893,6 +892,7 @@ public class HksDecompiler : ILanguageDecompiler
         passManager.AddPass("expression-propagation-2", new ExpressionPropagationPass(false));
 
         passManager.AddPass("merge-compound-conditionals", new MergeCompoundConditionalsPass());
+        passManager.AddPass("merge-conditional-assignments", new MergeConditionalAssignmentsPass());
         passManager.AddPass("detect-loops", new DetectLoopsPass());
         passManager.AddPass("detect-break-continue", new DetectLoopBreakContinuePass());
         passManager.AddPass("detect-two-way-conditionals", new DetectTwoWayConditionalsPass());

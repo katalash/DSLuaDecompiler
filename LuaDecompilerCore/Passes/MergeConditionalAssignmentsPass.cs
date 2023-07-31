@@ -4,59 +4,96 @@ namespace LuaDecompilerCore.Passes;
 
 /// <summary>
 /// Sometimes a conditional assignment is generated in lua to implement something like:
-/// local var = somefunction() == true
+/// local var = someFunction() == true and someOtherFunction == false
+/// This will generate IR with a CFG equivalent to
+/// local var
+/// if someFunction() == true and someOtherFunction == false
+///     var = true
+/// else
+///     var = false
 ///
-/// This would generate the following IR:
-/// if REGA == 1234 else goto label_1
-/// REGB = false
-/// goto label_2
-/// label_1:
-/// REGB = true
-/// label_2:
-/// ...
-/// This pattern matches such a case and replaces it with just:
-/// REGB = REGA ~= 1234
+/// This pass recognizes that pattern rewrites it into the inlined form
 /// </summary>
 public class MergeConditionalAssignmentsPass : IPass
 {
     public void RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
     {
-        foreach (var b in f.BlockList)
+        bool changed = true;
+        while (changed)
         {
-            for (int i = 0; i < b.Instructions.Count - 6; i++)
+            changed = false;
+            foreach (var b in f.BlockList)
             {
-                // Match conditional jump to label
-                if (b.Instructions[i] is ConditionalJumpLabel jmp &&
-                    // Register set to false
-                    b.Instructions[i + 1] is Assignment
+                if (b is
                     {
-                        IsSingleAssignment: true, 
-                        Left: { } assignee, 
-                        Right: Constant { ConstType: Constant.ConstantType.ConstBool, Boolean: false }
-                    } &&
-                    // Unconditional jump
-                    b.Instructions[i + 2] is JumpLabel jmp2 &&
-                    // Label that is destination of original jump
-                    b.Instructions[i + 3] is Label label1 && label1 == jmp.Destination &&
-                    // Set same register to true
-                    b.Instructions[i + 4] is Assignment
-                    {
-                        IsSingleAssignment: true,
-                        Left: { } assignee2, 
-                        Right: Constant { ConstType: Constant.ConstantType.ConstBool, Boolean: true }
-                    } && assignee.Identifier == assignee2.Identifier &&
-                    // Label that is destination of the second jump
-                    b.Instructions[i + 5] is Label label2 && label2 == jmp2.Destination)
+                        HasInstructions: true,
+                        Last: ConditionalJump jump,
+                        EdgeTrue:
+                        {
+                            Predecessors.Count: 1,
+                            Successors: [{ Predecessors.Count: 2 } follow],
+                            Instructions.Count: 2,
+                            First: Assignment
+                            {
+                                IsSingleAssignment: true,
+                                Left: { Identifier.IsRegister: true } falseAssignee,
+                                Right: Constant { ConstType: Constant.ConstantType.ConstBool, Boolean: false }
+                            } falseAssignment
+                        } edgeTrue,
+                        EdgeFalse:
+                        {
+                            Predecessors.Count: 1,
+                            Successors.Count: 1,
+                            Instructions.Count: 1,
+                            First: Assignment
+                            {
+                                IsSingleAssignment: true,
+                                Left: { Identifier.IsRegister: true } trueAssignee,
+                                Right: Constant { ConstType: Constant.ConstantType.ConstBool, Boolean: true }
+                            }
+                        } edgeFalse
+                    } && follow == edgeFalse.Successors[0] &&
+                    falseAssignee.Identifier.RegNum == trueAssignee.Identifier.RegNum
+                   )
                 {
-                    if (jmp.Condition is BinOp bop)
+                    var destReg = falseAssignee.Identifier;
+                    if (follow.PhiFunctions.TryGetValue(destReg.RegNum, out var phi))
                     {
-                        bop.NegateCondition();
+                        if ((phi.Right.Count == 2 && phi.Right[0] == falseAssignee.Identifier &&
+                            phi.Right[1] == trueAssignee.Identifier) || 
+                            (phi.Right.Count == 2 && phi.Right[1] == falseAssignee.Identifier &&
+                             phi.Right[0] == trueAssignee.Identifier))
+                        {
+                            follow.PhiFunctions.Remove(destReg.RegNum);
+                            destReg = phi.Left;
+                        }
+                        else
+                        {
+                            continue;
+                        }
                     }
-                    var newAssignment = new Assignment(assignee, jmp.Condition);
-                    b.Instructions[i] = newAssignment;
-                    
-                    // Don't remove the final label as it can be a jump destination sometimes
-                    b.Instructions.RemoveRange(i + 1, 4);
+
+                    b.Last = falseAssignment;
+                    falseAssignment.Block = b;
+                    falseAssignment.Left.Identifier = destReg;
+                    falseAssignment.Right = jump.Condition;
+                    b.Successors = follow.Successors;
+                    foreach (var instruction in follow.Instructions)
+                    {
+                        instruction.Block = b;
+                    }
+
+                    b.Instructions.AddRange(follow.Instructions);
+                    foreach (var successor in b.Successors)
+                    {
+                        var idx = successor.Predecessors.FindIndex(predecessor => predecessor == follow);
+                        successor.Predecessors[idx] = b;
+                    }
+
+                    f.BlockList.RemoveAll(block => block == edgeFalse || block == edgeTrue || block == follow);
+
+                    changed = true;
+                    break;
                 }
             }
         }

@@ -661,7 +661,6 @@ public class Lua53Decompiler : ILanguageDecompiler
         passManager.AddPass("merge-conditional-jumps", new MergeConditionalJumpsPass());
         
         // This needs to be moved to a CFG pass because it seems to break some smash scripts.
-        //passManager.AddPass("merge-conditional-assignments", new MergeConditionalAssignmentsPass());
         passManager.AddPass("validate-jump-dest-labels", new ValidateJumpDestinationLabelsPass());
 
         passManager.AddPass("build-cfg", new BuildControlFlowGraphPass());
@@ -675,6 +674,7 @@ public class Lua53Decompiler : ILanguageDecompiler
         passManager.AddPass("expression-propagation-2", new ExpressionPropagationPass(false));
 
         passManager.AddPass("merge-compound-conditionals", new MergeCompoundConditionalsPass());
+        passManager.AddPass("merge-conditional-assignments", new MergeConditionalAssignmentsPass());
         passManager.AddPass("detect-loops", new DetectLoopsPass());
         passManager.AddPass("detect-break-continue", new DetectLoopBreakContinuePass());
         passManager.AddPass("detect-two-way-conditionals", new DetectTwoWayConditionalsPass());

@@ -42,7 +42,8 @@ namespace DSLuaDecompiler
                     ExcludedFunctionIds = bindingContext.ParseResult.GetValueForOption(_excludedFunctionIds)?.ToHashSet() ?? throw new InvalidOperationException(),
                     DumpIrPasses = bindingContext.ParseResult.GetValueForOption(_dumpIrPasses)?.ToHashSet() ?? throw new InvalidOperationException(),
                     DumpDotGraphPasses = bindingContext.ParseResult.GetValueForOption(_dumpDotGraphPasses)?.ToHashSet() ?? throw new InvalidOperationException(),
-                    OutputDebugComments = bindingContext.ParseResult.GetValueForOption(_debugComments)
+                    OutputDebugComments = bindingContext.ParseResult.GetValueForOption(_debugComments),
+                    CatchPassExceptions = false,
                 };
         }
 
