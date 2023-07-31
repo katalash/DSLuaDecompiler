@@ -133,7 +133,7 @@ public class PassManager
                     }
                     catch (Exception e)
                     {
-                        error = e.Message + "\n\n" + e.StackTrace;
+                        error = $"Exception occurred!\nPass: {pass.Name}\nFunction ID: {i}\n\n{e.Message}\n\n{e.StackTrace}";
                         goto Error;
                     }
                 }

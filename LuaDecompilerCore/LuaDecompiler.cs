@@ -66,5 +66,12 @@ namespace LuaDecompilerCore
                 functions,
                 DecompilationOptions.CatchPassExceptions);
         }
+
+        public string? DisassembleLuaFunction(
+            ILanguageDecompiler languageDecompiler,
+            LuaFile.Function luaFunction)
+        {
+            return languageDecompiler.Disassemble(luaFunction);
+        }
     }
 }

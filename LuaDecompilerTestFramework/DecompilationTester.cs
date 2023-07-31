@@ -93,7 +93,7 @@ public sealed class DecompilationTester
 
         if (_multiThread)
         {
-            Parallel.For(0, _testCases.Count, (i, state) =>
+            Parallel.For(0, _testCases.Count, (i, _) =>
             {
                 results[i] = ExecuteTestCase(_testCases[i]);
             });
@@ -111,9 +111,13 @@ public sealed class DecompilationTester
     
     private static bool CompareLuaBytecode(
         byte[] a,
-        byte[] b, 
+        byte[] b,
+        LuaDecompiler decompiler,
+        ILanguageDecompiler languageDecompiler,
         out int total, 
-        out List<int> mismatchedFunctionIds)
+        out List<int> mismatchedFunctionIds,
+        out List<string?> mismatchedCompiledDisassembledFunctions,
+        out List<string?> mismatchedRecompiledDisassembledFunctions)
     {
         var br1 = new BinaryReaderEx(false, a);
         var br2 = new BinaryReaderEx(false, b);
@@ -121,18 +125,18 @@ public sealed class DecompilationTester
         var luaFile2 = new LuaFile(br2);
         var totalCounter = 0;
         var mismatchedIds = new List<int>();
+        var mismatchedCompiledDisassembled = new List<string?>();
+        var mismatchedRecompiledDisassembled = new List<string?>();
         
         bool CompareFunction(LuaFile.Function f1, LuaFile.Function f2)
         {
             var functionMatched = true;
-            if (f1.ChildFunctions.Length != f2.ChildFunctions.Length)
+            if (f1.ChildFunctions.Length != f2.ChildFunctions.Length || 
+                !f1.Bytecode.SequenceEqual(f2.Bytecode))
             {
                 mismatchedIds.Add(f2.FunctionId);
-                functionMatched = false;
-            }
-            else if (!f1.Bytecode.SequenceEqual(f2.Bytecode))
-            {
-                mismatchedIds.Add(f2.FunctionId);
+                mismatchedCompiledDisassembled.Add(decompiler.DisassembleLuaFunction(languageDecompiler, f1));
+                mismatchedRecompiledDisassembled.Add(decompiler.DisassembleLuaFunction(languageDecompiler, f2));
                 functionMatched = false;
             }
 
@@ -148,6 +152,8 @@ public sealed class DecompilationTester
         
         var matched = CompareFunction(luaFile1.MainFunction, luaFile2.MainFunction);
         mismatchedFunctionIds = mismatchedIds;
+        mismatchedCompiledDisassembledFunctions = mismatchedCompiledDisassembled;
+        mismatchedRecompiledDisassembledFunctions = mismatchedRecompiledDisassembled;
         total = totalCounter;
         return matched;
     }
@@ -227,7 +233,7 @@ public sealed class DecompilationTester
         if (decompilationResult.DecompiledSource == null)
         {
             result.Error = TestCaseError.ErrorDecompilationFailed;
-            result.ErrorMessage = "";
+            result.ErrorMessage = decompilationResult.ErrorMessage;
             return result;
         }
         
@@ -249,11 +255,17 @@ public sealed class DecompilationTester
         // Now compare the bytecode of the original with the recompiled
         if (!CompareLuaBytecode(recompiledBytes,
                 compiledBytes,
+                _decompiler,
+                _languageDecompiler,
                 out var total,
-                out var mismatchedFunctionIds))
+                out var mismatchedFunctionIds,
+                out var mismatchedCompiledDisassembledFunctions,
+                out var mismatchedRecompiledDisassembledFunctions))
         {
             result.Error = TestCaseError.ErrorMismatch;
             result.MismatchedFunctionIds = mismatchedFunctionIds.ToArray();
+            result.MismatchedCompiledDisassembledFunctions = mismatchedCompiledDisassembledFunctions.ToArray();
+            result.MismatchedRecompiledDisassembledFunctions = mismatchedRecompiledDisassembledFunctions.ToArray();
             result.TotalFunctionIds = total;
             return result;
         }

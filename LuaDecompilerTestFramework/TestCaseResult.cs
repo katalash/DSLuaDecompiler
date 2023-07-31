@@ -85,6 +85,16 @@ public sealed class TestCaseResult
     public int[]? MismatchedFunctionIds { get; internal set; }
     
     /// <summary>
+    /// For mismatched functions, the disassembly of the original compiled functions
+    /// </summary>
+    public string?[]? MismatchedCompiledDisassembledFunctions { get; internal set; }
+    
+    /// <summary>
+    /// For mismatched functions, the disassembly of the recompiled functions
+    /// </summary>
+    public string?[]? MismatchedRecompiledDisassembledFunctions { get; internal set; }
+    
+    /// <summary>
     /// Total number of function Ids
     /// </summary>
     public int? TotalFunctionIds { get; internal set; }

@@ -125,7 +125,7 @@ public static class TestUtilities
             {
                 if (decompilationResult.DecompiledSource is { } decompiledSource)
                 {
-                    File.WriteAllText($"{basePath}.decompiled", decompiledSource, encoding);
+                    File.WriteAllText($"{basePath}.decompiled.lua", decompiledSource, encoding);
                 }
                 
                 if (decompilationResult.IrResults.Length > 0)
@@ -137,7 +137,7 @@ public static class TestUtilities
                         passBuilder.Append(pass.Ir);
                         passBuilder.Append($"-- End pass {pass.Pass} --\n");
                     }
-                    File.WriteAllText($"{basePath}.passes.txt", passBuilder.ToString(), encoding);
+                    File.WriteAllText($"{basePath}.passes.lua", passBuilder.ToString(), encoding);
                 }
                         
                 if (decompilationResult.DotGraphResults.Length > 0)
@@ -159,6 +159,18 @@ public static class TestUtilities
             if (shouldDump && result.RecompiledBytes is { } recompiledBytes)
             {
                 File.WriteAllBytes($"{basePath}.recompiled", recompiledBytes);
+
+                for (var i = 0; i < result.MismatchedFunctionIds?.Length; i++)
+                {
+                    if (result.MismatchedCompiledDisassembledFunctions?[i] == null ||
+                        result.MismatchedRecompiledDisassembledFunctions?[i] == null)
+                        continue;
+                    var functionId = result.MismatchedFunctionIds[i];
+                    File.WriteAllText($"{basePath}.compiled.disassembled.{functionId}.lua", 
+                        result.MismatchedCompiledDisassembledFunctions[i]);
+                    File.WriteAllText($"{basePath}.recompiled.disassembled.{functionId}.lua", 
+                        result.MismatchedRecompiledDisassembledFunctions[i]);
+                }
             }
         }
     }
