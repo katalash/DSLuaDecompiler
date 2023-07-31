@@ -1,4 +1,5 @@
-﻿using LuaDecompilerCore.IR;
+﻿using LuaDecompilerCore.Analyzers;
+using LuaDecompilerCore.IR;
 
 namespace LuaDecompilerCore.Passes;
 
@@ -8,9 +9,9 @@ namespace LuaDecompilerCore.Passes;
 /// This will generate IR with a CFG equivalent to
 /// local var
 /// if someFunction() == true and someOtherFunction == false
-///     var = true
-/// else
 ///     var = false
+/// else
+///     var = true
 ///
 /// This pass recognizes that pattern rewrites it into the inlined form
 /// </summary>
@@ -77,6 +78,8 @@ public class MergeConditionalAssignmentsPass : IPass
                     falseAssignment.Block = b;
                     falseAssignment.Left.Identifier = destReg;
                     falseAssignment.Right = jump.Condition;
+                    if (falseAssignment.Right is BinOp binOp)
+                        binOp.NegateConditionalExpression();
                     b.Successors = follow.Successors;
                     foreach (var instruction in follow.Instructions)
                     {
@@ -97,5 +100,6 @@ public class MergeConditionalAssignmentsPass : IPass
                 }
             }
         }
+        functionContext.InvalidateAnalysis<DominanceAnalyzer>();
     }
 }

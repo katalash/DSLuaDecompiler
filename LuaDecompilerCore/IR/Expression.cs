@@ -555,6 +555,9 @@ namespace LuaDecompilerCore.IR
             Operation = op;
         }
 
+        /// <summary>
+        /// Negates this op as a single condition
+        /// </summary>
         public BinOp NegateCondition()
         {
             switch (Operation)
@@ -597,6 +600,58 @@ namespace LuaDecompilerCore.IR
                     throw new Exception("Attempting to negate non-conditional binary operation");
             }
             return this;
+        }
+
+        /// <summary>
+        /// Negates this op as a conditional expression that may be built of multiple parts
+        /// </summary>
+        public bool NegateConditionalExpression()
+        {
+            // Lastly if left and right are binops we negate them
+            bool leftNegated = false;
+            if (Left is BinOp leftBinOp)
+                leftNegated = leftBinOp.NegateConditionalExpression();
+            bool rightNegated = false;
+            if (Right is BinOp rightBinOp)
+                rightNegated = rightBinOp.NegateConditionalExpression();
+            
+            // Comparison operations we just do simple negation
+            if (Operation is OperationType.OpEqual or OperationType.OpNotEqual or OperationType.OpLessThan or
+                OperationType.OpLessEqual or OperationType.OpGreaterThan or OperationType.OpGreaterEqual)
+                NegateCondition();
+            else if (Operation is OperationType.OpAnd or OperationType.OpOr)
+            {
+                Operation = Operation switch
+                {
+                    OperationType.OpAnd => OperationType.OpOr,
+                    OperationType.OpOr => OperationType.OpAnd,
+                    _ => Operation
+                };
+
+                if (Left is UnaryOp leftUnaryOp)
+                {
+                    Left = leftUnaryOp.NegateConditionalExpression();
+                }
+                else if (!leftNegated)
+                {
+                    Left = new UnaryOp(Left, UnaryOp.OperationType.OpNot);
+                }
+                
+                if (Right is UnaryOp rightUnaryOp)
+                {
+                    Right = rightUnaryOp.NegateConditionalExpression();
+                }
+                else if (!rightNegated)
+                {
+                    Right = new UnaryOp(Right, UnaryOp.OperationType.OpNot);
+                }
+            }
+            else
+            {
+                return false;
+            }
+
+            return true;
         }
 
         /// <summary>
@@ -809,6 +864,16 @@ namespace LuaDecompilerCore.IR
             var ret = new List<Expression> { this };
             ret.AddRange(Expression.GetExpressions());
             return ret;
+        }
+        
+        /// <summary>
+        /// Negates this op as a conditional expression that may be built of multiple parts. Since this op may result
+        /// in the unary op needing to be removed, the expression returned will indicate what this needs to be replaced
+        /// with.
+        /// </summary>
+        public Expression NegateConditionalExpression()
+        {
+            return Operation == OperationType.OpNot ? Expression : this;
         }
 
         public override int GetLowestConstantId()
