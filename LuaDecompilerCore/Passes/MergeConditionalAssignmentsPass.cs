@@ -17,6 +17,8 @@ namespace LuaDecompilerCore.Passes;
 /// </summary>
 public class MergeConditionalAssignmentsPass : IPass
 {
+    public bool MutatesCfg => true;
+    
     public void RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
     {
         bool changed = true;
