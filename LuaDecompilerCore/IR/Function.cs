@@ -79,12 +79,6 @@ namespace LuaDecompilerCore.IR
         public readonly Dictionary<Identifier, string> IdentifierNames = new();
 
         /// <summary>
-        /// Identifiers that have been statically determined to be local variables and should not be inlined via
-        /// expression propagation
-        /// </summary>
-        public HashSet<Identifier> LocalVariables { get; private set; } = new();
-        
-        /// <summary>
         /// Registers that are used by child closures via up values
         /// </summary>
         public HashSet<uint> ClosureBoundRegisters { get; private set; } = new();

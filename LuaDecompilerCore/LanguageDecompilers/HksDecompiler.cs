@@ -887,9 +887,9 @@ public class HksDecompiler : ILanguageDecompiler
         passManager.AddPass("ssa-transform", new SsaTransformPass());
 
         passManager.AddPass("eliminate-dead-phi-1", new EliminateDeadAssignmentsPass(true));
-        passManager.AddPass("expression-propagation-1", new ExpressionPropagationPass(true));
+        passManager.AddPass("expression-propagation-1", new ExpressionPropagationPass());
         passManager.AddPass("detect-list-initializers", new DetectListInitializersPass());
-        passManager.AddPass("expression-propagation-2", new ExpressionPropagationPass(false));
+        passManager.AddPass("expression-propagation-2", new ExpressionPropagationPass());
 
         passManager.AddPass("merge-compound-conditionals", new MergeCompoundConditionalsPass());
         passManager.AddPass("merge-conditional-assignments", new MergeConditionalAssignmentsPass());
@@ -898,7 +898,7 @@ public class HksDecompiler : ILanguageDecompiler
         passManager.AddPass("detect-two-way-conditionals", new DetectTwoWayConditionalsPass());
         passManager.AddPass("simplify-if-else-follow-chain", new SimplifyIfElseFollowChainPass());
         passManager.AddPass("eliminate-dead-phi-2", new EliminateDeadAssignmentsPass(true));
-        passManager.AddPass("expression-propagation-3", new ExpressionPropagationPass(false));
+        passManager.AddPass("expression-propagation-3", new ExpressionPropagationPass());
         //passManager.AddPass("validate-liveness-no-interference", new ValidateLivenessNoInterferencePass());
 
         passManager.AddPass("drop-ssa-subscripts", new DropSsaSubscriptsPass());

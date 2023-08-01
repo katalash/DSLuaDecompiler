@@ -679,7 +679,7 @@ public class Lua50Decompiler : ILanguageDecompiler
         passManager.AddPass("eliminate-dead-phi-1", new EliminateDeadAssignmentsPass(true));
         passManager.AddPass("eliminate-unused-phi", new EliminateUnusedPhiFunctionsPass());
         passManager.AddPass("detect-generic-list-initializers-1", new DetectGenericListInitializersPass());
-        passManager.AddPass("expression-propagation-1", new ExpressionPropagationPass(true));
+        passManager.AddPass("expression-propagation-1", new ExpressionPropagationPass());
         passManager.AddPass("detect-generic-list-initializers-2", new DetectGenericListInitializersPass());
         passManager.AddPass("detect-list-initializers", new DetectListInitializersPass());
 

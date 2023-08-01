@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
+﻿using System.Collections.Generic;
 using LuaDecompilerCore.Analyzers;
 using LuaDecompilerCore.IR;
 
@@ -13,10 +10,6 @@ namespace LuaDecompilerCore.Passes;
 /// </summary>
 public class ExpressionPropagationPass : IPass
 {
-    public ExpressionPropagationPass(bool firstPass)
-    {
-    }
-    
     public void RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
     {
         // GetUses calls have a lot of allocation overhead so reusing the same set has huge perf gains.
@@ -48,10 +41,11 @@ public class ExpressionPropagationPass : IPass
                             ((defineUseAnalysis.UseCount(use) == 1 && 
                               ((i - 1 >= 0 && b.Instructions[i - 1] == definingInstruction) || 
                                inst is Assignment { IsListAssignment: true }) && 
-                              !f.LocalVariables.Contains(use)) || 
+                              !localVariableAnalysis.LocalVariables.Contains(use)) || 
                              a.PropagateAlways) && !f.ClosureBound(a.Left.Identifier))
                         {
-                            // Don't substitute if this use's define was defined before the code gen for the function call even began
+                            // Don't substitute if this use's define was defined before the code gen for the function
+                            // call even began
                             if (!a.PropagateAlways && inst is Assignment { Right: FunctionCall fc } && 
                                 definingInstruction.PrePropagationIndex < fc.FunctionDefIndex)
                             {
@@ -71,7 +65,6 @@ public class ExpressionPropagationPass : IPass
                                 f.SsaVariables.Remove(use);
                                 if (b == a.Block)
                                 {
-                                    //i--;
                                     i = -1;
                                 }
                             }
