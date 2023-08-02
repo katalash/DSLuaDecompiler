@@ -454,7 +454,7 @@ public class Lua50Decompiler : ILanguageDecompiler
                     assignment = new Assignment(
                         irFunction.GetRegister(a),
                         new UnaryOp(
-                            new IdentifierReference(irFunction.GetRegister(b)), UnaryOp.OperationType.OpNot));
+                            new IdentifierReference(irFunction.GetRegister(b)), UnaryOp.OperationType.OpNot, true));
                     CheckLocal(assignment, function, pc);
                     instructions.Add(assignment);
                     break;

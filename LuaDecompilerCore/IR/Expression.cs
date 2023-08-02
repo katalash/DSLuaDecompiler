@@ -832,10 +832,13 @@ namespace LuaDecompilerCore.IR
 
         public bool HasParentheses { get; private set; }
 
-        public UnaryOp(Expression expression, OperationType op)
+        public readonly bool Preserve;
+
+        public UnaryOp(Expression expression, OperationType op, bool preserve = false)
         {
             Expression = expression;
             Operation = op;
+            Preserve = preserve;
         }
 
         public override void GetUses(HashSet<Identifier> uses, bool registersOnly)
@@ -873,6 +876,8 @@ namespace LuaDecompilerCore.IR
         /// </summary>
         public Expression NegateConditionalExpression()
         {
+            if (Operation == OperationType.OpNot && Preserve)
+                return new UnaryOp(this, OperationType.OpNot);
             return Operation == OperationType.OpNot ? Expression : this;
         }
 

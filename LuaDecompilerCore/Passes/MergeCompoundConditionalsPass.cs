@@ -47,7 +47,6 @@ public class MergeCompoundConditionalsPass : IPass
                     {
                         if (t.EdgeTrue == e && t.EdgeFalse != e)
                         {
-                            //var newCond = new BinOp(new UnaryOp(n.Condition, UnaryOp.OperationType.OpNot), tj.Condition, BinOp.OperationType.OpOr);
                             Expression newCond;
                             if (n.Condition is BinOp { IsCompare: true } b)
                             {
@@ -55,8 +54,12 @@ public class MergeCompoundConditionalsPass : IPass
                             }
                             else
                             {
-                                newCond = new BinOp(new UnaryOp(n.Condition, UnaryOp.OperationType.OpNot), 
-                                    tj.Condition, BinOp.OperationType.OpOr);
+                                Expression left;
+                                if (n.Condition is UnaryOp unaryOp)
+                                    left = unaryOp.NegateConditionalExpression();
+                                else
+                                    left = new UnaryOp(n.Condition, UnaryOp.OperationType.OpNot);
+                                newCond = new BinOp(left, tj.Condition, BinOp.OperationType.OpOr);
                             }
                             n.Condition = newCond;
                             n.Absorb(tj);
@@ -103,8 +106,12 @@ public class MergeCompoundConditionalsPass : IPass
                     {
                         if (e.EdgeTrue == t)
                         {
-                            var newCond = new BinOp(new UnaryOp(n.Condition, UnaryOp.OperationType.OpNot), 
-                                ej.Condition, BinOp.OperationType.OpOr);
+                            Expression left;
+                            if (n.Condition is UnaryOp unaryOp)
+                                left = unaryOp.NegateConditionalExpression();
+                            else
+                                left = new UnaryOp(n.Condition, UnaryOp.OperationType.OpNot);
+                            var newCond = new BinOp(left, ej.Condition, BinOp.OperationType.OpOr);
                             n.Condition = newCond;
                             n.Absorb(ej);
                             if (e.Follow != null)

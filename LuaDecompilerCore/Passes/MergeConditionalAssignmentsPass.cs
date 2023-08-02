@@ -83,6 +83,8 @@ public class MergeConditionalAssignmentsPass : IPass
                     falseAssignment.Right = jump.Condition;
                     if (falseAssignment.Right is BinOp binOp)
                         binOp.NegateConditionalExpression();
+                    else if (falseAssignment.Right is UnaryOp unaryOp)
+                        falseAssignment.Right = unaryOp.NegateConditionalExpression();
                     falseAssignment.Absorb(jump);
                     falseAssignment.Absorb(trueAssignment);
                     b.Successors = follow.Successors;

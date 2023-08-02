@@ -409,7 +409,8 @@ public class Lua53Decompiler : ILanguageDecompiler
                     break;
                 case Lua53Ops.OpNot:
                     assignment = new Assignment(irFunction.GetRegister(a),
-                        new UnaryOp(new IdentifierReference(irFunction.GetRegister(b)), UnaryOp.OperationType.OpNot));
+                        new UnaryOp(new IdentifierReference(irFunction.GetRegister(b)), UnaryOp.OperationType.OpNot,
+                            true));
                     CheckLocal(assignment, function, pc);
                     instructions.Add(assignment);
                     break;

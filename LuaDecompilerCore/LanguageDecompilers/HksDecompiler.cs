@@ -494,7 +494,7 @@ public class HksDecompiler : ILanguageDecompiler
                 case LuaHksOps.OpNot:
                     assignment = new Assignment(irFunction.GetRegister(a),
                         new UnaryOp(new IdentifierReference(irFunction.GetRegister((uint)b)),
-                            UnaryOp.OperationType.OpNot));
+                            UnaryOp.OperationType.OpNot, true));
                     CheckLocal(assignment, function, pc);
                     instructions.Add(assignment);
                     break;
