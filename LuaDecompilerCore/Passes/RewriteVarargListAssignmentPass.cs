@@ -18,6 +18,8 @@ public class RewriteVarargListAssignmentPass : IPass
                 {
                     l1.Expressions.Add(new Constant(Constant.ConstantType.ConstVarargs, -1));
                     a1.LocalAssignments = a3.LocalAssignments;
+                    a1.Absorb(a2);
+                    a1.Absorb(a3);
                     b.Instructions.RemoveRange(i + 1, 2);
                 }
             }

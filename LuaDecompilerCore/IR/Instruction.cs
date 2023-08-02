@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using LuaDecompilerCore.Utilities;
 
 namespace LuaDecompilerCore.IR
 {
@@ -16,9 +17,15 @@ namespace LuaDecompilerCore.IR
         public int OpLocation = 0;
 
         /// <summary>
-        /// The instruction index in a basic block before propagation is done
+        /// Range of instruction indices in the original IR that this instruction represents
         /// </summary>
-        public int PrePropagationIndex = 0;
+        public Interval InstructionIndices;
+
+        /// <summary>
+        /// Range of registers that were defined (assigned) in the original IR that this instruction
+        /// represents
+        /// </summary>
+        public Interval DefinedRegisters;
 
         /// <summary>
         /// Backpointer to the containing block. Used for some analysis
@@ -43,6 +50,17 @@ namespace LuaDecompilerCore.IR
         };
         
         public virtual void Parenthesize() { }
+
+        /// <summary>
+        /// "Absorbs" another instruction by updating bookkeeping ranges associated with the other instruction.
+        /// Use this when you replace another instruction and make this one the superset (such as when inlining).
+        /// </summary>
+        /// <param name="instruction"></param>
+        public void Absorb(Instruction instruction)
+        {
+            InstructionIndices = InstructionIndices.UnionWith(instruction.InstructionIndices);
+            DefinedRegisters = DefinedRegisters.UnionWith(instruction.DefinedRegisters);
+        }
 
         /// <summary>
         /// Gets all the identifiers that are defined by this instruction and adds them to the input set

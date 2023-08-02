@@ -42,6 +42,7 @@ public class DetectListInitializersPass : IPass
                             {
                                 a.LocalAssignments = a2.LocalAssignments;
                             }
+                            a.Absorb(a2);
                             b.Instructions.RemoveAt(i + 1);
                             initIndex++;
                         }

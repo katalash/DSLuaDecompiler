@@ -70,22 +70,36 @@ namespace LuaDecompilerCore.IR
 
         public bool LeftAny => LeftList.Count > 0;
 
+        private void InitDefinedRegisters()
+        {
+            foreach (var l in LeftList)
+            {
+                if (l is { HasIndex: false, Identifier.IsRegister: true })
+                {
+                    DefinedRegisters.AddToRange((int)l.Identifier.RegNum);
+                }
+            }
+        }
+        
         public Assignment(Identifier l, Expression? r)
         {
             LeftList = new List<IdentifierReference>(1) { new IdentifierReference(l) };
             Right = r;
+            InitDefinedRegisters();
         }
 
         public Assignment(IdentifierReference l, Expression? r)
         {
             LeftList = new List<IdentifierReference>(1) { l };
             Right = r;
+            InitDefinedRegisters();
         }
 
         public Assignment(List<IdentifierReference> l, Expression? r)
         {
             LeftList = l;
             Right = r;
+            InitDefinedRegisters();
         }
 
         public override void Parenthesize()

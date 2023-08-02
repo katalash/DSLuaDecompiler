@@ -35,20 +35,18 @@ public class MergeConditionalJumpsPass : IPass
                     if (jmp1.Condition is BinOp op)
                     {
                         op.NegateCondition();
-                        jmp1.Destination.UsageCount--;
-                        b.Instructions.RemoveRange(i + 1, jmp1.Destination.UsageCount <= 0 ? 2 : 1);
-                        jmp1.Destination = jmp2.Destination;
                     }
                     else if (jmp1.Condition is UnaryOp { Operation: UnaryOp.OperationType.OpNot } or IdentifierReference)
                     {
-                        jmp1.Destination.UsageCount--;
-                        b.Instructions.RemoveRange(i + 1, jmp1.Destination.UsageCount <= 0 ? 2 : 1);
-                        jmp1.Destination = jmp2.Destination;
                     }
                     else
                     {
                         throw new Exception("Recognized jump pattern does not use a binary op conditional");
                     }
+                    jmp1.Destination.UsageCount--;
+                    jmp1.Absorb(jmp2);
+                    b.Instructions.RemoveRange(i + 1, jmp1.Destination.UsageCount <= 0 ? 2 : 1);
+                    jmp1.Destination = jmp2.Destination;
                 }
             }
         }

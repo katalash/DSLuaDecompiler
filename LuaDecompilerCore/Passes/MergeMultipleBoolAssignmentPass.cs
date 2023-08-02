@@ -43,6 +43,7 @@ public class MergeMultipleBoolAssignmentPass : IPass
                         Debug.Assert(a2.LocalAssignments != null);
                         a1.LocalAssignments.AddRange(a2.LocalAssignments);
                     }
+                    a1.Absorb(a2);
                     b.Instructions.RemoveAt(i + 1);
                 }
             }

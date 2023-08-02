@@ -10,7 +10,7 @@ namespace LuaDecompilerCore.Analyzers;
 /// </summary>
 public class LocalVariablesAnalyzer : IAnalyzer
 {
-    private readonly HashSet<Identifier> _localVariables = new HashSet<Identifier>(10);
+    private readonly HashSet<Identifier> _localVariables = new(10);
 
     public IReadOnlySet<Identifier> LocalVariables => _localVariables;
 
@@ -22,10 +22,12 @@ public class LocalVariablesAnalyzer : IAnalyzer
         var definesSet = new HashSet<Identifier>(2);
         var usesSet = new HashSet<Identifier>(10);
         
-        // Lua function calls (and expressions in general have their bytecode generated recursively.
+        // Lua function calls (and expressions in general) have their bytecode generated recursively.
         // This means for example when doing a function call, the name of the function is loaded to a register first,
         // then all the subexpressions are computed, and finally the function is called. We can exploit this knowledge
         // to determine which expressions were actually inlined into the function call in the original source code.
+        // This analysis finds the pre-propagation index in the instruction list of each instruction as well as the
+        // index of the first definition instruction contributing to a function call expression.
         var defines = new Dictionary<Identifier, int>();
         var selfIdentifiers = new HashSet<Identifier>();
         foreach (var b in function.BlockList)
@@ -34,10 +36,9 @@ public class LocalVariablesAnalyzer : IAnalyzer
             selfIdentifiers.Clear();
             for (var i = 0; i < b.Instructions.Count; i++)
             {
-                b.Instructions[i].PrePropagationIndex = i;
                 if (b.Instructions[i].GetSingleDefine(true) is { } define)
                 {
-                    defines.Add(define, i);
+                    defines.Add(define, b.Instructions[i].InstructionIndices.Begin);
                     if (b.Instructions[i] is Assignment { IsSelfAssignment: true })
                     {
                         selfIdentifiers.Add(define);

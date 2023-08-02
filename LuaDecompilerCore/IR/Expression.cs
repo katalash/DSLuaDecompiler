@@ -930,7 +930,7 @@ namespace LuaDecompilerCore.IR
         /// <summary>
         /// Index of where the function def register was originally defined. Used to help decide what expressions to inline
         /// </summary>
-        public int FunctionDefIndex = 0;
+        public int FunctionDefIndex = -1;
 
         public FunctionCall(Expression fun, List<Expression> args)
         {

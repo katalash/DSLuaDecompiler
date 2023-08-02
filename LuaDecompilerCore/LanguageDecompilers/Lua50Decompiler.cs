@@ -658,6 +658,7 @@ public class Lua50Decompiler : ILanguageDecompiler
             foreach (var inst in instructions)
             {
                 inst.OpLocation = i / 4;
+                inst.InstructionIndices = new Interval(irFunction.BeginBlock.Instructions.Count);
                 irFunction.BeginBlock.Instructions.Add(inst);
             }
         }

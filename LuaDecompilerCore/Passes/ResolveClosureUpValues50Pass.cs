@@ -16,7 +16,7 @@ public class ResolveClosureUpValues50Pass : IPass
             for (var i = 0; i < b.Instructions.Count; i++)
             {
                 // Recognize a closure instruction
-                if (b.Instructions[i] is Assignment { Right: Closure c })
+                if (b.Instructions[i] is Assignment { Right: Closure c } a)
                 {
                     // Fetch the closure bindings from the following instructions
                     for (var j = 0; j < c.Function.UpValueCount; j++)
@@ -26,10 +26,11 @@ public class ResolveClosureUpValues50Pass : IPass
                                 IsSingleAssignment: true, 
                                 Left.Identifier.RegNum: 0, 
                                 Right: IdentifierReference { Identifier.IsRegister: true } ir 
-                            })
+                            } a2)
                         {
                             c.Function.UpValueBindings.Add(ir.Identifier);
                             f.ClosureBoundRegisters.Add(ir.Identifier.RegNum);
+                            a.Absorb(a2);
                             b.Instructions.RemoveAt(i + 1);
                         }
                         else

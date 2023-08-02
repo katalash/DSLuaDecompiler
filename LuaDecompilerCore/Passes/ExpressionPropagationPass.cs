@@ -47,13 +47,12 @@ public class ExpressionPropagationPass : IPass
                             // Don't substitute if this use's define was defined before the code gen for the function
                             // call even began
                             if (!a.PropagateAlways && inst is Assignment { Right: FunctionCall fc } && 
-                                definingInstruction.PrePropagationIndex < fc.FunctionDefIndex)
+                                definingInstruction.InstructionIndices.End - 1 < fc.FunctionDefIndex)
                             {
                                 continue;
                             }
-                            if (!a.PropagateAlways && inst is Return r && r.ReturnExpressions.Count == 1 && 
-                                r.ReturnExpressions[0] is FunctionCall fc2 && 
-                                definingInstruction.PrePropagationIndex < fc2.FunctionDefIndex)
+                            if (!a.PropagateAlways && inst is Return { ReturnExpressions: [FunctionCall fc2] } && 
+                                definingInstruction.InstructionIndices.End - 1 < fc2.FunctionDefIndex)
                             {
                                 continue;
                             }
@@ -61,6 +60,7 @@ public class ExpressionPropagationPass : IPass
                             if (a.Block != null && replaced)
                             {
                                 changed = true;
+                                inst.Absorb(a);
                                 a.Block.Instructions.Remove(a);
                                 f.SsaVariables.Remove(use);
                                 if (b == a.Block)
@@ -91,6 +91,7 @@ public class ExpressionPropagationPass : IPass
                         a2.Right is IdentifierReference or Constant)
                     {
                         a.ReplaceUses(a2.Left.Identifier, a2.Right);
+                        a.Absorb(a2);
                         b.Instructions.RemoveAt(i - 1);
                         i--;
                         changed = true;
