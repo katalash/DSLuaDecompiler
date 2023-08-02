@@ -32,23 +32,29 @@ public class EliminateUnusedPhiFunctionsPass : IPass
             }
         }
 
-        // Next do an expansion cycle where phi functions that use the identifiers are marked kept, and then phi functions that the marked phi uses are also kept
-        bool changed = false;
-        foreach (var b in f.BlockList)
+        // Next do an expansion cycle where phi functions that use the identifiers are marked kept, and then phi
+        // functions that the marked phi uses are also kept
+        bool changed = true;
+        while (changed)
         {
-            foreach (var phi in b.PhiFunctions)
+            changed = false;
+            foreach (var b in f.BlockList)
             {
-                if (!phisToKeep.Contains(phi.Value) && usedIdentifiers.Contains(phi.Value.Left))
+                foreach (var phi in b.PhiFunctions)
                 {
-                    phisToKeep.Add(phi.Value);
-                    foreach (var use in phi.Value.Right)
+                    if (!phisToKeep.Contains(phi.Value) && usedIdentifiers.Contains(phi.Value.Left))
                     {
-                        if (!use.IsNull)
+                        phisToKeep.Add(phi.Value);
+                        foreach (var use in phi.Value.Right)
                         {
-                            usedIdentifiers.Add(use);
+                            if (!use.IsNull)
+                            {
+                                usedIdentifiers.Add(use);
+                            }
                         }
+
+                        changed = true;
                     }
-                    changed = true;
                 }
             }
         }

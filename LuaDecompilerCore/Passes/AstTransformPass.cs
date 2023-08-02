@@ -145,7 +145,7 @@ public class AstTransformPass : IPass
                     // Remove any jump instructions from the latches if they exist
                     foreach (var latch in node.LoopLatches)
                     {
-                        if (latch is { HasInstructions: true, Last: Jump jmp2 } && 
+                        if (latch is { HasInstructions: true, IsConditionalBranch: false, Last: Jump jmp2 } && 
                             jmp2.Destination == node)
                         {
                             latch.Instructions.RemoveAt(latch.Instructions.Count - 1);
@@ -259,7 +259,7 @@ public class AstTransformPass : IPass
                     // Remove gotos in latch
                     foreach (var pred in node.Predecessors)
                     {
-                        if (pred is { IsLoopLatch: true, Last: Jump })
+                        if (pred is { IsLoopLatch: true, IsConditionalBranch: false, Last: Jump })
                         {
                             pred.Instructions.RemoveAt(pred.Instructions.Count - 1);
                         }
@@ -315,7 +315,7 @@ public class AstTransformPass : IPass
                     // Remove gotos in latch
                     foreach (var pred in node.Predecessors)
                     {
-                        if (pred is { IsLoopLatch: true, Last: Jump })
+                        if (pred is { IsLoopLatch: true, IsConditionalBranch: false, Last: Jump })
                         {
                             pred.Instructions.RemoveAt(pred.Instructions.Count - 1);
                         }
@@ -384,7 +384,7 @@ public class AstTransformPass : IPass
                 // Remove jumps in latch
                 foreach (var pred in node.Predecessors)
                 {
-                    if (pred is { IsLoopLatch: true, Last: IJump })
+                    if (pred is { IsLoopLatch: true, IsConditionalBranch: false, Last: IJump })
                     {
                         pred.Instructions.RemoveAt(pred.Instructions.Count - 1);
                     }
@@ -443,7 +443,7 @@ public class AstTransformPass : IPass
                 // Remove gotos in latch
                 foreach (var pred in node.Predecessors)
                 {
-                    if (pred is { IsLoopLatch: true, Last: Jump })
+                    if (pred is { IsLoopLatch: true, IsConditionalBranch: false, Last: Jump })
                     {
                         pred.Instructions.RemoveAt(pred.Instructions.Count - 1);
                     }
@@ -483,7 +483,8 @@ public class AstTransformPass : IPass
                                 node.EdgeFalse == node.Follow && 
                                 ifStatement.True.OrderNumber + 1 == node.Follow.OrderNumber)
                             {
-                                // Generate an empty else statement if there's a jump to the follow, the follow is the next block sequentially, and it isn't fallthrough
+                                // Generate an empty else statement if there's a jump to the follow,
+                                // the follow is the next block sequentially, and it isn't fallthrough
                                 ifStatement.False = f.CreateBasicBlock();
                             }
                             ifStatement.True.Instructions.Remove(lj);
@@ -507,7 +508,7 @@ public class AstTransformPass : IPass
                         {
                             ifStatement.False.Instructions[^1] = new Break();
                         }
-                        else if (!ifStatement.False.EdgeTrue.IsLoopHead)
+                        else
                         {
                             ifStatement.False.Instructions.Remove(fj);
                         }

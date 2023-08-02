@@ -48,18 +48,15 @@ public class EliminateDeadAssignmentsPass : IPass
                     usedUses.Clear();
                     foreach (var use in phi.Value.Right)
                     {
-                        // If a phi function has multiple uses of the same identifier, only count it as one use for the purposes of this analysis
+                        // If a phi function has multiple uses of the same identifier, only count it as one use for
+                        // the purposes of this analysis
                         if (!use.IsNull && !usedUses.Contains(use))
                         {
                             usageCounts.TryAdd(use, 0);
                             usageCounts[use]++;
                             if (usageCounts[use] == 1)
                             {
-                                if (singleUses.ContainsKey(use))
-                                {
-                                    singleUses.Remove(use);
-                                }
-                                else
+                                if (!singleUses.Remove(use))
                                 {
                                     singleUses.Add(use, phi.Value);
                                 }
@@ -86,6 +83,7 @@ public class EliminateDeadAssignmentsPass : IPass
                     {
                         usageCounts.TryAdd(use, 0);
                         usageCounts[use]++;
+                        singleUses.Remove(use);
                     }
                     foreach (var def in definesSet)
                     {

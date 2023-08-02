@@ -110,6 +110,13 @@ namespace LuaDecompilerCore.CFG
         /// Block falls through to the next logical block in the program order without an explicit jump or return
         /// </summary>
         public bool IsFallthrough => Successors.Count == 1 && !IsJump && !IsReturn;
+
+        /// <summary>
+        /// This block is a branch/leaf off of an if statement
+        /// </summary>
+        public bool IsConditionalBranch =>
+            Predecessors is [{ Follow: not null, HasInstructions: true, IsConditionalJump: true }] &&
+            Predecessors[0].Follow != this;
         
         public bool Empty => Instructions.Count == 0;
         public bool HasInstructions => Instructions.Count > 0;
