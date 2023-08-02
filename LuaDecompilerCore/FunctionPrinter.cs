@@ -261,17 +261,17 @@ public partial class FunctionPrinter
             NewLine();
         }
         
+        if (_insertDebugComments)
+        {
+            Indent();
+            Append($"-- Function ID = {function.FunctionId}");
+            NewLine();
+        }
+        
         if (function.IsAst)
         {
             if (function.Warnings.Count == 0)
             {
-                if (_insertDebugComments)
-                {
-                    Indent();
-                    Append($"-- Function ID = {function.FunctionId}");
-                    NewLine();
-                }
-
                 VisitBasicBlock(function.BeginBlock);
             }
         }
