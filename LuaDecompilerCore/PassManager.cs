@@ -6,6 +6,7 @@ using System.Text;
 using LuaDecompilerCore.Analyzers;
 using LuaDecompilerCore.IR;
 using LuaDecompilerCore.Passes;
+using LuaDecompilerCore.Utilities;
 
 namespace LuaDecompilerCore;
 
@@ -77,6 +78,8 @@ public class PassManager
     public record struct PassRegistration(string Name, IPass Pass);
 
     private readonly List<PassRegistration> _passes;
+    private readonly List<Interval> _loopsUntilUnchanged;
+    private int _loopsUntilUnchangedIndex;
     private readonly IReadOnlySet<string> _dumpIrPasses;
     private readonly bool _dumpAllIrPasses;
     private readonly IReadOnlySet<string> _dumpDotGraphPasses;
@@ -86,6 +89,8 @@ public class PassManager
     public PassManager(DecompilationOptions options)
     {
         _passes = new List<PassRegistration>();
+        _loopsUntilUnchanged = new List<Interval>();
+        _loopsUntilUnchangedIndex = -1;
         _dumpIrPasses = options.DumpIrPasses;
         _dumpAllIrPasses = _dumpIrPasses.Contains("all");
         _dumpDotGraphPasses = options.DumpDotGraphPasses;
@@ -96,6 +101,36 @@ public class PassManager
     public void AddPass(string name, IPass pass)
     {
         _passes.Add(new PassRegistration(name, pass));
+    }
+
+    /// <summary>
+    /// Begins a set of passes that will be ran in a loop until there are no changes to the IR.
+    /// </summary>
+    public void PushLoopUntilUnchanged()
+    {
+        _loopsUntilUnchanged.Add(new Interval(_passes.Count));
+        _loopsUntilUnchangedIndex++;
+    }
+
+    public void PopLoopUntilUnchanged()
+    {
+        _loopsUntilUnchanged[_loopsUntilUnchangedIndex] =
+            new Interval(_loopsUntilUnchanged[_loopsUntilUnchangedIndex].Begin, _passes.Count);
+        _loopsUntilUnchangedIndex--;
+    }
+
+    private struct LoopState
+    {
+        public bool Changed;
+        public int IterationCount;
+        public string BaseName;
+
+        public LoopState(string baseName)
+        {
+            Changed = false;
+            IterationCount = 0;
+            BaseName = baseName;
+        }
     }
 
     /// <summary>
@@ -113,7 +148,8 @@ public class PassManager
         var irResults = new List<PassIrResult>(_passes.Count);
         var dotGraphResults = new List<PassDotGraphResult>(_passes.Count);
         var functionContexts = ArrayPool<FunctionContext>.Shared.Rent(functions.Count);
-
+        var loopStates = new List<LoopState>(_loopsUntilUnchanged.Count);
+        
         for (var i = 0; i < functions.Count; i++)
         {
             functionContexts[i] = new FunctionContext(context, functions[i]);
@@ -121,40 +157,79 @@ public class PassManager
         
         var printer = new FunctionPrinter();
         string? error = null;
-        foreach (var pass in _passes)
+        for (var p = 0; p < _passes.Count; p++)
         {
+            // See if we need to enter a loop
+            if (_loopsUntilUnchanged.Count > loopStates.Count && 
+                _loopsUntilUnchanged[loopStates.Count].Begin == p)
+            {
+                var baseName = loopStates.Count > 0 ? $"{loopStates[^1].BaseName}_{loopStates[^1].IterationCount}" : "";
+                loopStates.Add(new LoopState(baseName));
+                p--;
+                continue;
+            }
+            
+            // See if we need to leave or restart a loop
+            if (loopStates.Count > 0 && _loopsUntilUnchanged[loopStates.Count - 1].End == p)
+            {
+                var loopState = loopStates[^1];
+                if (loopState.Changed)
+                {
+                    loopState.IterationCount++;
+                    loopState.Changed = false;
+                    loopStates[^1] = loopState;
+                    p = _loopsUntilUnchanged[loopStates.Count - 1].Begin - 1;
+                    continue;
+                }
+                loopStates.RemoveAt(loopStates.Count - 1);
+                p--;
+                continue;
+            }
+
+            var passName = loopStates.Count > 0
+                ? $"{_passes[p].Name}{loopStates[^1].BaseName}_{loopStates[^1].IterationCount}"
+                : _passes[p].Name;
+
+            bool changed = false;
             for (var i = 0; i < functions.Count; i++)
             {
                 if (catchExceptions)
                 {
                     try
                     {
-                        pass.Pass.RunOnFunction(context, functionContexts[i], functions[i]);
+                        changed |= _passes[p].Pass.RunOnFunction(context, functionContexts[i], functions[i]);
                     }
                     catch (Exception e)
                     {
-                        error = $"Exception occurred!\nPass: {pass.Name}\nFunction ID: {i}\n\n{e.Message}\n\n{e.StackTrace}";
+                        error = $"Exception occurred!\nPass: {passName}\nFunction ID: {i}\n\n{e.Message}\n\n{e.StackTrace}";
                         goto Error;
                     }
                 }
                 else
                 {
-                    pass.Pass.RunOnFunction(context, functionContexts[i], functions[i]);
+                    changed |= _passes[p].Pass.RunOnFunction(context, functionContexts[i], functions[i]);
                 }
             }
-            
+
+            if (loopStates.Count > 0)
+            {
+                var state = loopStates[^1];
+                state.Changed |= changed;
+                loopStates[^1] = state;
+            }
+
             // Dump pass IR
-            if (_dumpAllIrPasses || _dumpIrPasses.Contains(pass.Name))
+            if (_dumpAllIrPasses || _dumpIrPasses.Contains(_passes[p].Name))
             {
                 var output = new StringBuilder(128 * 1024);
                 printer.PrintFunctionToStringBuilder(functions[0], output);
-                irResults.Add(new PassIrResult(pass.Name, output.ToString()));
+                irResults.Add(new PassIrResult(passName, output.ToString()));
             }
             
             // Dump dot files
             if (_dumpAllDotGraphPasses || 
-                (_dumpCfgMutatingDotGraphPasses && pass.Pass.MutatesCfg) || 
-                _dumpDotGraphPasses.Contains(pass.Name))
+                (_dumpCfgMutatingDotGraphPasses && _passes[p].Pass.MutatesCfg) || 
+                _dumpDotGraphPasses.Contains(_passes[p].Name))
             {
                 var functionDotResults = new List<FunctionDotGraphResult>();
                 foreach (var f in functions)
@@ -162,7 +237,7 @@ public class PassManager
                     functionDotResults.Add(
                         new FunctionDotGraphResult(f.FunctionId, printer.PrintDotGraphForFunction(f)));
                 }
-                dotGraphResults.Add(new PassDotGraphResult(pass.Name, functionDotResults.ToArray()));
+                dotGraphResults.Add(new PassDotGraphResult(passName, functionDotResults.ToArray()));
             }
         }
         

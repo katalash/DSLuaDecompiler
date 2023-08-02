@@ -680,12 +680,15 @@ public class Lua50Decompiler : ILanguageDecompiler
         passManager.AddPass("eliminate-dead-phi-1", new EliminateDeadAssignmentsPass(true));
         passManager.AddPass("eliminate-unused-phi", new EliminateUnusedPhiFunctionsPass());
         passManager.AddPass("detect-generic-list-initializers-1", new DetectGenericListInitializersPass());
+        
+        passManager.PushLoopUntilUnchanged();
         passManager.AddPass("expression-propagation-1", new ExpressionPropagationPass());
         passManager.AddPass("detect-generic-list-initializers-2", new DetectGenericListInitializersPass());
         passManager.AddPass("detect-list-initializers", new DetectListInitializersPass());
-
         passManager.AddPass("merge-compound-conditionals", new MergeCompoundConditionalsPass());
         passManager.AddPass("merge-conditional-assignments", new MergeConditionalAssignmentsPass());
+        passManager.PopLoopUntilUnchanged();
+
         passManager.AddPass("detect-loops", new DetectLoopsPass());
         passManager.AddPass("detect-break-continue", new DetectLoopBreakContinuePass());
         passManager.AddPass("detect-two-way-conditionals", new DetectTwoWayConditionalsPass());

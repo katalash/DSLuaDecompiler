@@ -19,6 +19,12 @@ public struct Interval
         _start = value;
         _range = 1;
     }
+    
+    public Interval(int beginInclusive, int endExclusive)
+    {
+        _start = beginInclusive;
+        _range = endExclusive - beginInclusive;
+    }
 
     /// <summary>
     /// The first value in the interval inclusive
