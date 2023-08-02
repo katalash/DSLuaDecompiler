@@ -12,7 +12,7 @@ namespace LuaDecompilerCore.Passes;
 /// </summary>
 public class DetectTwoWayConditionalsPass : IPass
 {
-    public void RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
+    public bool RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
     {
         var debugVisited = new HashSet<CFG.BasicBlock>();
         var dominance = functionContext.GetAnalysis<DominanceAnalyzer>();
@@ -177,5 +177,7 @@ public class DetectTwoWayConditionalsPass : IPass
         {
             u.Follow = f.EndBlock;
         }
+
+        return false;
     }
 }

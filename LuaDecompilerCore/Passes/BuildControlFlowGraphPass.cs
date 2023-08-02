@@ -16,7 +16,7 @@ public class BuildControlFlowGraphPass : IPass
 {
     public bool MutatesCfg => true;
     
-    public void RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
+    public bool RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
     {
         // Before CFG creation there should be only a single block. Save the instructions and clear the block list
         Debug.Assert(f.BlockList.Count == 1);
@@ -217,5 +217,7 @@ public class BuildControlFlowGraphPass : IPass
         }
 
         f.BlockList.Add(f.EndBlock);
+
+        return true;
     }
 }

@@ -10,15 +10,16 @@ namespace LuaDecompilerCore.Passes;
 /// </summary>
 public class EliminateRedundantAssignmentsPass : IPass
 {
-    public void RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
+    public bool RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
     {
+        var changed = false;
         foreach (var b in f.BlockList)
         {
-            for (int i = 0; i < b.Instructions.Count; i++)
+            for (var i = 0; i < b.Instructions.Count; i++)
             {
-                // If we encounter a closure we must skip instructions equal to the number of upvalues, as the assignments that follow are
-                // critical for upvalue binding analysis
-                if (b.Instructions[i] is Assignment a && a.Right is Closure c)
+                // If we encounter a closure we must skip instructions equal to the number of upValues, as the
+                // assignments that follow are critical for upValue binding analysis
+                if (b.Instructions[i] is Assignment { Right: Closure c })
                 {
                     i += c.Function.UpValueCount;
                 }
@@ -29,9 +30,12 @@ public class EliminateRedundantAssignmentsPass : IPass
                     {
                         b.Instructions.RemoveAt(i);
                         i--;
+                        changed = true;
                     }
                 }
             }
         }
+
+        return changed;
     }
 }

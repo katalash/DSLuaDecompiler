@@ -8,7 +8,7 @@ namespace LuaDecompilerCore.Passes;
 /// </summary>
 public class ValidateJumpDestinationLabelsPass : IPass
 {
-    public void RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
+    public bool RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
     {
         foreach (var b in f.BlockList)
         {
@@ -21,5 +21,7 @@ public class ValidateJumpDestinationLabelsPass : IPass
                 }
             }
         }
+
+        return false;
     }
 }

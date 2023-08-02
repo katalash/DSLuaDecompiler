@@ -9,5 +9,5 @@ public interface IPass
 {
     public bool MutatesCfg => false;
     
-    public void RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f);
+    public bool RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f);
 }

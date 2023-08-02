@@ -8,7 +8,7 @@ namespace LuaDecompilerCore.Passes;
 /// </summary>
 public class ResolveClosureUpValues53Pass : IPass
 {
-    public void RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
+    public bool RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
     {
         foreach (var c in f.Closures)
         {
@@ -47,5 +47,7 @@ public class ResolveClosureUpValues53Pass : IPass
                 }
             }
         }*/
+
+        return false;
     }
 }

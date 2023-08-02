@@ -94,6 +94,7 @@ public class LocalVariablesAnalyzer : IAnalyzer
 
             // Set of recently used registers that are candidates for locals
             var recentlyUsed = new Dictionary<uint, Identifier>(b.Instructions.Count / 2);
+            
             for (var i = 0; i < b.Instructions.Count; i++)
             {
                 // First add registers such the set contains all the registers used up to this point

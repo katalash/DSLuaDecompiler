@@ -15,8 +15,10 @@ public class EliminateDeadAssignmentsPass : IPass
         _phiOnly = phiOnly;
     }
     
-    public void RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
+    public bool RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
     {
+        var irChanged = false;
+        
         // GetDefines and GetUses calls have a lot of allocation overhead so reusing the same set has huge perf gains.
         var definesSet = new HashSet<Identifier>(2);
         var usesSet = new HashSet<Identifier>(10);
@@ -102,6 +104,7 @@ public class EliminateDeadAssignmentsPass : IPass
                     if (usageCounts[phi.Value.Left] == 0)
                     {
                         changed = true;
+                        irChanged = true;
                         phiToRemove.Add(phi.Value.Left);
                     }
 
@@ -112,6 +115,7 @@ public class EliminateDeadAssignmentsPass : IPass
                         singleUses[singleUses[phi.Value.Left].Left] == phi.Value)
                     {
                         changed = true;
+                        irChanged = true;
                         phiToRemove.Add(phi.Value.Left);
                         singleUses[phi.Value.Left].RenameUses(phi.Value.Left, Identifier.GetNull());
                     }
@@ -141,5 +145,7 @@ public class EliminateDeadAssignmentsPass : IPass
                 toRemove.ForEach(x => b.Instructions.Remove(x));
             }
         }
+
+        return irChanged;
     }
 }

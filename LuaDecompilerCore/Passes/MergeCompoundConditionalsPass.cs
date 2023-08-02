@@ -11,9 +11,10 @@ namespace LuaDecompilerCore.Passes;
 public class MergeCompoundConditionalsPass : IPass
 {
     public bool MutatesCfg => true;
-    public void RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
+    public bool RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
     {
-        bool changed = true;
+        var irChanged = false;
+        var changed = true;
         while (changed)
         {
             changed = false;
@@ -58,6 +59,7 @@ public class MergeCompoundConditionalsPass : IPass
                                     tj.Condition, BinOp.OperationType.OpOr);
                             }
                             n.Condition = newCond;
+                            n.Absorb(tj);
                             if (t.Follow != null)
                             {
                                 Debug.Assert(node.Follow != null);
@@ -74,12 +76,14 @@ public class MergeCompoundConditionalsPass : IPass
                             f.BlockList.Remove(t);
                             e.Predecessors.Remove(t);
                             t.EdgeFalse.Predecessors.Remove(t);
+                            irChanged = true;
                             changed = true;
                         }
                         else if (t.EdgeFalse == e)
                         {
                             var newCond = new BinOp(n.Condition, tj.Condition, BinOp.OperationType.OpAnd);
                             n.Condition = newCond;
+                            n.Absorb(tj);
                             if (t.Follow != null)
                             {
                                 Debug.Assert(node.Follow != null);
@@ -91,6 +95,7 @@ public class MergeCompoundConditionalsPass : IPass
                             t.EdgeTrue.Predecessors[i] = node;
                             e.Predecessors.Remove(t);
                             f.BlockList.Remove(t);
+                            irChanged = true;
                             changed = true;
                         }
                     }
@@ -101,6 +106,7 @@ public class MergeCompoundConditionalsPass : IPass
                             var newCond = new BinOp(new UnaryOp(n.Condition, UnaryOp.OperationType.OpNot), 
                                 ej.Condition, BinOp.OperationType.OpOr);
                             n.Condition = newCond;
+                            n.Absorb(ej);
                             if (e.Follow != null)
                             {
                                 Debug.Assert(node.Follow != null);
@@ -113,6 +119,7 @@ public class MergeCompoundConditionalsPass : IPass
                             e.EdgeFalse.Predecessors[i] = node;
                             t.Predecessors.Remove(e);
                             f.BlockList.Remove(e);
+                            irChanged = true;
                             changed = true;
                         }
                         else if (e.EdgeFalse == t)
@@ -139,5 +146,7 @@ public class MergeCompoundConditionalsPass : IPass
             }
         }
         functionContext.InvalidateAnalysis<DominanceAnalyzer>();
+
+        return irChanged;
     }
 }

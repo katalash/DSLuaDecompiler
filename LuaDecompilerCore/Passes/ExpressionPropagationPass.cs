@@ -10,8 +10,10 @@ namespace LuaDecompilerCore.Passes;
 /// </summary>
 public class ExpressionPropagationPass : IPass
 {
-    public void RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
+    public bool RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
     {
+        var irChanged = false;
+        
         // GetUses calls have a lot of allocation overhead so reusing the same set has huge perf gains.
         var usesSet = new HashSet<Identifier>(10);
 
@@ -59,6 +61,7 @@ public class ExpressionPropagationPass : IPass
                             var replaced = inst.ReplaceUses(use, a.Right);
                             if (a.Block != null && replaced)
                             {
+                                irChanged = true;
                                 changed = true;
                                 inst.Absorb(a);
                                 a.Block.Instructions.Remove(a);
@@ -95,11 +98,14 @@ public class ExpressionPropagationPass : IPass
                         b.Instructions.RemoveAt(i - 1);
                         i--;
                         changed = true;
+                        irChanged = true;
                     }
                 }
             }
         } while (changed);
         
         functionContext.InvalidateAnalysis<IdentifierDefinitionUseAnalyzer>();
+
+        return irChanged;
     }
 }

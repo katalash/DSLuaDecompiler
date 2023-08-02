@@ -10,7 +10,7 @@ namespace LuaDecompilerCore.Passes;
 /// </summary>
 public class DropSsaSubscriptsPass : IPass
 {
-    public void RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
+    public bool RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
     {
         var dominance = functionContext.GetAnalysis<DominanceAnalyzer>();
         
@@ -128,5 +128,7 @@ public class DropSsaSubscriptsPass : IPass
             });
         }
         Visit(f.BeginBlock, new Dictionary<Identifier, Identifier>());
+
+        return true;
     }
 }

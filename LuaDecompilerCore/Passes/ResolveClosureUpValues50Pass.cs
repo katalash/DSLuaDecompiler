@@ -9,8 +9,10 @@ namespace LuaDecompilerCore.Passes;
 /// </summary>
 public class ResolveClosureUpValues50Pass : IPass
 {
-    public void RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
+    public bool RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
     {
+        var changed = false;
+        
         foreach (var b in f.BlockList)
         {
             for (var i = 0; i < b.Instructions.Count; i++)
@@ -32,6 +34,7 @@ public class ResolveClosureUpValues50Pass : IPass
                             f.ClosureBoundRegisters.Add(ir.Identifier.RegNum);
                             a.Absorb(a2);
                             b.Instructions.RemoveAt(i + 1);
+                            changed = true;
                         }
                         else
                         {
@@ -41,5 +44,7 @@ public class ResolveClosureUpValues50Pass : IPass
                 }
             }
         }
+
+        return changed;
     }
 }

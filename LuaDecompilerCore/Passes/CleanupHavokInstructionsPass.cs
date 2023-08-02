@@ -10,8 +10,9 @@ namespace LuaDecompilerCore.Passes;
 /// </summary>
 public class CleanupHavokInstructionsPass : IPass
 {
-    public void RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
+    public bool RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
     {
+        bool changed = false;
         foreach (var b in f.BlockList)
         {
             for (var i = b.Instructions.Count - 1; i > 0; i--)
@@ -25,12 +26,16 @@ public class CleanupHavokInstructionsPass : IPass
                     else if (b.Instructions[i - 1] is Assignment a)
                     {
                         a.LocalAssignments = d1.Locals;
+                        a.Absorb(d1);
                     }
 
+                    changed = true;
                     b.Instructions.RemoveAt(i);
                     i++;
                 }
             }
         }
+
+        return changed;
     }
 }

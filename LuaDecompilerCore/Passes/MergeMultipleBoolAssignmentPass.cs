@@ -14,8 +14,9 @@ namespace LuaDecompilerCore.Passes;
 /// </summary>
 public class MergeMultipleBoolAssignmentPass : IPass
 {
-    public void RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
+    public bool RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
     {
+        var changed = false;
         foreach (var b in f.BlockList)
         {
             for (var i = 0; i < b.Instructions.Count - 2; i++)
@@ -45,8 +46,11 @@ public class MergeMultipleBoolAssignmentPass : IPass
                     }
                     a1.Absorb(a2);
                     b.Instructions.RemoveAt(i + 1);
+                    changed = true;
                 }
             }
         }
+
+        return changed;
     }
 }

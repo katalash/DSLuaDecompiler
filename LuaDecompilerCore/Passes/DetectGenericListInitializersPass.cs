@@ -9,8 +9,9 @@ namespace LuaDecompilerCore.Passes;
 /// </summary>
 public class DetectGenericListInitializersPass : IPass
 {
-    public void RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
+    public bool RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
     {
+        bool changed = false;
         foreach (var b in f.BlockList)
         {
             for (var i = 0; i < b.Instructions.Count; i++)
@@ -44,6 +45,7 @@ public class DetectGenericListInitializersPass : IPass
                             }
                             a.Absorb(a2);
                             b.Instructions.RemoveAt(i + 1);
+                            changed = true;
                         }
                         else
                         {
@@ -53,5 +55,7 @@ public class DetectGenericListInitializersPass : IPass
                 }
             }
         }
+
+        return changed;
     }
 }

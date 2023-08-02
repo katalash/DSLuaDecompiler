@@ -4,8 +4,9 @@ namespace LuaDecompilerCore.Passes;
 
 public class RewriteVarargListAssignmentPass : IPass
 {
-    public void RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
+    public bool RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
     {
+        var changed = false;
         foreach (var b in f.BlockList)
         {
             for (var i = 0; i < b.Instructions.Count - 2; i++)
@@ -21,8 +22,11 @@ public class RewriteVarargListAssignmentPass : IPass
                     a1.Absorb(a2);
                     a1.Absorb(a3);
                     b.Instructions.RemoveRange(i + 1, 2);
+                    changed = true;
                 }
             }
         }
+
+        return changed;
     }
 }

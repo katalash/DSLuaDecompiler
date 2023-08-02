@@ -13,7 +13,7 @@ namespace LuaDecompilerCore.Passes;
 /// </summary>
 public class SsaTransformPass : IPass
 {
-    public void RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
+    public bool RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
     {
         // GetDefines and GetUses calls have a lot of allocation overhead so reusing the same set has huge perf gains.
         var definesSet = new HashSet<Identifier>(2);
@@ -204,5 +204,7 @@ public class SsaTransformPass : IPass
 
         // Save rename counts for future use
         f.RenamedRegisterCounts = counters;
+
+        return true;
     }
 }

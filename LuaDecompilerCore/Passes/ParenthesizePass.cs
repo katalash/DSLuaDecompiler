@@ -8,7 +8,7 @@ namespace LuaDecompilerCore.Passes;
 /// </summary>
 public class ParenthesizePass : IPass
 {
-    public void RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
+    public bool RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
     {
         foreach (var b in f.BlockList)
         {
@@ -17,5 +17,7 @@ public class ParenthesizePass : IPass
                 i.Parenthesize();
             }
         }
+
+        return false;
     }
 }

@@ -8,8 +8,10 @@ public class MergeConditionalJumpsPass : IPass
     /// <summary>
     /// Simple analysis pass to recognize lua conditional jumping patterns and merge them into a single instruction
     /// </summary>
-    public void RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
+    public bool RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
     {
+        var changed = false;
+        
         // Lua conditional jumps often follow this pattern when naively translated into the IR:
         //   if REGA == b then goto Label_1:
         //   goto Label_2:
@@ -47,8 +49,11 @@ public class MergeConditionalJumpsPass : IPass
                     jmp1.Absorb(jmp2);
                     b.Instructions.RemoveRange(i + 1, jmp1.Destination.UsageCount <= 0 ? 2 : 1);
                     jmp1.Destination = jmp2.Destination;
+                    changed = true;
                 }
             }
         }
+
+        return changed;
     }
 }

@@ -11,8 +11,9 @@ namespace LuaDecompilerCore.Passes;
 /// </summary>
 public class DetectLocalVariablesPass : IPass
 {
-    public void RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
+    public bool RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
     {
+        var changed = false;
         var dominance = functionContext.GetAnalysis<DominanceAnalyzer>();
         var definesSet = new HashSet<Identifier>(2);
         
@@ -81,6 +82,8 @@ public class DetectLocalVariablesPass : IPass
                     {
                         e.IsLocalDeclaration = false;
                     }
+
+                    changed = true;
                 }
                 else
                 {
@@ -97,5 +100,6 @@ public class DetectLocalVariablesPass : IPass
             root.Add(Identifier.GetRegister(i));
         }
         Visit(f.BeginBlock, root);
+        return changed;
     }
 }

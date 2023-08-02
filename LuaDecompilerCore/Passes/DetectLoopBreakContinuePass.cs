@@ -12,8 +12,9 @@ namespace LuaDecompilerCore.Passes;
 /// </summary>
 public class DetectLoopBreakContinuePass : IPass
 {
-    public void RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
+    public bool RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
     {
+        var changed = false;
         var dominance = functionContext.GetAnalysis<DominanceAnalyzer>();
         var visited = new HashSet<CFG.BasicBlock>();
         void Visit(CFG.BasicBlock b, CFG.BasicBlock? loopHead)
@@ -44,12 +45,16 @@ public class DetectLoopBreakContinuePass : IPass
                     // Mark breaks
                     if (successor.Successors.Contains(nextHead.LoopFollow))
                     {
+                        if (!successor.IsBreakNode || b.LoopBreakFollow != nextHead.LoopFollow)
+                            changed = true;
                         successor.IsBreakNode = true;
                         b.LoopBreakFollow = nextHead.LoopFollow;
                     }
                     // Mark continues
                     if (successor.Successors.Contains(nextHead))
                     {
+                        if (!successor.IsContinueNode || b.LoopContinueFollow != nextHead.LoopContinueFollow)
+                            changed = true;
                         successor.IsContinueNode = true;
                         b.LoopContinueFollow = nextHead.LoopContinueFollow;
                     }
@@ -57,5 +62,7 @@ public class DetectLoopBreakContinuePass : IPass
             }
         }
         Visit(f.BeginBlock, null);
+
+        return changed;
     }
 }

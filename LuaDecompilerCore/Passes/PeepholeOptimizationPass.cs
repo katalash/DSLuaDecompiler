@@ -7,8 +7,9 @@ namespace LuaDecompilerCore.Passes;
 /// </summary>
 public class PeepholeOptimizationPass : IPass
 {
-    public void RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
+    public bool RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
     {
+        var changed = false;
         foreach (var b in f.BlockList)
         {
             for (var i = 0; i < b.Instructions.Count; i++)
@@ -24,8 +25,11 @@ public class PeepholeOptimizationPass : IPass
                     }
                     jmp1.Destination = jmp2.Destination;
                     dest = b.Instructions[b.Instructions.IndexOf(jmp1.Destination) + 1];
+                    changed = true;
                 }
             }
         }
+
+        return changed;
     }
 }

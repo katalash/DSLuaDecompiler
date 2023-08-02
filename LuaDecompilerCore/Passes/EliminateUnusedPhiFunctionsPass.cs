@@ -8,8 +8,10 @@ namespace LuaDecompilerCore.Passes;
 /// </summary>
 public class EliminateUnusedPhiFunctionsPass : IPass
 {
-    public void RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
+    public bool RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
     {
+        bool irChanged = false;
+        
         // GetUses calls have a lot of allocation overhead so reusing the same set has huge perf gains.
         var usesSet = new HashSet<Identifier>(10);
         
@@ -62,7 +64,13 @@ public class EliminateUnusedPhiFunctionsPass : IPass
                     phiToRemove.Add(phi.Key);
                 }
             }
+
+            if (phiToRemove.Count > 0)
+                irChanged = true;
+            
             phiToRemove.ForEach(x => b.PhiFunctions.Remove(x));
         }
+
+        return irChanged;
     }
 }

@@ -19,9 +19,10 @@ public class MergeConditionalAssignmentsPass : IPass
 {
     public bool MutatesCfg => true;
     
-    public void RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
+    public bool RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
     {
-        bool changed = true;
+        var irChanged = false;
+        var changed = true;
         while (changed)
         {
             changed = false;
@@ -53,7 +54,7 @@ public class MergeConditionalAssignmentsPass : IPass
                                 IsSingleAssignment: true,
                                 Left: { Identifier.IsRegister: true } trueAssignee,
                                 Right: Constant { ConstType: Constant.ConstantType.ConstBool, Boolean: true }
-                            }
+                            } trueAssignment
                         } edgeFalse
                     } && follow == edgeFalse.Successors[0] &&
                     falseAssignee.Identifier.RegNum == trueAssignee.Identifier.RegNum
@@ -82,6 +83,8 @@ public class MergeConditionalAssignmentsPass : IPass
                     falseAssignment.Right = jump.Condition;
                     if (falseAssignment.Right is BinOp binOp)
                         binOp.NegateConditionalExpression();
+                    falseAssignment.Absorb(jump);
+                    falseAssignment.Absorb(trueAssignment);
                     b.Successors = follow.Successors;
                     foreach (var instruction in follow.Instructions)
                     {
@@ -98,10 +101,13 @@ public class MergeConditionalAssignmentsPass : IPass
                     f.BlockList.RemoveAll(block => block == edgeFalse || block == edgeTrue || block == follow);
 
                     changed = true;
+                    irChanged = true;
                     break;
                 }
             }
         }
         functionContext.InvalidateAnalysis<DominanceAnalyzer>();
+
+        return irChanged;
     }
 }
