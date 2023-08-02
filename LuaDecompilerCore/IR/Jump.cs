@@ -39,6 +39,11 @@ namespace LuaDecompilerCore.IR
             return Condition.ReplaceUses(orig, sub);
         }
 
+        public override int UseCount(Identifier use)
+        {
+            return Condition.UseCount(use);
+        }
+
         public override List<Expression> GetExpressions()
         {
             return Condition.GetExpressions();

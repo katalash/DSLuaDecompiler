@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace LuaDecompilerCore.IR
 {
@@ -203,6 +204,12 @@ namespace LuaDecompilerCore.IR
                 replaced = replaced || (Right != null && Right.ReplaceUses(orig, sub));
             }
             return replaced;
+        }
+
+        public override int UseCount(Identifier use)
+        {
+            return LeftList.Where(id => id.HasIndex)
+                       .Sum(id => id.UseCount(use)) + (Right?.UseCount(use) ?? 0);
         }
 
         public override bool MatchAny(Func<IMatchable, bool> condition)

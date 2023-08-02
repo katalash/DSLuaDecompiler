@@ -99,6 +99,8 @@ namespace LuaDecompilerCore.IR
 
         public virtual bool ReplaceUses(Identifier orig, Expression sub) { return false; }
 
+        public virtual int UseCount(Identifier use) { return 0; }
+        
         public override string ToString()
         {
             return FunctionPrinter.DebugPrintInstruction(this);

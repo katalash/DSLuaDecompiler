@@ -31,6 +31,8 @@ namespace LuaDecompilerCore.IR
 
         public virtual bool ReplaceUses(Identifier original, Expression sub) { return false; }
 
+        public virtual int UseCount(Identifier use) { return 0; }
+
         public virtual void Parenthesize() { }
 
         public virtual List<Expression> GetExpressions()
@@ -191,6 +193,11 @@ namespace LuaDecompilerCore.IR
             }
         }
 
+        public override int UseCount(Identifier use)
+        {
+            return Function.UpValueBindings.Count(binding => use == binding);
+        }
+
         public override bool MatchAny(Func<IMatchable, bool> condition)
         {
             return condition.Invoke(this);
@@ -281,6 +288,12 @@ namespace LuaDecompilerCore.IR
                 changed = true;
             }
             return changed;
+        }
+
+        public override int UseCount(Identifier use)
+        {
+            var count = TableIndices.Sum(i => i.UseCount(use));
+            return count + (Identifier == use ? 1 : 0);
         }
 
         public override List<Expression> GetExpressions()
@@ -388,6 +401,11 @@ namespace LuaDecompilerCore.IR
             return replaced;
         }
 
+        public override int UseCount(Identifier use)
+        {
+            return Expressions.Sum(e => e.UseCount(use));
+        }
+
         public override List<Expression> GetExpressions()
         {
             var ret = new List<Expression> { this };
@@ -478,6 +496,11 @@ namespace LuaDecompilerCore.IR
                 }
             }
             return replaced;
+        }
+
+        public override int UseCount(Identifier use)
+        {
+            return Expressions.Sum(e => e.UseCount(use));
         }
 
         public override List<Expression> GetExpressions()
@@ -781,6 +804,11 @@ namespace LuaDecompilerCore.IR
             return replaced;
         }
 
+        public override int UseCount(Identifier use)
+        {
+            return Left.UseCount(use) + Right.UseCount(use);
+        }
+
         public override List<Expression> GetExpressions()
         {
             var ret = new List<Expression> { this };
@@ -860,6 +888,11 @@ namespace LuaDecompilerCore.IR
             }
 
             return Expression.ReplaceUses(original, sub);
+        }
+
+        public override int UseCount(Identifier use)
+        {
+            return Expression.UseCount(use);
         }
 
         public override List<Expression> GetExpressions()
@@ -992,6 +1025,11 @@ namespace LuaDecompilerCore.IR
                 }
             }
             return replaced;
+        }
+
+        public override int UseCount(Identifier use)
+        {
+            return Args.Sum(a => a.UseCount(use)) + Function.UseCount(use);
         }
 
         public override List<Expression> GetExpressions()

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace LuaDecompilerCore.IR
 {
@@ -60,6 +61,11 @@ namespace LuaDecompilerCore.IR
                 }
             }
             return replace;
+        }
+
+        public override int UseCount(Identifier use)
+        {
+            return ReturnExpressions.Sum(e => e.UseCount(use));
         }
         
         public override bool MatchAny(Func<IMatchable, bool> condition)

@@ -71,7 +71,7 @@ public class IdentifierDefinitionUseAnalyzer : IAnalyzer
                 foreach (var use in instruction.GetUses(usesSet, true))
                 {
                     if (!definesSet.Contains(use))
-                        GetIdentifierInfo(use).UseCount++;
+                        GetIdentifierInfo(use).UseCount += instruction.UseCount(use);
                 }
             }
         }
