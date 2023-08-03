@@ -26,8 +26,6 @@ public class ResolveClosureUpValues50Pass : IPass
                         if (b.Instructions[i + 1] is ClosureBinding binding)
                         {
                             c.Function.UpValueBindings.Add(binding.Identifier);
-                            if (binding.Identifier.IsRegister)
-                                f.ClosureBoundRegisters.Add(binding.Identifier.RegNum);
                             a.Absorb(binding);
                             b.Instructions.RemoveAt(i + 1);
                             changed = true;

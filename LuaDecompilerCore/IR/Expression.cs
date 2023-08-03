@@ -195,7 +195,9 @@ namespace LuaDecompilerCore.IR
 
         public override int UseCount(Identifier use)
         {
-            return Function.UpValueBindings.Count(binding => use == binding);
+            // Bit of a hack but multiplying the use count by 2 ensures that the identifier gets marked as a local and
+            // expression propagation doesn't try to inline.
+            return Function.UpValueBindings.Count(binding => use == binding) * 2;
         }
 
         public override bool MatchAny(Func<IMatchable, bool> condition)

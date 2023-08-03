@@ -77,14 +77,7 @@ namespace LuaDecompilerCore.IR
         public readonly List<Identifier> UpValueBindings = new();
 
         public readonly Dictionary<Identifier, string> IdentifierNames = new();
-
-        /// <summary>
-        /// Registers that are used by child closures via up values
-        /// </summary>
-        public HashSet<uint> ClosureBoundRegisters { get; private set; } = new();
-
-        public bool ClosureBound(Identifier identifier) => ClosureBoundRegisters.Contains(identifier.RegNum);
-
+        
         public readonly List<string> Warnings = new();
 
         private int _currentBlockId;

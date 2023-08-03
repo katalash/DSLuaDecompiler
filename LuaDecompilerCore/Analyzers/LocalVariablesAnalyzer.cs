@@ -180,12 +180,6 @@ public class LocalVariablesAnalyzer : IAnalyzer
 
                     var def = b.Instructions[i].GetSingleDefine(true) ?? throw new Exception();
 
-                    // Skip upValue
-                    if (function.ClosureBound(def))
-                    {
-                        continue;
-                    }
-
                     // Move on if it's a known local
                     if (thisLocalRegs.Contains(def.RegNum))
                     {
@@ -265,7 +259,7 @@ public class LocalVariablesAnalyzer : IAnalyzer
             {
                 if (inst.GetSingleDefine(true) is { } def)
                 {
-                    if (!localRegs.Contains(def.RegNum) && !function.ClosureBound(def))
+                    if (!localRegs.Contains(def.RegNum))
                     {
                         firstTempDef = (int)def.RegNum;
                         if (inst is Assignment { IsSelfAssignment: true })

@@ -44,7 +44,7 @@ public class ExpressionPropagationPass : IPass
                               ((i - 1 >= 0 && b.Instructions[i - 1] == definingInstruction) || 
                                inst is Assignment { IsListAssignment: true }) && 
                               !localVariableAnalysis.LocalVariables.Contains(use)) || 
-                             a.PropagateAlways) && !f.ClosureBound(a.Left.Identifier))
+                             a.PropagateAlways))
                         {
                             // Don't substitute if this use's define was defined before the code gen for the function
                             // call even began

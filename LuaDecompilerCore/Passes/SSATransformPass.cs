@@ -111,10 +111,6 @@ public class SsaTransformPass : IPass
                 inst.GetUses(usesSet, true);
                 foreach (var use in usesSet)
                 {
-                    if (f.ClosureBound(use))
-                    {
-                        continue;
-                    }
                     if (stacks[use.RegNum].Count != 0)
                     {
                         inst.RenameUses(use, stacks[use.RegNum].Peek());
@@ -124,10 +120,6 @@ public class SsaTransformPass : IPass
                 inst.GetDefines(definesSet, true);
                 foreach (var def in definesSet)
                 {
-                    if (f.ClosureBound(def))
-                    {
-                        continue;
-                    }
                     inst.RenameDefines(def, NewName(def));
                 }
             }
@@ -184,10 +176,6 @@ public class SsaTransformPass : IPass
                 inst.GetDefines(definesSet, true);
                 foreach (var def in definesSet)
                 {
-                    if (f.ClosureBound(def))
-                    {
-                        continue;
-                    }
                     stacks[def.RegNum].Pop();
                 }
             }
