@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Text;
 using LuaDecompilerCore.IR;
 using LuaDecompilerCore.Passes;
@@ -628,9 +629,33 @@ public class Lua50Decompiler : ILanguageDecompiler
 
                     break;
                 case Lua50Ops.OpClosure:
-                    assignment = new Assignment(irFunction.GetRegister(a), new Closure(irFunction.LookupClosure(bx)));
+                    var closureFunction = irFunction.LookupClosure(bx);
+                    assignment = new Assignment(
+                        irFunction.GetRegister(a), 
+                        new Closure(closureFunction)) { OpLocation = i / 4 };
                     CheckLocal(assignment, function, pc);
                     instructions.Add(assignment);
+                    
+                    // Closure instructions will be followed by a move or get upValue instruction for each upValue in
+                    // the child closure. Despite the op-code's semantics, the Lua interpreter does not treat the
+                    // operation as an assignment but rather a way to simply bind the value in "B" to the closure
+                    for (var j = 0; j < closureFunction.UpValueCount; j++)
+                    {
+                        i += 4;
+                        Debug.Assert(i < function.Bytecode.Length);
+                        var upValueInstruction = br.ReadUInt32();
+                        var upValueOpCode = upValueInstruction & 0x3F;
+                        var opB = (upValueInstruction >> 15) & 0x1FF;
+                        var upValueIdentifier = upValueOpCode switch
+                        {
+                            (uint)Lua50Ops.OpMove => Identifier.GetRegister(opB),
+                            (uint)Lua50Ops.OpGetUpVal => Identifier.GetUpValue(opB),
+                            _ => throw new Exception(
+                                "Expected a move or getUpValue instruction for closure upValue binding")
+                        };
+                        var closureBinding = new ClosureBinding(upValueIdentifier) { OpLocation = i / 4 };
+                        instructions.Add(closureBinding);
+                    }
                     break;
                 default:
                     switch (_opProperties[opcode].OpMode)
@@ -657,7 +682,8 @@ public class Lua50Decompiler : ILanguageDecompiler
 
             foreach (var inst in instructions)
             {
-                inst.OpLocation = i / 4;
+                if (inst.OpLocation == -1)
+                    inst.OpLocation = i / 4;
                 inst.InstructionIndices = new Interval(irFunction.BeginBlock.Instructions.Count);
                 irFunction.BeginBlock.Instructions.Add(inst);
             }

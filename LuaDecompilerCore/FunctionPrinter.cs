@@ -176,6 +176,9 @@ public partial class FunctionPrinter
             case Break:
                 VisitBreak();
                 break;
+            case ClosureBinding closureBinding:
+                VisitClosureBinding(closureBinding);
+                break;
             case Continue:
                 VisitContinue();
                 break;
@@ -679,6 +682,12 @@ public partial class FunctionPrinter
         {
             VisitExpression(assignment.Right);
         }
+    }
+
+    private void VisitClosureBinding(ClosureBinding closureBinding)
+    {
+        Append("bind ");
+        VisitIdentifier(closureBinding.Identifier);
     }
 
     private void VisitBreak()

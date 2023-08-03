@@ -14,7 +14,7 @@ namespace LuaDecompilerCore.IR
         /// <summary>
         /// The original lua bytecode op within the function that generated this instruction
         /// </summary>
-        public int OpLocation = 0;
+        public int OpLocation = -1;
 
         /// <summary>
         /// Range of instruction indices in the original IR that this instruction represents

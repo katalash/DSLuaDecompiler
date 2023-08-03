@@ -135,8 +135,8 @@ public sealed class DecompilationTester
                 !f1.Bytecode.SequenceEqual(f2.Bytecode))
             {
                 mismatchedIds.Add(f2.FunctionId);
-                mismatchedCompiledDisassembled.Add(decompiler.DisassembleLuaFunction(languageDecompiler, f1));
-                mismatchedRecompiledDisassembled.Add(decompiler.DisassembleLuaFunction(languageDecompiler, f2));
+                mismatchedRecompiledDisassembled.Add(decompiler.DisassembleLuaFunction(languageDecompiler, f1));
+                mismatchedCompiledDisassembled.Add(decompiler.DisassembleLuaFunction(languageDecompiler, f2));
                 functionMatched = false;
             }
 

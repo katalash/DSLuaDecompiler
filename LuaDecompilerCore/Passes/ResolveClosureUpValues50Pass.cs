@@ -23,22 +23,18 @@ public class ResolveClosureUpValues50Pass : IPass
                     // Fetch the closure bindings from the following instructions
                     for (var j = 0; j < c.Function.UpValueCount; j++)
                     {
-                        if (b.Instructions[i + 1] is Assignment 
-                            { 
-                                IsSingleAssignment: true, 
-                                Left.Identifier.RegNum: 0, 
-                                Right: IdentifierReference { Identifier.IsRegister: true } ir 
-                            } a2)
+                        if (b.Instructions[i + 1] is ClosureBinding binding)
                         {
-                            c.Function.UpValueBindings.Add(ir.Identifier);
-                            f.ClosureBoundRegisters.Add(ir.Identifier.RegNum);
-                            a.Absorb(a2);
+                            c.Function.UpValueBindings.Add(binding.Identifier);
+                            if (binding.Identifier.IsRegister)
+                                f.ClosureBoundRegisters.Add(binding.Identifier.RegNum);
+                            a.Absorb(binding);
                             b.Instructions.RemoveAt(i + 1);
                             changed = true;
                         }
                         else
                         {
-                            throw new Exception("Unrecognized upvalue binding pattern following closure");
+                            throw new Exception("Unrecognized up-value binding pattern following closure");
                         }
                     }
                 }
