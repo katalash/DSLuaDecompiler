@@ -62,6 +62,7 @@ public class MergeCompoundConditionalsPass : IPass
                                 newCond = new BinOp(left, tj.Condition, BinOp.OperationType.OpOr);
                             }
                             n.Condition = newCond;
+                            n.OriginalBlock = tj.OriginalBlock;
                             n.Absorb(tj);
                             if (t.Follow != null)
                             {
@@ -87,6 +88,7 @@ public class MergeCompoundConditionalsPass : IPass
                             var newCond = new BinOp(n.Condition, tj.Condition, BinOp.OperationType.OpAnd);
                             n.Condition = newCond;
                             n.Absorb(tj);
+                            n.OriginalBlock = tj.OriginalBlock;
                             if (t.Follow != null)
                             {
                                 Debug.Assert(node.Follow != null);
@@ -114,6 +116,7 @@ public class MergeCompoundConditionalsPass : IPass
                             var newCond = new BinOp(left, ej.Condition, BinOp.OperationType.OpOr);
                             n.Condition = newCond;
                             n.Absorb(ej);
+                            n.OriginalBlock = ej.OriginalBlock;
                             if (e.Follow != null)
                             {
                                 Debug.Assert(node.Follow != null);

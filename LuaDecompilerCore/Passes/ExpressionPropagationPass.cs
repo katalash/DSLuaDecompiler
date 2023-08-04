@@ -41,7 +41,8 @@ public class ExpressionPropagationPass : IPass
                                 Right: not null
                             } a &&
                             ((defineUseAnalysis.UseCount(use) == 1 && 
-                              ((i - 1 >= 0 && b.Instructions[i - 1] == definingInstruction) || 
+                              ((i - 1 >= 0 && b.Instructions[i - 1] == definingInstruction &&
+                                definingInstruction.OriginalBlock == inst.OriginalBlock) || 
                                inst is Assignment { IsListAssignment: true }) && 
                               !localVariableAnalysis.LocalVariables.Contains(use)) || 
                              a.PropagateAlways))
@@ -58,15 +59,16 @@ public class ExpressionPropagationPass : IPass
                             {
                                 continue;
                             }
-                            var replaced = inst.ReplaceUses(use, a.Right);
-                            if (a.Block != null && replaced)
+                            
+                            if (inst.ReplaceUses(use, a.Right))
                             {
+                                var definingBlock = f.BlockList[defineUseAnalysis.DefiningInstructionBlock(use)];
                                 irChanged = true;
                                 changed = true;
                                 inst.Absorb(a);
-                                a.Block.Instructions.Remove(a);
+                                definingBlock.Instructions.Remove(a);
                                 f.SsaVariables.Remove(use);
-                                if (b == a.Block)
+                                if (b == definingBlock)
                                 {
                                     i = -1;
                                 }
@@ -105,6 +107,7 @@ public class ExpressionPropagationPass : IPass
         } while (changed);
         
         functionContext.InvalidateAnalysis<IdentifierDefinitionUseAnalyzer>();
+        functionContext.InvalidateAnalysis<LocalVariablesAnalyzer>();
 
         return irChanged;
     }

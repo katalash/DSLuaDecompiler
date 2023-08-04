@@ -191,7 +191,7 @@ namespace LuaDecompilerCore.CFG
         /// <param name="instruction">The instruction to add</param>
         public void AddInstruction(Instruction instruction)
         {
-            instruction.Block = this;
+            instruction.OriginalBlock = BlockId;
             Instructions.Add(instruction);
         }
 
@@ -202,7 +202,6 @@ namespace LuaDecompilerCore.CFG
         /// <param name="instruction">The instruction to insert</param>
         public void InsertInstruction(int index, Instruction instruction)
         {
-            instruction.Block = this;
             Instructions.Insert(0, instruction);
         }
 

@@ -15,11 +15,15 @@ public class IdentifierDefinitionUseAnalyzer : IAnalyzer
     private struct IdentifierInfo
     {
         public Instruction? DefiningInstruction;
+        public int DefiningInstructionBlock;
+        public int DefiningInstructionIndex;
         public int UseCount;
 
         public IdentifierInfo()
         {
             UseCount = 0;
+            DefiningInstructionBlock = -1;
+            DefiningInstructionIndex = -1;
         }
     }
 
@@ -42,8 +46,9 @@ public class IdentifierDefinitionUseAnalyzer : IAnalyzer
 
         var definesSet = new HashSet<Identifier>(2);
         var usesSet = new HashSet<Identifier>(10);
-        foreach (var block in function.BlockList)
+        for (var b = 0; b < function.BlockList.Count; b++)
         {
+            var block = function.BlockList[b];
             foreach (var phi in block.PhiFunctions)
             {
                 definesSet.Clear();
@@ -59,12 +64,15 @@ public class IdentifierDefinitionUseAnalyzer : IAnalyzer
                 }
             }
             
-            foreach (var instruction in block.Instructions)
+            for (var i = 0; i < block.Instructions.Count; i++)
             {
+                var instruction = block.Instructions[i];
                 definesSet.Clear();
                 foreach (var def in instruction.GetDefines(definesSet, true))
                 {
                     GetIdentifierInfo(def).DefiningInstruction = instruction;
+                    GetIdentifierInfo(def).DefiningInstructionBlock = b;
+                    GetIdentifierInfo(def).DefiningInstructionIndex = i;
                 }
                 
                 usesSet.Clear();
@@ -86,6 +94,28 @@ public class IdentifierDefinitionUseAnalyzer : IAnalyzer
             return null;
         
         return GetIdentifierInfo(identifier).DefiningInstruction;
+    }
+    
+    public int DefiningInstructionBlock(Identifier identifier)
+    {
+        if (_identifierInfos == null)
+            throw new Exception("Analysis not run");
+        
+        if (!identifier.IsRenamedRegister)
+            return -1;
+        
+        return GetIdentifierInfo(identifier).DefiningInstructionBlock;
+    }
+    
+    public int DefiningInstructionIndex(Identifier identifier)
+    {
+        if (_identifierInfos == null)
+            throw new Exception("Analysis not run");
+        
+        if (!identifier.IsRenamedRegister)
+            return -1;
+        
+        return GetIdentifierInfo(identifier).DefiningInstructionIndex;
     }
 
     public int UseCount(Identifier identifier)

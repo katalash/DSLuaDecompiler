@@ -34,20 +34,32 @@ public class LocalVariablesAnalyzer : IAnalyzer
         {
             defines.Clear();
             selfIdentifiers.Clear();
-            for (var i = 0; i < b.Instructions.Count; i++)
+            foreach (var instruction in b.Instructions)
             {
-                if (b.Instructions[i].GetSingleDefine(true) is { } define)
+                if (instruction.GetSingleDefine(true) is { } define)
                 {
-                    defines.Add(define, b.Instructions[i].InstructionIndices.Begin);
-                    if (b.Instructions[i] is Assignment { IsSelfAssignment: true })
+                    defines.Add(define, instruction.InstructionIndices.Begin);
+                    if (instruction is Assignment
+                        {
+                            SelfAssignMinRegister: < int.MaxValue,
+                            IsSingleAssignment: true,
+                            Right: IdentifierReference { Identifier.IsRegister: true }
+                        })
                     {
                         selfIdentifiers.Add(define);
                     }
                 }
 
-                switch (b.Instructions[i])
+                switch (instruction)
                 {
-                    case Assignment { Right: FunctionCall { Function: IdentifierReference fir } fc }:
+                    case Assignment
+                    {
+                        Right: FunctionCall
+                        {
+                            FunctionDefIndex: -1,
+                            Function: IdentifierReference { Identifier.IsRegister: true } fir
+                        } fc
+                    }:
                     {
                         fc.FunctionDefIndex = defines[fir.Identifier];
                         if (selfIdentifiers.Contains(fir.Identifier))
@@ -59,10 +71,13 @@ public class LocalVariablesAnalyzer : IAnalyzer
                         break;
                     }
                     // Detect tail calls
-                    case Return { ReturnExpressions.Count: 1 } r when r.ReturnExpressions[0] is FunctionCall
-                    {
-                        Function: IdentifierReference fir2
-                    } fc2:
+                    case Return 
+                    { 
+                        ReturnExpressions: [FunctionCall 
+                        { 
+                            FunctionDefIndex: -1, 
+                            Function: IdentifierReference { Identifier.IsRegister: true } fir2 
+                        } fc2] }:
                     {
                         fc2.FunctionDefIndex = defines[fir2.Identifier];
                         if (selfIdentifiers.Contains(fir2.Identifier))
@@ -84,10 +99,9 @@ public class LocalVariablesAnalyzer : IAnalyzer
         // exploit this to figure out local variables in the original source code even if they only had one use:
         // If the next register defined within the scope (dominance hierarchy) after the first use of a recently
         // defined register is not that register, then it's likely an actual local variable.
-        int LocalIdentifyVisit(CFG.BasicBlock b, HashSet<uint> localRegs)
+        int LocalIdentifyVisit(CFG.BasicBlock b, int incomingMaxLocalRegister)
         {
-            var thisLocalRegs = new HashSet<uint>(localRegs.Count * 2);
-            thisLocalRegs.UnionWith(localRegs);
+            var thisMaxLocalRegister = incomingMaxLocalRegister;
 
             // Set of defines that are never used in this block (very very likely to be locals)
             var unusedDefines = new HashSet<Identifier>(b.Instructions.Count / 2);
@@ -97,7 +111,7 @@ public class LocalVariablesAnalyzer : IAnalyzer
             
             for (var i = 0; i < b.Instructions.Count; i++)
             {
-                // First add registers such the set contains all the registers used up to this point
+                // First add registers such that the set contains all the registers used up to this point
                 usesSet.Clear();
                 b.Instructions[i].GetUses(usesSet, true);
                 foreach (var use in usesSet)
@@ -108,7 +122,7 @@ public class LocalVariablesAnalyzer : IAnalyzer
                         unusedDefines.Remove(use);
                     }
                     
-                    if (thisLocalRegs.Contains(use.RegNum))
+                    if (use.RegNum <= thisMaxLocalRegister)
                     {
                         // Already marked as a local
                         continue;
@@ -117,7 +131,7 @@ public class LocalVariablesAnalyzer : IAnalyzer
                     if (_localVariables.Contains(use))
                     {
                         // Add it to the local regs
-                        thisLocalRegs.Add(use.RegNum);
+                        thisMaxLocalRegister = Math.Max(thisMaxLocalRegister, (int)use.RegNum);
                         continue;
                     }
 
@@ -129,7 +143,7 @@ public class LocalVariablesAnalyzer : IAnalyzer
                     {
                         // Double use. Definitely a local
                         _localVariables.Add(use);
-                        thisLocalRegs.Add(use.RegNum);
+                        thisMaxLocalRegister = Math.Max(thisMaxLocalRegister, (int)use.RegNum);
                         recentlyUsed.Remove(use.RegNum);
                     }
                 }
@@ -148,28 +162,30 @@ public class LocalVariablesAnalyzer : IAnalyzer
                         {
                             recentlyUsed.Remove(def.RegNum);
                             _localVariables.Add(def);
-                            thisLocalRegs.Add(def.RegNum);
+                            thisMaxLocalRegister = Math.Max(thisMaxLocalRegister, (int)def.RegNum);
                         }
                     }
                 }
                 // This is more interesting
                 else if (definesSet.Count == 1)
                 {
+                    var def = b.Instructions[i].GetSingleDefine(true) ?? throw new Exception();
+                    
                     // Self instructions have a lot of information because they always use the next available temp
-                    // registers. This means that any pending uses below us that haven't been redefined yet are actually
-                    // locals. Note that the SELF op actually translates to two IR ops with two registers used, so we
-                    // account for that
-                    if (b.Instructions[i] is Assignment { IsSelfAssignment: true })
+                    // registers. This means that any pending uses up until this instruction that haven't been redefined
+                    // yet are actually locals.
+                    if (b.Instructions[i] is
+                        {
+                            SelfAssignMinRegister: < int.MaxValue, InlinedRegisters.Count: 0
+                        } instruction)
                     {
-                        var def2 = b.Instructions[i + 1].GetSingleDefine(true) ?? throw new Exception();
-
                         foreach (var k in recentlyUsed.Keys)
                         {
                             // If the reg number is less than the second define then it's a local
-                            if (k < def2.RegNum)
+                            if (k < instruction.SelfAssignMinRegister)
                             {
                                 _localVariables.Add(recentlyUsed[k]);
-                                thisLocalRegs.Add(k);
+                                thisMaxLocalRegister = Math.Max(thisMaxLocalRegister, (int)k);
                             }
                         }
 
@@ -178,10 +194,8 @@ public class LocalVariablesAnalyzer : IAnalyzer
                         continue;
                     }
 
-                    var def = b.Instructions[i].GetSingleDefine(true) ?? throw new Exception();
-
                     // Move on if it's a known local
-                    if (thisLocalRegs.Contains(def.RegNum))
+                    if (def.RegNum <= thisMaxLocalRegister)
                     {
                         // Make sure the def is marked as local
                         _localVariables.Add(def);
@@ -200,19 +214,13 @@ public class LocalVariablesAnalyzer : IAnalyzer
                             if (k < def.RegNum)
                             {
                                 _localVariables.Add(recentlyUsed[k]);
-                                thisLocalRegs.Add(k);
+                                thisMaxLocalRegister = Math.Max(thisMaxLocalRegister, (int)k);
                             }
                         }
 
                         recentlyUsed.Clear();
                         continue;
                     }
-                    
-                    // We're now seeing a new register defined. Anything left in recently used is probably a local
-                    /*foreach (var ru in recentlyUsed)
-                    {
-                        definitelyLocal.Add()
-                    }*/
                 }
             }
 
@@ -220,7 +228,7 @@ public class LocalVariablesAnalyzer : IAnalyzer
             foreach (var unused in unusedDefines)
             {
                 _localVariables.Add(unused);
-                thisLocalRegs.Add(unused.RegNum);
+                thisMaxLocalRegister = Math.Max(thisMaxLocalRegister, (int)unused.RegNum);
             }
 
             // Visit next blocks in scope. Here we get the lowest register defined in the successor blocks that
@@ -228,58 +236,52 @@ public class LocalVariablesAnalyzer : IAnalyzer
             // the Lua compiler can select for a new temporary register. Any pending registers used in this block
             // that have a register number below that are very likely to be local variables since Lua doesn't select
             // them for temporaries.
-            var childFirstNonLocalDefine = int.MaxValue;
+            var minFirstChildTemporaryDefine = int.MaxValue;
+            var maxRegister = thisMaxLocalRegister;
             dominance.RunOnDominanceTreeSuccessors(function, b, successor =>
             {
-                var fd = LocalIdentifyVisit(successor, thisLocalRegs);
-                if (fd < childFirstNonLocalDefine && fd != -1)
-                {
-                    childFirstNonLocalDefine = fd;
-                }
+                var fd = LocalIdentifyVisit(successor, maxRegister);
+                minFirstChildTemporaryDefine = Math.Min(minFirstChildTemporaryDefine, fd);
             });
 
-            if (childFirstNonLocalDefine != int.MaxValue)
+            if (minFirstChildTemporaryDefine != int.MaxValue)
             {
                 foreach (var k in recentlyUsed.Keys)
                 {
                     // If the reg number is less than the first assigned register in the dominance successors that
                     // isn't a redefinition of an already identified local, then k likely represents a local since
                     // the Lua compiler isn't selecting it for a temporary or new local.
-                    if (k < childFirstNonLocalDefine)
+                    if (k < minFirstChildTemporaryDefine)
                     {
                         _localVariables.Add(recentlyUsed[k]);
-                        thisLocalRegs.Add(k);
+                        thisMaxLocalRegister = Math.Max(thisMaxLocalRegister, (int)k);
                     }
                 }
             }
 
             // Find the register of the first non-local define to return
-            var firstTempDef = -1;
+            var firstTempDef = int.MaxValue;
             foreach (var inst in b.Instructions)
             {
-                if (inst.GetSingleDefine(true) is { } def)
+                if (inst.InlinedRegisters.Count > 0)
                 {
-                    if (!localRegs.Contains(def.RegNum))
-                    {
-                        firstTempDef = (int)def.RegNum;
-                        if (inst is Assignment { IsSelfAssignment: true })
-                        {
-                            // Again a SELF op generates two assignments-the second one being the lower reg number
-                            firstTempDef--;
-                        }
-                        break;
-                    }
+                    firstTempDef = inst.InlinedRegisters.Begin;
                 }
+
+                if (inst.GetSingleDefine(true) is { } def && def.RegNum > incomingMaxLocalRegister)
+                {
+                    firstTempDef = Math.Min(firstTempDef, (int)def.RegNum);
+                }
+                
+                firstTempDef = Math.Min(firstTempDef, inst.SelfAssignMinRegister);
+                
+                if (firstTempDef != int.MaxValue)
+                    break;
             }
             return firstTempDef;
         }
         
-        var argRegisters = new HashSet<uint>();
-        for (uint i = 0; i < function.ParameterCount; i++)
-        {
-            argRegisters.Add(i);
-        }
-        LocalIdentifyVisit(function.BeginBlock, new HashSet<uint>(argRegisters));
+        LocalIdentifyVisit(function.BeginBlock, function.ParameterCount - 1);
     }
     
     public void Dispose()

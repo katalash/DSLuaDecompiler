@@ -78,7 +78,7 @@ public class MergeConditionalAssignmentsPass : IPass
                     }
 
                     b.Last = falseAssignment;
-                    falseAssignment.Block = b;
+                    falseAssignment.OriginalBlock = b.BlockId;
                     falseAssignment.Left.Identifier = destReg;
                     falseAssignment.Right = jump.Condition;
                     if (falseAssignment.Right is BinOp binOp)
@@ -90,7 +90,8 @@ public class MergeConditionalAssignmentsPass : IPass
                     b.Successors = follow.Successors;
                     foreach (var instruction in follow.Instructions)
                     {
-                        instruction.Block = b;
+                        if (instruction.OriginalBlock == follow.BlockId)
+                            instruction.OriginalBlock = b.BlockId;
                     }
 
                     b.Instructions.AddRange(follow.Instructions);

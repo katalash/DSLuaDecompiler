@@ -128,12 +128,17 @@ public class BuildControlFlowGraphPass : IPass
             {
                 var destination = labelBasicBlockMap[jmp.Destination];
                 b.AddSuccessor(destination);
+                Instruction jmpInstruction = b.Last;
                 b.Last = jmp switch
                 {
                     JumpLabel => new Jump(destination),
                     ConditionalJumpLabel j => new ConditionalJump(destination, j.Condition),
                     _ => throw new Exception()
                 };
+                b.Last.DefinedRegisters = jmpInstruction.DefinedRegisters;
+                b.Last.InlinedRegisters = jmpInstruction.InlinedRegisters;
+                b.Last.InstructionIndices = jmpInstruction.InstructionIndices;
+                b.Last.OriginalBlock = b.BlockId;
                 
                 // If there is a post taken assignment, place it in the destination block
                 if (jmp is ConditionalJumpLabel { PostTakenAssignment: { } assignment })
@@ -182,7 +187,7 @@ public class BuildControlFlowGraphPass : IPass
                     }
                     foreach (var inst in successor.Instructions)
                     {
-                        inst.Block = current;
+                        inst.OriginalBlock = current.BlockId;
                     }
                     current.Instructions.AddRange(successor.Instructions);
                     current.Successors = successor.Successors;

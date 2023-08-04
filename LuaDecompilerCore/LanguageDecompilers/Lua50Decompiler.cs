@@ -396,12 +396,12 @@ public class Lua50Decompiler : ILanguageDecompiler
                 case Lua50Ops.OpSelf:
                     var op = new Assignment(
                         irFunction.GetRegister(a + 1), new IdentifierReference(irFunction.GetRegister(b)));
-                    op.IsSelfAssignment = true;
+                    op.SelfAssignMinRegister = (int)a;
                     instructions.Add(op);
                     op = new Assignment(
                         irFunction.GetRegister(a),
                         new IdentifierReference(irFunction.GetRegister(b), RkIr(irFunction, function, c)));
-                    op.IsSelfAssignment = true;
+                    op.SelfAssignMinRegister = (int)a;
                     instructions.Add(op);
                     break;
                 case Lua50Ops.OpAdd:
