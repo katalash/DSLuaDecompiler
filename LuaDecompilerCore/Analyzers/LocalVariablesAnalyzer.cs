@@ -112,6 +112,7 @@ public class LocalVariablesAnalyzer : IAnalyzer
             for (var i = 0; i < b.Instructions.Count; i++)
             {
                 // First add registers such that the set contains all the registers used up to this point
+                uint minTemporaryUse = int.MaxValue;
                 usesSet.Clear();
                 b.Instructions[i].GetUses(usesSet, true);
                 foreach (var use in usesSet)
@@ -135,17 +136,18 @@ public class LocalVariablesAnalyzer : IAnalyzer
                         continue;
                     }
 
-                    if (!recentlyUsed.ContainsKey(use.RegNum))
-                    {
-                        recentlyUsed.Add(use.RegNum, use);
-                    }
-                    else
+                    if (recentlyUsed.ContainsKey(use.RegNum))
                     {
                         // Double use. Definitely a local
                         _localVariables.Add(use);
                         thisMaxLocalRegister = Math.Max(thisMaxLocalRegister, (int)use.RegNum);
                         recentlyUsed.Remove(use.RegNum);
+                        continue;
                     }
+
+                    // Otherwise this is a candidate for a temporary variable
+                    recentlyUsed.Add(use.RegNum, use);
+                    minTemporaryUse = Math.Min(use.RegNum, minTemporaryUse);
                 }
 
                 definesSet.Clear();
@@ -205,8 +207,18 @@ public class LocalVariablesAnalyzer : IAnalyzer
                     // Add the new def to the unused defs until it's used otherwise
                     unusedDefines.Add(def);
 
-                    // Otherwise a quick redefine is likely a temp. Mark below as locals and above as temps
-                    if (recentlyUsed.ContainsKey(def.RegNum))
+                    // When the Lua compiler selects a register to assign, it selects the next free register that isn't
+                    // currently assigned to a local variable or a temporary in the expression. This means that we can
+                    // we can infer a couple of things:
+                    // 1) If we are redefining a presumed temporary register that was recently used, it is fairly likely
+                    //    that this is a temporary register given that it was the first selected register. This means
+                    //    that we can mark all the pending live values that have a register value lower than the def
+                    //    as locals and the ones higher as defs.
+                    // 2) If this assignment has a use that is presumed to be temporary that has a register number that
+                    //    is lower than the defined register number, then that indicates that temporaries that are
+                    //    "killed" aren't having their register number reused which indicates that they are likely
+                    //    actually locals instead.
+                    if (recentlyUsed.ContainsKey(def.RegNum) || def.RegNum > minTemporaryUse)
                     {
                         foreach (var k in recentlyUsed.Keys)
                         {
@@ -219,7 +231,6 @@ public class LocalVariablesAnalyzer : IAnalyzer
                         }
 
                         recentlyUsed.Clear();
-                        continue;
                     }
                 }
             }

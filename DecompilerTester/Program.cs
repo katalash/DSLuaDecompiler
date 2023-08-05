@@ -177,8 +177,8 @@ namespace DecompilerTester
                 {
                     DumpPassIr = true,
                     DumpCfg = true,
-                    MultiThreaded = false,
-                    HandleDecompilationExceptions = false
+                    MultiThreaded = true,
+                    HandleDecompilationExceptions = true
                 });
             TestUtilities.AddCompiledLuaBndDirectoryToTester(args[0], tester);
             var results = tester.Execute();
@@ -187,7 +187,7 @@ namespace DecompilerTester
             if (!Directory.Exists("output"))
                 Directory.CreateDirectory("output");
             TestUtilities.WriteTestResultArtifactsToDirectory(
-                results, "output", Encoding.GetEncoding("shift_jis"), false);
+                results, "output", Encoding.GetEncoding("shift_jis"), true);
         }
     }
 }

@@ -146,7 +146,7 @@ namespace DSLuaDecompiler
                                 passBuilder.Append(pass.Ir);
                                 passBuilder.Append($"-- End pass {pass.Pass} --\n");
                             }
-                            File.WriteAllText(outputBase + ".passes.txt", passBuilder.ToString(), outEncoding);
+                            File.WriteAllText(outputBase + ".passes.lua", passBuilder.ToString(), outEncoding);
                         }
                         
                         if (result.DotGraphResults.Length > 0)
