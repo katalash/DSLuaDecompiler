@@ -28,6 +28,9 @@
 
     <ItemGroup>
         <None Update="lua\**" CopyToOutputDirectory="PreserveNewest" />
+        <None Update="lua\HKS\hello.lua">
+          <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
     </ItemGroup>
 
 </Project>

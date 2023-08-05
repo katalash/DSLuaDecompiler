@@ -15,9 +15,9 @@ public class LuaHavokScriptCompiler : ICompiler
     private static unsafe int Writer(LuaState* state, void *data, ulong size, nint userData)
     {
         if (GCHandle.FromIntPtr(userData).Target is not MemoryStream stream)
-            return 0;
+            return 1;
         stream.Write(new ReadOnlySpan<byte>(data, (int)size));
-        return 1;
+        return 0;
     }
     
     private unsafe int LuaMain(LuaState* state)

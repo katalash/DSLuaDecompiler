@@ -66,11 +66,13 @@ public static class TestUtilities
     /// <param name="directory">The directory to write to</param>
     /// <param name="encoding">The encoding to use when writing</param>
     /// <param name="writeEverything">Writes everything instead of the most relevant files for the failure</param>
+    /// <param name="deleteDirectory"></param>
     public static void WriteTestResultArtifactsToDirectory(
         TestCaseResult[] results,
         string directory,
         Encoding encoding,
-        bool writeEverything)
+        bool writeEverything,
+        bool deleteDirectory = true)
     {
         // Create directories for everything
         var root = $"{directory}/LuaDecompilerTestResults";
@@ -79,7 +81,7 @@ public static class TestUtilities
         var recompileFailures = $"{root}/RecompileFailures";
         var mismatches = $"{root}/Mismatches";
         var matches = $"{root}/Matches";
-        if (Directory.Exists(root))
+        if (Directory.Exists(root) && deleteDirectory)
             Directory.Delete(root, true);
         if (!Directory.Exists(compileFailures))
             Directory.CreateDirectory(compileFailures);

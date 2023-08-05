@@ -346,7 +346,7 @@ public class HksDecompiler : ILanguageDecompiler
                     break;
                 case LuaHksOps.OpSetUpVal:
                     up = irFunction.GetUpValue((uint)b);
-                    if (b > irFunction.UpValueCount || irFunction.UpValueCount == 0)
+                    if (b >= irFunction.UpValueCount)
                     {
                         throw new Exception("Reference to unbound upvalue: " + up);
                     }
@@ -381,12 +381,16 @@ public class HksDecompiler : ILanguageDecompiler
                     break;
 
                 case LuaHksOps.OpSelf:
-                    instructions.Add(new Assignment(
-                        irFunction.GetRegister(a + 1), Register(irFunction, (uint)b)));
-                    instructions.Add(new Assignment(
+                    var op = new Assignment(
+                        irFunction.GetRegister(a + 1), Register(irFunction, (uint)b));
+                    op.SelfAssignMinRegister = (int)a;
+                    instructions.Add(op);
+                    op = new Assignment(
                         irFunction.GetRegister(a),
                         new IdentifierReference(irFunction.GetRegister((uint)b),
-                            RkIrHks(irFunction, function, c, sZero))));
+                            RkIrHks(irFunction, function, c, sZero)));
+                    op.SelfAssignMinRegister = (int)a;
+                    instructions.Add(op);
                     break;
                 case LuaHksOps.OpAdd:
                     assignment = new Assignment(
@@ -866,7 +870,9 @@ public class HksDecompiler : ILanguageDecompiler
 
             foreach (var inst in instructions)
             {
-                inst.OpLocation = i / 4;
+                if (inst.OpLocation == -1)
+                    inst.OpLocation = i / 4;
+                inst.InstructionIndices = new Interval(irFunction.BeginBlock.Instructions.Count);
                 irFunction.BeginBlock.Instructions.Add(inst);
             }
         }
@@ -885,14 +891,15 @@ public class HksDecompiler : ILanguageDecompiler
         passManager.AddPass("build-cfg", new BuildControlFlowGraphPass());
         passManager.AddPass("resolve-ambiguous-call-args", new ResolveAmbiguousCallArguments());
         passManager.AddPass("ssa-transform", new SsaTransformPass());
-
         passManager.AddPass("eliminate-dead-phi-1", new EliminateDeadAssignmentsPass(true));
+        
+        passManager.PushLoopUntilUnchanged();
         passManager.AddPass("expression-propagation-1", new ExpressionPropagationPass());
         passManager.AddPass("detect-list-initializers", new DetectListInitializersPass());
-        passManager.AddPass("expression-propagation-2", new ExpressionPropagationPass());
-
         passManager.AddPass("merge-compound-conditionals", new MergeCompoundConditionalsPass());
         passManager.AddPass("merge-conditional-assignments", new MergeConditionalAssignmentsPass());
+        passManager.PopLoopUntilUnchanged();
+        
         passManager.AddPass("detect-loops", new DetectLoopsPass());
         passManager.AddPass("detect-break-continue", new DetectLoopBreakContinuePass());
         passManager.AddPass("detect-two-way-conditionals", new DetectTwoWayConditionalsPass());
