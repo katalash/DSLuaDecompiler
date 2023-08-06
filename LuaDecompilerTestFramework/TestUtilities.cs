@@ -42,8 +42,9 @@ public static class TestUtilities
     /// </summary>
     /// <param name="path">Path to directory</param>
     /// <param name="tester">The tester to add to</param>
-    public static void AddCompiledLuaBndDirectoryToTester(string path, DecompilationTester tester)
+    public static bool AddCompiledLuaBndDirectoryToTester(string path, DecompilationTester tester)
     {
+        var added = false;
         var archives = Directory.GetFileSystemEntries(path, "*.luabnd.dcx").ToList();
         foreach (var archive in archives)
         {
@@ -53,9 +54,12 @@ public static class TestUtilities
                 {
                     tester.AddTestCase(new CompiledBytesTestCase(
                             $"{Path.GetFileNameWithoutExtension(archive)}/{Path.GetFileName(file.Name)}", file.Bytes));
+                    added = true;
                 }
             }
         }
+
+        return added;
     }
 
     /// <summary>
@@ -161,15 +165,20 @@ public static class TestUtilities
             if (shouldDump && result.RecompiledBytes is { } recompiledBytes)
             {
                 File.WriteAllBytes($"{basePath}.recompiled", recompiledBytes);
+            }
 
+            if (shouldDump &&
+                result is { MismatchedFunctionIds: not null, MismatchedCompiledDisassembledFunctions: not null })
+            {
                 for (var i = 0; i < result.MismatchedFunctionIds?.Length; i++)
                 {
-                    if (result.MismatchedCompiledDisassembledFunctions?[i] == null ||
-                        result.MismatchedRecompiledDisassembledFunctions?[i] == null)
+                    if (result.MismatchedCompiledDisassembledFunctions?[i] == null)
                         continue;
                     var functionId = result.MismatchedFunctionIds[i];
                     File.WriteAllText($"{basePath}.compiled.disassembled.{functionId}.lua", 
                         result.MismatchedCompiledDisassembledFunctions[i]);
+                    if (result.MismatchedRecompiledDisassembledFunctions?[i] == null)
+                        continue;
                     File.WriteAllText($"{basePath}.recompiled.disassembled.{functionId}.lua", 
                         result.MismatchedRecompiledDisassembledFunctions[i]);
                 }

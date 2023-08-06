@@ -180,7 +180,21 @@ namespace DecompilerTester
                     MultiThreaded = true,
                     HandleDecompilationExceptions = true
                 });
-            TestUtilities.AddCompiledLuaBndDirectoryToTester(args[0], tester);
+            if (!TestUtilities.AddCompiledLuaBndDirectoryToTester(args[0], tester))
+            {
+                tester = new DecompilationTester(
+                    new HksDecompiler(),
+                    new LuaHavokScriptCompiler(),
+                    Encoding.UTF8,
+                    new DecompilationTesterOptions
+                    {
+                        DumpPassIr = true,
+                        DumpCfg = true,
+                        MultiThreaded = false,
+                        HandleDecompilationExceptions = true
+                    });
+                TestUtilities.AddCompiledLuaDirectoryToTester(args[0], "hks", tester);
+            }
             var results = tester.Execute();
             TestUtilities.ConsoleLogTestResults(results);
 

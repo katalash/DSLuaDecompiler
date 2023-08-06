@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Text;
 using LuaDecompilerCore.IR;
 using LuaDecompilerCore.Passes;
 using LuaDecompilerCore.Utilities;
@@ -220,6 +222,15 @@ public class HksDecompiler : ILanguageDecompiler
         };
     }
 
+    private static string RkHks(LuaFile.Function function, int val, bool sZero)
+    {
+        if (val >= 0 && !sZero)
+        {
+            return $"R({val})";
+        }
+        return sZero ? function.Constants[val].ToString() : function.Constants[-val].ToString();
+    }
+    
     private static Expression RkIrHks(Function irFunction, LuaFile.Function function, int val, bool sZero)
     {
         if (val >= 0 && !sZero)
@@ -242,8 +253,8 @@ public class HksDecompiler : ILanguageDecompiler
 
     public void InitializeFunction(LuaFile.Function function, Function irFunction)
     {
-        var debugCounter = Identifier.GetGlobalTable();
-        irFunction.UpValueBindings.Add(debugCounter);
+        //var debugCounter = Identifier.GetGlobalTable();
+        //irFunction.UpValueBindings.Add(debugCounter);
 
         // Register closures for all the children
         foreach (var t in function.ChildFunctions)
@@ -251,7 +262,7 @@ public class HksDecompiler : ILanguageDecompiler
             var childFunction = new Function(t.FunctionId)
             {
                 // UpValue count needs to be set for child functions for analysis to be correct
-                UpValueCount = t.NumUpValues
+                UpValueCount = t.UpValuesCount
             };
             irFunction.AddClosure(childFunction);
         }
@@ -260,10 +271,294 @@ public class HksDecompiler : ILanguageDecompiler
         irFunction.ArgumentNames = function.LocalsAt(0);
     }
 
-    public string? Disassemble(LuaFile.Function function)
+    public string Disassemble(LuaFile.Function function)
     {
-        // Not implemented yet
-        return null;
+        var builder = new StringBuilder();
+        builder.AppendLine("Constants:");
+        for (var i = 0; i < function.Constants.Length; i++)
+        {
+            builder.AppendLine($"{i}: {function.Constants[i]}");
+        }
+
+        builder.AppendLine();
+        var br = new BinaryReaderEx(true, function.Bytecode);
+        for (var i = 0; i < function.Bytecode.Length; i += 4)
+        {
+            var instruction = br.ReadUInt32();
+            var opcode = (instruction & 0xFF000000) >> 25;
+            var a = instruction & 0xFF;
+            var c = (int)(instruction & 0x1FF00) >> 8;
+            var b = (int)(instruction & 0x1FE0000) >> 17;
+            var sZero = false;
+            if ((b & 0x100) > 0)
+            {
+                b = -(b & 0xFF);
+            }
+            if ((c & 0x100) > 0)
+            {
+                if (c == 0x100)
+                {
+                    sZero = true;
+                }
+
+                c = -(c & 0xFF);
+            }
+            var bx = (instruction & 0x1FFFF00) >> 8;
+            var sbx = (int)bx;
+
+            builder.Append($"{i / 4:D4}: ");
+            
+            switch (OpProperties[opcode].OpMode)
+            {
+                case OpMode.IABC:
+                    builder.Append(
+                        $"{$"{OpProperties[opcode].OpName} {a} {b} {c}",-20}");
+                    break;
+                case OpMode.IABx:
+                    builder.Append(
+                        $"{$"{OpProperties[opcode].OpName} {a} {bx}",-20}");
+                    break;
+                case OpMode.IAsBx:
+                    builder.Append(
+                        $"{$"{OpProperties[opcode].OpName} {a} {sbx}",-20}");
+                    break;
+            }
+
+            switch ((LuaHksOps)opcode)
+            {
+                case LuaHksOps.OpGetField:
+                    break;
+                case LuaHksOps.OpTest:
+                    break;
+                case LuaHksOps.OpEq:
+                    break;
+                case LuaHksOps.OpEqBk:
+                    break;
+                case LuaHksOps.OpGetGlobal:
+                case LuaHksOps.OpGetGlobalMem:
+                    builder.Append($"-- R({a}) := Gbl[{function.Constants[bx].ToString()}]");
+                    break;
+                case LuaHksOps.OpMove:
+                    builder.Append($"-- R({a}) := R({b})");
+                    break;
+                case LuaHksOps.OpSelf:
+                    builder.Append($"-- R({a + 1}) := R({b}); ");
+                    builder.Append($"R({a}) := R({b})[{RkHks(function, c, sZero)}]");
+                    break;
+                case LuaHksOps.OpReturn:
+                    builder.Append("-- return ");
+                    for (var arg = (int)a; arg < a + b - 1; arg++)
+                    {
+                        if (arg != a)
+                            builder.Append(", ");
+                        builder.Append($"R({arg})");
+                    }
+                    break;
+                case LuaHksOps.OpGetTableS:
+                    break;
+                case LuaHksOps.OpGetTableN:
+                    break;
+                case LuaHksOps.OpGetTable:
+                    break;
+                case LuaHksOps.OpLoadBool:
+                    break;
+                case LuaHksOps.OpTForLoop:
+                    break;
+                case LuaHksOps.OpSetField:
+                    break;
+                case LuaHksOps.OpSetTableS:
+                    break;
+                case LuaHksOps.OpSetTableSBK:
+                    break;
+                case LuaHksOps.OpSetTableN:
+                    break;
+                case LuaHksOps.OpSetTableNBK:
+                    break;
+                case LuaHksOps.OpSetTable:
+                    break;
+                case LuaHksOps.OpSetTableBK:
+                    break;
+                case LuaHksOps.OpTailCallI:
+                    break;
+                case LuaHksOps.OpTailCallC:
+                    break;
+                case LuaHksOps.OpTailCallM:
+                    break;
+                case LuaHksOps.OpLoadK:
+                    builder.Append($"-- R({a}) := {function.Constants[bx].ToString()}");
+                    break;
+                case LuaHksOps.OpLoadNil:
+                    break;
+                case LuaHksOps.OpSetGlobal:
+                    builder.Append($"-- Gbl[{function.Constants[bx].ToString()}] := R({a})");
+                    break;
+                case LuaHksOps.OpJmp:
+                    break;
+                case LuaHksOps.OpCallM:
+                    break;
+                case LuaHksOps.OpCallI:
+                case LuaHksOps.OpCallC:
+                case LuaHksOps.OpCall:
+                    for (var r = (int)a; r <= a + c - 2; r++)
+                    {
+                        builder.Append($"R({r})");
+                        if (r != a + c - 2)
+                            builder.Append(", ");
+                    }
+                    if (c == 0)
+                    {
+                        builder.Append($"R({a})...");
+                    }
+
+                    if (a + c - 2 >= a || c == 0)
+                        builder.Append(" := ");
+
+                    builder.Append($"R({a})(");
+                    for (var arg = (int)a + 1; arg < a + b; arg++)
+                    {
+                        if (arg != a + 1)
+                            builder.Append(", ");
+                        builder.Append($"R({arg})");
+                    }
+
+                    if (c == 0)
+                    {
+                        builder.Append($"R({a})...");
+                    }
+                    builder.Append(')');
+                    break;
+                case LuaHksOps.OpIntrinsicIndex:
+                    break;
+                case LuaHksOps.OpIntrinsicNewIndex:
+                    break;
+                case LuaHksOps.OpIntrinsicSelf:
+                    break;
+                case LuaHksOps.OpIntrinsicIndexLiteral:
+                    break;
+                case LuaHksOps.OpIntrinsicNewIndexLiteral:
+                    break;
+                case LuaHksOps.OpIntrinsicSelfLiteral:
+                    break;
+                case LuaHksOps.OpTailCall:
+                    break;
+                case LuaHksOps.OpGetUpVal:
+                    break;
+                case LuaHksOps.OpSetUpVal:
+                    break;
+                case LuaHksOps.OpAdd:
+                    break;
+                case LuaHksOps.OpAddBk:
+                    break;
+                case LuaHksOps.OpSub:
+                    break;
+                case LuaHksOps.OpSubBk:
+                    break;
+                case LuaHksOps.OpMul:
+                    break;
+                case LuaHksOps.OpMulBk:
+                    break;
+                case LuaHksOps.OpDiv:
+                    break;
+                case LuaHksOps.OpDivBk:
+                    break;
+                case LuaHksOps.OpMod:
+                    break;
+                case LuaHksOps.OpModBk:
+                    break;
+                case LuaHksOps.OpPow:
+                    break;
+                case LuaHksOps.OpPowBk:
+                    break;
+                case LuaHksOps.OpNewTable:
+                    break;
+                case LuaHksOps.OpUnm:
+                    break;
+                case LuaHksOps.OpNot:
+                    break;
+                case LuaHksOps.OpLen:
+                    break;
+                case LuaHksOps.OpLt:
+                    break;
+                case LuaHksOps.OpLtBk:
+                    break;
+                case LuaHksOps.OpLe:
+                    break;
+                case LuaHksOps.OpLeBk:
+                    break;
+                case LuaHksOps.OpConcat:
+                    break;
+                case LuaHksOps.OpTestSet:
+                    break;
+                case LuaHksOps.OpForPrep:
+                    break;
+                case LuaHksOps.OpForLoop:
+                    break;
+                case LuaHksOps.OpSetList:
+                    break;
+                case LuaHksOps.OpClose:
+                    break;
+                case LuaHksOps.OpClosure:
+                    builder.Append($"-- R({a}) := closure(KPROTO[{bx}]");
+                    for (var arg = (int)a; arg < a + function.ChildFunctions[bx].NumParams; arg++)
+                    {
+                        builder.Append($", R({arg})");
+                    }
+                    builder.Append(')');
+                    break;
+                case LuaHksOps.OpVarArg:
+                    break;
+                case LuaHksOps.OpTailCallIR1:
+                    break;
+                case LuaHksOps.OpCallIR1:
+                    break;
+                case LuaHksOps.OpSetUpValR1:
+                    break;
+                case LuaHksOps.OpTestR1:
+                    break;
+                case LuaHksOps.OpNotR1:
+                    break;
+                case LuaHksOps.OpGetFieldR1:
+                    break;
+                case LuaHksOps.OpSetFieldR1:
+                    break;
+                case LuaHksOps.OpNewStruct:
+                    break;
+                case LuaHksOps.OpData:
+                    break;
+                case LuaHksOps.OpSetSlotN:
+                    break;
+                case LuaHksOps.OpSetSlotI:
+                    break;
+                case LuaHksOps.OpSetSlot:
+                    break;
+                case LuaHksOps.OpSetSlotS:
+                    break;
+                case LuaHksOps.OpSetSlotMT:
+                    break;
+                case LuaHksOps.OpCheckType:
+                    break;
+                case LuaHksOps.OpCheckTypeS:
+                    break;
+                case LuaHksOps.OpGetSlot:
+                    break;
+                case LuaHksOps.OpGetSlotMT:
+                    break;
+                case LuaHksOps.OpSelfSlot:
+                    break;
+                case LuaHksOps.OpSelfSlotMT:
+                    break;
+                case LuaHksOps.OpGetFieldMM:
+                    break;
+                case LuaHksOps.OpCheckTypeD:
+                    break;
+                case LuaHksOps.OpGetSlotD:
+                    break;
+            }
+            
+            builder.AppendLine();
+        }
+        
+        return builder.ToString();
     }
 
     public void GenerateIr(LuaFile.Function function, Function irFunction)
@@ -724,7 +1019,7 @@ public class HksDecompiler : ILanguageDecompiler
                     var jmp = new ConditionalJumpLabel(irFunction.GetLabel(addr), new BinOp(
                         new IdentifierReference(irFunction.GetRegister(a)),
                         new IdentifierReference(irFunction.GetRegister(a + 1)),
-                        BinOp.OperationType.OpLoopCompare), pta);
+                        BinOp.OperationType.OpLoopCompare), pta, new Interval((int)a, (int)a + 4));
                     instructions.Add(jmp);
                     break;
                 case LuaHksOps.OpTForLoop:
@@ -763,6 +1058,18 @@ public class HksDecompiler : ILanguageDecompiler
                         addr = (uint)((sbx & 0xFFFF) + 2 + (uint)(i / 4));
                     }
 
+                    // Emit self assignments for the index, limit, and step for local names and to ensure they get
+                    // properly inlined into the loop. These are marked as the local declarations for the registers in
+                    // the scope so that any prior definitions get marked as temporaries and get inlined
+                    assignment = new Assignment(new IdentifierReference(irFunction.GetRegister(a)),
+                        new IdentifierReference(irFunction.GetRegister(a))) { IsLocalDeclaration = true };
+                    CheckLocal(assignment, function, pc + 1);
+                    instructions.Add(assignment);
+                    instructions.Add(new Assignment(new IdentifierReference(irFunction.GetRegister(a + 1)),
+                        new IdentifierReference(irFunction.GetRegister(a + 1))) { IsLocalDeclaration = true });
+                    instructions.Add(new Assignment(new IdentifierReference(irFunction.GetRegister(a + 2)),
+                        new IdentifierReference(irFunction.GetRegister(a + 2))) { IsLocalDeclaration = true });
+                    
                     instructions.Add(new JumpLabel(irFunction.GetLabel(addr)));
                     break;
                 case LuaHksOps.OpSetList:
@@ -792,8 +1099,32 @@ public class HksDecompiler : ILanguageDecompiler
 
                     break;
                 case LuaHksOps.OpClosure:
-                    instructions.Add(new Assignment(irFunction.GetRegister(a),
-                        new Closure(irFunction.LookupClosure(bx))));
+                    var closureFunction = irFunction.LookupClosure(bx);
+                    assignment = new Assignment(irFunction.GetRegister(a),
+                        new Closure(closureFunction)) { OpLocation = i / 4 };
+                    CheckLocal(assignment, function, pc);
+                    instructions.Add(assignment);
+                    
+                    // Closure instructions for closures that have upValues seem to be followed by a data instruction
+                    // for each upValue where A is 1 and Bx is number for the register that is bound to the upValue.
+                    // There is probably a different pattern for binding an upValue in the child closure to an upValue
+                    // in this function, but that will require more experimentation to figure out.
+                    for (var j = 0; j < closureFunction.UpValueCount; j++)
+                    {
+                        i += 4;
+                        Debug.Assert(i < function.Bytecode.Length);
+                        var upValueInstruction = br.ReadUInt32();
+                        var upValueOpCode = (upValueInstruction & 0xFF000000) >> 25;
+                        var opBx = (upValueInstruction & 0x1FFFF00) >> 8;
+                        var upValueIdentifier = upValueOpCode switch
+                        {
+                            (uint)LuaHksOps.OpData => Identifier.GetRegister(opBx),
+                            _ => throw new Exception(
+                                "Expected a data instruction for closure upValue binding")
+                        };
+                        var closureBinding = new ClosureBinding(upValueIdentifier) { OpLocation = i / 4 };
+                        instructions.Add(closureBinding);
+                    }
                     break;
                 case LuaHksOps.OpGetField:
                 case LuaHksOps.OpGetFieldR1:
@@ -884,14 +1215,16 @@ public class HksDecompiler : ILanguageDecompiler
         passManager.AddPass("cleanup-havok-instructions", new CleanupHavokInstructionsPass());
         passManager.AddPass("vararg-list-assignment", new RewriteVarargListAssignmentPass());
         passManager.AddPass("merge-multiple-bool-assignment", new MergeMultipleBoolAssignmentPass());
-        passManager.AddPass("eliminate-redundant-assignments", new EliminateRedundantAssignmentsPass());
+        //passManager.AddPass("eliminate-redundant-assignments", new EliminateRedundantAssignmentsPass());
         passManager.AddPass("merge-conditional-jumps", new MergeConditionalJumpsPass());
         passManager.AddPass("validate-jump-dest-labels", new ValidateJumpDestinationLabelsPass());
 
         passManager.AddPass("build-cfg", new BuildControlFlowGraphPass());
         passManager.AddPass("resolve-ambiguous-call-args", new ResolveAmbiguousCallArguments());
         passManager.AddPass("ssa-transform", new SsaTransformPass());
+        passManager.AddPass("resolve-closure-up-values-50", new ResolveClosureUpValues50Pass());
         passManager.AddPass("eliminate-dead-phi-1", new EliminateDeadAssignmentsPass(true));
+        passManager.AddPass("eliminate-unused-phi", new EliminateUnusedPhiFunctionsPass());
         
         passManager.PushLoopUntilUnchanged();
         passManager.AddPass("expression-propagation-1", new ExpressionPropagationPass());

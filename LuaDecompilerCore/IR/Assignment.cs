@@ -27,7 +27,8 @@ namespace LuaDecompilerCore.IR
         public List<LuaFile.Local>? LocalAssignments = null;
         
         /// <summary>
-        /// When this is set to true, the value defined by this is always expression/constant propogated, even if it's used more than once
+        /// When this is set to true, the value defined by this is always expression/constant propagated,
+        /// even if it's used more than once
         /// </summary>
         public bool PropagateAlways = false;
 

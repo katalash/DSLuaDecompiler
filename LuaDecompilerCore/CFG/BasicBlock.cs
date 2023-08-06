@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using LuaDecompilerCore.IR;
+using LuaDecompilerCore.Utilities;
 
 namespace LuaDecompilerCore.CFG
 {
@@ -17,6 +18,12 @@ namespace LuaDecompilerCore.CFG
         public Dictionary<uint, PhiFunction> PhiFunctions;
 
         public readonly HashSet<Identifier> PhiMerged = new();
+
+        /// <summary>
+        /// Local variable register range that is always killed (made available for temporaries again) upon leaving this
+        /// block into dominance successors.
+        /// </summary>
+        public Interval KilledLocals;
 
         // Live analysis stuff
         public int BlockIndex;

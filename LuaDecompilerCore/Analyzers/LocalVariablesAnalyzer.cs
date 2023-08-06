@@ -249,6 +249,11 @@ public class LocalVariablesAnalyzer : IAnalyzer
             // them for temporaries.
             var minFirstChildTemporaryDefine = int.MaxValue;
             var maxRegister = thisMaxLocalRegister;
+            
+            // Loop exits may have dangling local loop variables that need to go out of scope, since the loop end
+            // dominates the following blocks in Lua.
+            if (b.KilledLocals is { Count: > 0 })
+                maxRegister = Math.Min(maxRegister, b.KilledLocals.Begin);
             dominance.RunOnDominanceTreeSuccessors(function, b, successor =>
             {
                 var fd = LocalIdentifyVisit(successor, maxRegister);

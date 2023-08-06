@@ -163,7 +163,7 @@ namespace LuaDecompilerCore
                             BoolValue = br.ReadBoolean();
                             break;
                         case 3:
-                            NumberValue = br.ReadSingle();
+                            NumberValue = file.LuaHeader.LuaNumberSize == 8 ? br.ReadDouble() : br.ReadSingle();
                             Type = ConstantType.TypeNumber;
                             break;
                         case 4:

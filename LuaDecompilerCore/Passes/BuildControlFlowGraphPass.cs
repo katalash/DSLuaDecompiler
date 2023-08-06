@@ -32,7 +32,7 @@ public class BuildControlFlowGraphPass : IPass
 
         var cullNextReturn = false;
 
-        // First pass: Build all the basic blocks using labels, jmps, and rets as boundries
+        // First pass: Build all the basic blocks using labels, jmps, and rets as boundaries
         var currentBlock = f.BeginBlock;
         for (var i = 0; i < instructions.Count; i++)
         {
@@ -55,6 +55,7 @@ public class BuildControlFlowGraphPass : IPass
                 case ConditionalJumpLabel jmp2:
                 {
                     currentBlock.AddInstruction(jmp2);
+                    currentBlock.KilledLocals = jmp2.KilledLocals;
                     var newBlock = f.CreateAndAddBasicBlock();
                     currentBlock.AddSuccessor(newBlock);
                     currentBlock = newBlock;

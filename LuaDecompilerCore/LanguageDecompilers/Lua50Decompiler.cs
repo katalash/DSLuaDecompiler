@@ -53,7 +53,7 @@ public class Lua50Decompiler : ILanguageDecompiler
         OpClosure = 34
     }
 
-    private static OpProperties[] _opProperties =
+    private static readonly OpProperties[] OpProperties =
     {
         new OpProperties("MOVE", OpMode.IABC),
         new OpProperties("LOADK", OpMode.IABx),
@@ -94,7 +94,7 @@ public class Lua50Decompiler : ILanguageDecompiler
 
     private static string Rk(LuaFile.Function function, uint val)
     {
-        return val < 250 ? $@"R({val})" : function.Constants[val - 250].ToString();
+        return val < 250 ? $"R({val})" : function.Constants[val - 250].ToString();
     }
 
     private static Constant ToConstantIr(LuaFile.Constant con, int id)
@@ -143,10 +143,10 @@ public class Lua50Decompiler : ILanguageDecompiler
     public string Disassemble(LuaFile.Function function)
     {
         var builder = new StringBuilder();
-        builder.AppendLine($@"Constants:");
+        builder.AppendLine("Constants:");
         for (var i = 0; i < function.Constants.Length; i++)
         {
-            builder.AppendLine($@"{i}: {function.Constants[i]}");
+            builder.AppendLine($"{i}: {function.Constants[i]}");
         }
 
         builder.AppendLine();
@@ -164,88 +164,88 @@ public class Lua50Decompiler : ILanguageDecompiler
 
             builder.Append($"{i / 4:D4}: ");
             
-            switch (_opProperties[opcode].OpMode)
+            switch (OpProperties[opcode].OpMode)
             {
                 case OpMode.IABC:
                     builder.Append(
-                        $"{$@"{_opProperties[opcode].OpName} {instruction >> 24} {(instruction >> 15) & 0x1FF} {(instruction >> 6) & 0x1FF}",-20}");
+                        $"{$"{OpProperties[opcode].OpName} {a} {b} {c}",-20}");
                     break;
                 case OpMode.IABx:
                     builder.Append(
-                        $"{$@"{_opProperties[opcode].OpName} {instruction >> 24} {(instruction >> 6) & 0x3FFFF}",-20}");
+                        $"{$"{OpProperties[opcode].OpName} {a} {bx}",-20}");
                     break;
                 case OpMode.IAsBx:
                     builder.Append(
-                        $"{$@"{_opProperties[opcode].OpName} {instruction >> 24} {(instruction >> 6) & 0x3FFFF}",-20}");
+                        $"{$"{OpProperties[opcode].OpName} {a} {bx}",-20}");
                     break;
             }
             
             switch ((Lua50Ops)opcode)
             {
                 case Lua50Ops.OpMove:
-                    builder.Append($@"-- R({a}) := R({b})");
+                    builder.Append($"-- R({a}) := R({b})");
                     break;
                 case Lua50Ops.OpLoadK:
-                    builder.Append($@"-- R({a}) := {function.Constants[bx].ToString()}");
+                    builder.Append($"-- R({a}) := {function.Constants[bx].ToString()}");
                     break;
                 case Lua50Ops.OpLoadBool:
-                    builder.Append($@"-- R({a}) := (Bool){b}; ");
-                    builder.Append($@"if ({c}) PC++ (PC = {i / 4 + 2})");
+                    builder.Append($"-- R({a}) := (Bool){b}; ");
+                    builder.Append($"if ({c}) PC++ (PC = {i / 4 + 2})");
                     break;
                 case Lua50Ops.OpGetGlobal:
-                    builder.Append($@"-- R({a}) := Gbl[{function.Constants[bx].ToString()}]");
+                    builder.Append($"-- R({a}) := Gbl[{function.Constants[bx].ToString()}]");
                     break;
                 case Lua50Ops.OpGetTable:
-                    builder.Append($@"-- R({a}) := R({b})[{Rk(function, c)}]");
+                    builder.Append($"-- R({a}) := R({b})[{Rk(function, c)}]");
                     break;
                 case Lua50Ops.OpSetGlobal:
-                    builder.Append($@"-- Gbl[{function.Constants[bx].ToString()}] := R({a})");
+                    builder.Append($"-- Gbl[{function.Constants[bx].ToString()}] := R({a})");
                     break;
                 case Lua50Ops.OpNewTable:
-                    builder.Append($@"-- R({a}) := {{}} size = {b}, {c}");
+                    builder.Append($"-- R({a}) := {{}} size = {b}, {c}");
                     break;
                 case Lua50Ops.OpSelf:
-                    builder.Append($@"-- R({a + 1}) := R({b}); ");
-                    builder.Append($@"R({a}) := R({b})[{Rk(function, c)}]");
+                    builder.Append($"-- R({a + 1}) := R({b}); ");
+                    builder.Append($"R({a}) := R({b})[{Rk(function, c)}]");
                     break;
                 case Lua50Ops.OpAdd:
-                    builder.Append($@"-- R({a}) := {Rk(function, b)} + {Rk(function, c)}");
+                    builder.Append($"-- R({a}) := {Rk(function, b)} + {Rk(function, c)}");
                     break;
                 case Lua50Ops.OpSub:
-                    builder.Append($@"-- R({a}) := {Rk(function, b)} - {Rk(function, c)}");
+                    builder.Append($"-- R({a}) := {Rk(function, b)} - {Rk(function, c)}");
                     break;
                 case Lua50Ops.OpMul:
-                    builder.Append($@"-- R({a}) := {Rk(function, b)} * {Rk(function, c)}");
+                    builder.Append($"-- R({a}) := {Rk(function, b)} * {Rk(function, c)}");
                     break;
                 case Lua50Ops.OpDiv:
-                    builder.Append($@"-- R({a}) := {Rk(function, b)} / {Rk(function, c)}");
+                    builder.Append($"-- R({a}) := {Rk(function, b)} / {Rk(function, c)}");
                     break;
                 case Lua50Ops.OpPow:
-                    builder.Append($@"-- R({a}) := {Rk(function, b)} ^ {Rk(function, c)}");
+                    builder.Append($"-- R({a}) := {Rk(function, b)} ^ {Rk(function, c)}");
                     break;
                 case Lua50Ops.OpUnm:
-                    builder.Append($@"-- R({a}) := -R({b})");
+                    builder.Append($"-- R({a}) := -R({b})");
                     break;
                 case Lua50Ops.OpNot:
-                    builder.Append($@"-- R({a}) := not R({b})");
+                    builder.Append($"-- R({a}) := not R({b})");
                     break;
                 case Lua50Ops.OpJmp:
-                    builder.Append($@"-- PC += {sbx} (PC = {i / 4 + sbx + 1})");
+                    builder.Append($"-- PC += {sbx} (PC = {i / 4 + sbx + 1})");
                     break;
                 case Lua50Ops.OpEq:
-                    builder.Append($@"-- if (({Rk(function, b)} == {Rk(function, c)}) ~= {a}) PC++ (PC = {i / 4 + 2})");
+                    builder.Append($"-- if (({Rk(function, b)} == {Rk(function, c)}) ~= {a}) PC++ (PC = {i / 4 + 2})");
                     break;
                 case Lua50Ops.OpLt:
-                    builder.Append($@"-- if (({Rk(function, b)} <  {Rk(function, c)}) ~= {a}) PC++ (PC = {i / 4 + 2})");
+                    builder.Append($"-- if (({Rk(function, b)} <  {Rk(function, c)}) ~= {a}) PC++ (PC = {i / 4 + 2})");
                     break;
                 case Lua50Ops.OpLe:
-                    builder.Append($@"-- if (({Rk(function, b)} <= {Rk(function, c)}) ~= {a}) PC++ (PC = {i / 4 + 2})");
+                    builder.Append($"-- if (({Rk(function, b)} <= {Rk(function, c)}) ~= {a}) PC++ (PC = {i / 4 + 2})");
                     break;
                 case Lua50Ops.OpTest:
-                    builder.Append($@"-- if (R({b}) <=> {c}) then R({a}) := R({b}) else PC++ (PC = {i / 4 + 2})");
+                    builder.Append($"-- if (R({b}) <=> {c}) then R({a}) := R({b}) else PC++ (PC = {i / 4 + 2})");
                     break;
                 case Lua50Ops.OpSetTable:
-                    builder.Append($@"-- R({a})[{Rk(function, b)}] := R({c})");
+                    builder.Append($"-- R({a})[{Rk(function, b)}] := R({c})");
                     break;
                 case Lua50Ops.OpCall:
                     args = "";
@@ -253,46 +253,33 @@ public class Lua50Decompiler : ILanguageDecompiler
                     {
                         if (arg != a + 1)
                             args += ", ";
-                        args += $@"R({arg})";
+                        args += $"R({arg})";
                     }
 
-                    builder.Append($@"-- R({a}) := R({a})({args})");
+                    builder.Append($"-- R({a}) := R({a})({args})");
                     break;
                 case Lua50Ops.OpReturn:
-                    args = "";
+                    builder.Append("-- return ");
                     for (var arg = (int)a; arg < a + b - 1; arg++)
                     {
                         if (arg != a)
-                            args += ", ";
-                        args += $@"R({arg})";
+                            builder.Append(", ");
+                        builder.Append($"R({arg})");
                     }
-
-                    builder.Append($@"-- return {args}");
                     break;
                 case Lua50Ops.OpClosure:
-                    args = "";
+                    builder.Append($"-- R({a}) := closure(KPROTO[{bx}]");
                     for (var arg = (int)a; arg < a + function.ChildFunctions[bx].NumParams; arg++)
                     {
-                        args += ", ";
-                        args += $@"R({arg})";
+                        builder.Append($", R({arg}");
                     }
-
-                    builder.Append($@"-- R({a}) := closure(KPROTO[{bx}]{args})");
-                    break;
-                default:
+                    builder.Append(')');
                     break;
             }
 
             builder.AppendLine();
         }
-
-        /*.AppendLine("\nClosures {");
-        for (int i = 0; i < function.ChildFunctions.Length; i++)
-        {
-            builder.AppendLine($@"Closure {i}:");
-            DisassembleFunction(function.ChildFunctions[i]);
-        }
-        builder.AppendLine("}");*/
+        
         return builder.ToString();
     }
 
@@ -658,23 +645,23 @@ public class Lua50Decompiler : ILanguageDecompiler
                     }
                     break;
                 default:
-                    switch (_opProperties[opcode].OpMode)
+                    switch (OpProperties[opcode].OpMode)
                     {
                         case OpMode.IABC:
                             instructions.Add(new PlaceholderInstruction(
-                                $@"{_opProperties[opcode].OpName} {instruction >> 24} {(instruction >> 15) & 0x1FF} {(instruction >> 6) & 0x1FF}"));
+                                $@"{OpProperties[opcode].OpName} {instruction >> 24} {(instruction >> 15) & 0x1FF} {(instruction >> 6) & 0x1FF}"));
                             break;
                         case OpMode.IABx:
                             instructions.Add(new PlaceholderInstruction(
-                                $@"{_opProperties[opcode].OpName} {instruction >> 24} {(instruction >> 6) & 0x3FFFF}"));
+                                $@"{OpProperties[opcode].OpName} {instruction >> 24} {(instruction >> 6) & 0x3FFFF}"));
                             break;
                         case OpMode.IAsBx:
                             instructions.Add(new PlaceholderInstruction(
-                                $@"{_opProperties[opcode].OpName} {instruction >> 24} {(instruction >> 6) & 0x3FFFF}"));
+                                $@"{OpProperties[opcode].OpName} {instruction >> 24} {(instruction >> 6) & 0x3FFFF}"));
                             break;
                         case OpMode.IAx:
                         default:
-                            throw new Exception($@"Unimplemented opcode {_opProperties[opcode].OpName}");
+                            throw new Exception($@"Unimplemented opcode {OpProperties[opcode].OpName}");
                     }
 
                     break;
@@ -701,7 +688,7 @@ public class Lua50Decompiler : ILanguageDecompiler
         passManager.AddPass("build-cfg", new BuildControlFlowGraphPass());
         passManager.AddPass("resolve-ambiguous-call-args", new ResolveAmbiguousCallArguments());
         passManager.AddPass("ssa-transform", new SsaTransformPass());
-        passManager.AddPass("resolve-closure-upvals-50", new ResolveClosureUpValues50Pass());
+        passManager.AddPass("resolve-closure-up-values-50", new ResolveClosureUpValues50Pass());
         passManager.AddPass("eliminate-dead-phi-1", new EliminateDeadAssignmentsPass(true));
         passManager.AddPass("eliminate-unused-phi", new EliminateUnusedPhiFunctionsPass());
         passManager.AddPass("detect-generic-list-initializers-1", new DetectGenericListInitializersPass());

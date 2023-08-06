@@ -222,8 +222,25 @@ public class PassManager
             if (_dumpAllIrPasses || _dumpIrPasses.Contains(_passes[p].Name))
             {
                 var output = new StringBuilder(128 * 1024);
-                printer.PrintFunctionToStringBuilder(functions[0], output);
-                irResults.Add(new PassIrResult(passName, output.ToString()));
+                if (catchExceptions)
+                {
+                    try
+                    {
+                        printer.PrintFunctionToStringBuilder(functions[0], output);
+                        irResults.Add(new PassIrResult(passName, output.ToString()));
+                    }
+                    catch (Exception e)
+                    {
+                        error = $"Exception occurred printing IR!\nPass: {passName}\n\n{e.Message}\n\n{e.StackTrace}";
+                        irResults.Add(new PassIrResult(passName, ""));
+                        goto Error;
+                    }
+                }
+                else
+                {
+                    printer.PrintFunctionToStringBuilder(functions[0], output);
+                    irResults.Add(new PassIrResult(passName, output.ToString()));
+                }
             }
             
             // Dump dot files

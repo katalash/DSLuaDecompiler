@@ -56,7 +56,27 @@ namespace LuaDecompilerCore
             }
             
             // Visit all the functions and generate the initial IR from the bytecode
-            Visit(luaMain, main);
+            if (DecompilationOptions.CatchPassExceptions)
+            {
+                try
+                {
+                    Visit(luaMain, main);
+                }
+                catch (Exception e)
+                {
+                    return new DecompilationResult(
+                        null,
+                        $"Exception occurred in building IR!\n\n{e.Message}\n\n{e.StackTrace}",
+                        Array.Empty<PassIrResult>(),
+                        Array.Empty<PassDotGraphResult>(),
+                        Array.Empty<int>()
+                    );
+                }
+            }
+            else
+            {
+                Visit(luaMain, main);
+            }
 
             // Create pass manager, add language specific passes, and run
             var passManager = new PassManager(DecompilationOptions);

@@ -232,8 +232,25 @@ public sealed class DecompilationTester
         result.DecompiledSource = decompilationResult.DecompiledSource;
         if (decompilationResult.DecompiledSource == null)
         {
+            // Disassemble everything
+            var disassembledFunctions = new List<string?>();
+            var disassembledFunctionIds = new List<int>();
+
+            void Visit(LuaFile.Function function)
+            {
+                disassembledFunctions.Add(_decompiler.DisassembleLuaFunction(_languageDecompiler, function));
+                disassembledFunctionIds.Add(function.FunctionId);
+                foreach (var child in function.ChildFunctions)
+                {
+                    Visit(child);
+                }
+            }
+            Visit(luaFile.MainFunction);
+            
             result.Error = TestCaseError.ErrorDecompilationFailed;
             result.ErrorMessage = decompilationResult.ErrorMessage;
+            result.MismatchedFunctionIds = disassembledFunctionIds.ToArray();
+            result.MismatchedCompiledDisassembledFunctions = disassembledFunctions.ToArray();
             return result;
         }
         
@@ -245,8 +262,25 @@ public sealed class DecompilationTester
         }
         catch (CompileException e)
         {
+            // Disassemble everything (yes copy paste bad)
+            var disassembledFunctions = new List<string?>();
+            var disassembledFunctionIds = new List<int>();
+
+            void Visit(LuaFile.Function function)
+            {
+                disassembledFunctions.Add(_decompiler.DisassembleLuaFunction(_languageDecompiler, function));
+                disassembledFunctionIds.Add(function.FunctionId);
+                foreach (var child in function.ChildFunctions)
+                {
+                    Visit(child);
+                }
+            }
+            Visit(luaFile.MainFunction);
+            
             result.Error = TestCaseError.ErrorRecompilationFailed;
             result.ErrorMessage = e.Message;
+            result.MismatchedFunctionIds = disassembledFunctionIds.ToArray();
+            result.MismatchedCompiledDisassembledFunctions = disassembledFunctions.ToArray();
             return result;
         }
 
