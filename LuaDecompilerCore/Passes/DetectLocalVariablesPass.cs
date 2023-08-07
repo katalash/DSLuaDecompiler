@@ -35,9 +35,8 @@ public class DetectLocalVariablesPass : IPass
                     definesSet.Clear();
                     foreach (var def in a.GetDefines(definesSet, true))
                     {
-                        // If the definition hasn't been renamed at this point then it's from a parent closure and
-                        // should not be made a local.
-                        if (!def.IsRenamedRegister && !newDeclared.Contains(def))
+                        // Make this the local declaration if it hasn't been declared yet
+                        if (!newDeclared.Contains(def))
                         {
                             newDeclared.Add(def);
                             a.IsLocalDeclaration = true;

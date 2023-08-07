@@ -44,7 +44,13 @@ public class ExpressionPropagationPass : IPass
                               ((i - 1 >= 0 && b.Instructions[i - 1] == definingInstruction &&
                                 definingInstruction.OriginalBlock == inst.OriginalBlock) || 
                                inst is Assignment { IsListAssignment: true }) && 
-                              !localVariableAnalysis.LocalVariables.Contains(use)) || 
+                              !localVariableAnalysis.LocalVariables.Contains(use)) ||
+                             (inst is Assignment
+                             {
+                                 IsLocalDeclaration: true, 
+                                 IsSingleAssignment: true,
+                                 Left: { HasIndex: false, Identifier: { IsRegister: true, RegNum: {} reg} }
+                             } && use.RegNum == reg) ||
                              a.PropagateAlways))
                         {
                             // Don't substitute if this use's define was defined before the code gen for the function

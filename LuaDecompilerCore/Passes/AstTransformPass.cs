@@ -65,20 +65,21 @@ public class AstTransformPass : IPass
                     Assignment incrementInstruction = node.Instructions[^2] as Assignment ?? throw new Exception();
                     Expression increment = (incrementInstruction.Right as BinOp)?.Right ?? throw new Exception();
 
-                    // Search the predecessor block for the initial assignments (i.e. the definition)
-                    /*for (int i = loopInitializer.Instructions.Count() - 1; i >= 0; i--)
-                    {
-                        if (loopInitializer.Instructions[i] is Assignment a && a.GetDefines(true).Contains(loopvar))
+                    // Lua 5.0 has a sub instruction at the end of the initializer that needs to be removed
+                    if (loopInitializer.GetInstruction(loopInitializer.Instructions.Count - 2) is Assignment
                         {
-                            nfor.Initial = a;
-                            //if (!lua51)
-                            loopInitializer.Instructions.RemoveAt(i);
-                            break;
-                        }
-                    }*/
-
-                    // Remove the sub instruction at the end
-                    loopInitializer.Instructions.RemoveAt(loopInitializer.Instructions.Count - 2);
+                            IsSingleAssignment: true,
+                            Left: { HasIndex: false, Identifier: { IsRegister: true } id1 },
+                            Right: BinOp
+                            {
+                                Operation: BinOp.OperationType.OpSub,
+                                Left: IdentifierReference { HasIndex: false, Identifier: { IsRegister: true } id2 },
+                                Right: IdentifierReference { HasIndex: false, Identifier: { IsRegister: true } id3 }
+                            }
+                        } && id1.RegNum == id2.RegNum && id1.RegNum + 2 == id3.RegNum)
+                    {
+                        loopInitializer.Instructions.RemoveAt(loopInitializer.Instructions.Count - 2);
+                    }
 
                     // Extract the step variable definition
                     if (loopInitializer.GetInstruction(loopInitializer.Instructions.Count - 2) is 

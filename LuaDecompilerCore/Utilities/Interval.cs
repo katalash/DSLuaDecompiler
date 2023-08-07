@@ -88,6 +88,18 @@ public struct Interval
         return result;
     }
 
+    /// <summary>
+    /// Sets the beginning of the range without affecting the end. If the new beginning is bigger than the current end,
+    /// then the range will be made empty.
+    /// </summary>
+    /// <param name="begin"></param>
+    public void SetBegin(int begin)
+    {
+        var end = End;
+        _start = begin;
+        _range = Math.Max(0, end - _start);
+    }
+
     public override string ToString()
     {
         if (_range == 0)

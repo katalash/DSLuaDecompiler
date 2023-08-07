@@ -598,7 +598,8 @@ public class Lua50Decompiler : ILanguageDecompiler
                     instructions.Add(new ConditionalJumpLabel(irFunction.GetLabel((uint)(i / 4 + 1 + sbx)),
                         new BinOp(new IdentifierReference(irFunction.GetRegister(a)),
                             new IdentifierReference(
-                                irFunction.GetRegister(a + 1)), BinOp.OperationType.OpLoopCompare)));
+                                irFunction.GetRegister(a + 1)), BinOp.OperationType.OpLoopCompare), 
+                        null, new Interval((int)a, (int)a + 3)));
                     break;
                 case Lua50Ops.OpSetList:
                 case Lua50Ops.OpSetListTo:
