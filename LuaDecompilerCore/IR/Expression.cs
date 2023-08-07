@@ -739,7 +739,8 @@ namespace LuaDecompilerCore.IR
             var leftConstId = Left.GetLowestConstantId();
             var rightConstId = Right.GetLowestConstantId();
 
-            if (IsCompare && Operation != OperationType.OpLoopCompare && 
+            if (IsCompare && Operation is not OperationType.OpLoopCompare and not OperationType.OpEqual 
+                    and not OperationType.OpNotEqual && 
                 leftConstId != -1 && rightConstId != -1 && leftConstId > rightConstId)
             {
                 // We need to swap the left and right to keep matching recompiles
