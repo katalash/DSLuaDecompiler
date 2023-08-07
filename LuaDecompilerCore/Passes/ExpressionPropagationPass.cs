@@ -66,6 +66,17 @@ public class ExpressionPropagationPass : IPass
                                 continue;
                             }
                             
+                            // Don't inline a function call into a non-tail call return because the Lua compiler would
+                            // have generated a tail call instead if this weren't a local
+                            if (a is { PropagateAlways: false, Right: FunctionCall } &&
+                                inst is Return
+                                {
+                                    IsTailReturn: false, ReturnExpressions: [IdentifierReference { HasIndex: false }]
+                                })
+                            {
+                                continue;
+                            }
+                            
                             if (inst.ReplaceUses(use, a.Right))
                             {
                                 var definingBlock = f.BlockList[defineUseAnalysis.DefiningInstructionBlock(use)];
