@@ -190,7 +190,7 @@ namespace DecompilerTester
                     {
                         DumpPassIr = true,
                         DumpCfg = true,
-                        MultiThreaded = false,
+                        MultiThreaded = true,
                         HandleDecompilationExceptions = true
                     });
                 TestUtilities.AddCompiledLuaDirectoryToTester(args[0], "hks", tester);

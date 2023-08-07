@@ -566,6 +566,18 @@ public class HksDecompiler : ILanguageDecompiler
         var br = new BinaryReaderEx(false, function.Bytecode) { BigEndian = true };
         irFunction.BeginBlock.Instructions = new List<Instruction>(function.Bytecode.Length * 6 / 4);
         List<Instruction> instructions = new List<Instruction>(4);
+        Interval definedRegisters = new Interval();
+
+        // Parameters that are declared but unused aren't counted in the function header's parameter count, but still
+        // affect register allocation in the bytecode. By finding the first register defined that isn't a parameter, we
+        // can figure out how many actual parameters were in the source code.
+        var firstAssignedRegister = -1;
+        void FirstAssigned(uint register)
+        {
+            if (register >= irFunction.ParameterCount && firstAssignedRegister == -1)
+                firstAssignedRegister = (int)register;
+        }
+        
         for (var i = 0; i < function.Bytecode.Length; i += 4)
         {
             var instruction = br.ReadUInt32();
@@ -603,18 +615,21 @@ public class HksDecompiler : ILanguageDecompiler
             {
                 case LuaHksOps.OpMove:
                     assignment = new Assignment(irFunction.GetRegister(a), Register(irFunction, (uint)b));
+                    FirstAssigned(a);
                     CheckLocal(assignment, function, pc);
                     instructions.Add(assignment);
                     break;
                 case LuaHksOps.OpLoadK:
                     assignment = new Assignment(irFunction.GetRegister(a),
                         ToConstantIr(function.Constants[bx], (int)bx));
+                    FirstAssigned(a);
                     CheckLocal(assignment, function, pc);
                     instructions.Add(assignment);
                     break;
                 case LuaHksOps.OpLoadBool:
                     assignment = new Assignment(irFunction.GetRegister(a), new Constant(b == 1, -1));
                     assignment.NilAssignmentReg = a;
+                    FirstAssigned(a);
                     CheckLocal(assignment, function, pc);
                     instructions.Add(assignment);
                     if (c > 0)
@@ -628,6 +643,7 @@ public class HksDecompiler : ILanguageDecompiler
                     for (var arg = (int)a; arg <= b; arg++)
                     {
                         nlist.Add(new IdentifierReference(irFunction.GetRegister((uint)arg)));
+                        FirstAssigned((uint)arg);
                     }
 
                     assignment = new Assignment(nlist, new Constant(Constant.ConstantType.ConstNil, -1));
@@ -638,6 +654,7 @@ public class HksDecompiler : ILanguageDecompiler
                 case LuaHksOps.OpGetUpVal:
                     var up = irFunction.GetUpValue((uint)b);
                     instructions.Add(new Assignment(irFunction.GetRegister(a), new IdentifierReference(up)));
+                    FirstAssigned(a);
                     break;
                 case LuaHksOps.OpSetUpVal:
                     up = irFunction.GetUpValue((uint)b);
@@ -652,6 +669,7 @@ public class HksDecompiler : ILanguageDecompiler
                 case LuaHksOps.OpGetGlobal:
                     assignment = new Assignment(irFunction.GetRegister(a),
                         new IdentifierReference(Identifier.GetGlobal(bx)));
+                    FirstAssigned(a);
                     CheckLocal(assignment, function, pc);
                     instructions.Add(assignment);
                     break;
@@ -660,6 +678,7 @@ public class HksDecompiler : ILanguageDecompiler
                     assignment = new Assignment(irFunction.GetRegister(a),
                         new IdentifierReference(irFunction.GetRegister((uint)b),
                             RkIrHks(irFunction, function, c, sZero)));
+                    FirstAssigned(a);
                     CheckLocal(assignment, function, pc);
                     instructions.Add(assignment);
                     break;
@@ -671,6 +690,7 @@ public class HksDecompiler : ILanguageDecompiler
                     assignment = new Assignment(irFunction.GetRegister(a),
                         new InitializerList(new List<Expression>()));
                     assignment.VarargAssignmentReg = a;
+                    FirstAssigned(a);
                     CheckLocal(assignment, function, pc);
                     instructions.Add(assignment);
                     break;
@@ -685,6 +705,8 @@ public class HksDecompiler : ILanguageDecompiler
                         new IdentifierReference(irFunction.GetRegister((uint)b),
                             RkIrHks(irFunction, function, c, sZero)));
                     op.SelfAssignMinRegister = (int)a;
+                    FirstAssigned(a);
+                    FirstAssigned(a + 1);
                     instructions.Add(op);
                     break;
                 case LuaHksOps.OpAdd:
@@ -692,6 +714,7 @@ public class HksDecompiler : ILanguageDecompiler
                         irFunction.GetRegister(a),
                         new BinOp(Register(irFunction, (uint)b),
                             RkIrHks(irFunction, function, c, sZero), BinOp.OperationType.OpAdd));
+                    FirstAssigned(a);
                     CheckLocal(assignment, function, pc);
                     instructions.Add(assignment);
                     break;
@@ -700,6 +723,7 @@ public class HksDecompiler : ILanguageDecompiler
                         irFunction.GetRegister(a),
                         new BinOp(ToConstantIr(function.Constants[b], b),
                             Register(irFunction, (uint)c), BinOp.OperationType.OpAdd));
+                    FirstAssigned(a);
                     CheckLocal(assignment, function, pc);
                     instructions.Add(assignment);
                     break;
@@ -708,6 +732,7 @@ public class HksDecompiler : ILanguageDecompiler
                         irFunction.GetRegister(a),
                         new BinOp(Register(irFunction, (uint)b),
                             RkIrHks(irFunction, function, c, sZero), BinOp.OperationType.OpSub));
+                    FirstAssigned(a);
                     CheckLocal(assignment, function, pc);
                     instructions.Add(assignment);
                     break;
@@ -716,6 +741,7 @@ public class HksDecompiler : ILanguageDecompiler
                         irFunction.GetRegister(a),
                         new BinOp(ToConstantIr(function.Constants[b], b),
                             Register(irFunction, (uint)c), BinOp.OperationType.OpSub));
+                    FirstAssigned(a);
                     CheckLocal(assignment, function, pc);
                     instructions.Add(assignment);
                     break;
@@ -724,6 +750,7 @@ public class HksDecompiler : ILanguageDecompiler
                         irFunction.GetRegister(a),
                         new BinOp(Register(irFunction, (uint)b),
                             RkIrHks(irFunction, function, c, sZero), BinOp.OperationType.OpMul));
+                    FirstAssigned(a);
                     CheckLocal(assignment, function, pc);
                     instructions.Add(assignment);
                     break;
@@ -732,6 +759,7 @@ public class HksDecompiler : ILanguageDecompiler
                         irFunction.GetRegister(a),
                         new BinOp(ToConstantIr(function.Constants[b], b),
                             Register(irFunction, (uint)c), BinOp.OperationType.OpMul));
+                    FirstAssigned(a);
                     CheckLocal(assignment, function, pc);
                     instructions.Add(assignment);
                     break;
@@ -740,6 +768,7 @@ public class HksDecompiler : ILanguageDecompiler
                         irFunction.GetRegister(a),
                         new BinOp(Register(irFunction, (uint)b),
                             RkIrHks(irFunction, function, c, sZero), BinOp.OperationType.OpDiv));
+                    FirstAssigned(a);
                     CheckLocal(assignment, function, pc);
                     instructions.Add(assignment);
                     break;
@@ -748,6 +777,7 @@ public class HksDecompiler : ILanguageDecompiler
                         irFunction.GetRegister(a),
                         new BinOp(ToConstantIr(function.Constants[b], b),
                             Register(irFunction, (uint)c), BinOp.OperationType.OpDiv));
+                    FirstAssigned(a);
                     CheckLocal(assignment, function, pc);
                     instructions.Add(assignment);
                     break;
@@ -756,6 +786,7 @@ public class HksDecompiler : ILanguageDecompiler
                         irFunction.GetRegister(a),
                         new BinOp(Register(irFunction, (uint)b),
                             RkIrHks(irFunction, function, c, sZero), BinOp.OperationType.OpMod));
+                    FirstAssigned(a);
                     CheckLocal(assignment, function, pc);
                     instructions.Add(assignment);
                     break;
@@ -764,6 +795,7 @@ public class HksDecompiler : ILanguageDecompiler
                         irFunction.GetRegister(a),
                         new BinOp(ToConstantIr(function.Constants[b], b),
                             Register(irFunction, (uint)c), BinOp.OperationType.OpMod));
+                    FirstAssigned(a);
                     CheckLocal(assignment, function, pc);
                     instructions.Add(assignment);
                     break;
@@ -772,6 +804,7 @@ public class HksDecompiler : ILanguageDecompiler
                         irFunction.GetRegister(a),
                         new BinOp(Register(irFunction, (uint)b),
                             RkIrHks(irFunction, function, c, sZero), BinOp.OperationType.OpPow));
+                    FirstAssigned(a);
                     CheckLocal(assignment, function, pc);
                     instructions.Add(assignment);
                     break;
@@ -780,6 +813,7 @@ public class HksDecompiler : ILanguageDecompiler
                         irFunction.GetRegister(a),
                         new BinOp(ToConstantIr(function.Constants[b], b),
                             Register(irFunction, (uint)c), BinOp.OperationType.OpPow));
+                    FirstAssigned(a);
                     CheckLocal(assignment, function, pc);
                     instructions.Add(assignment);
                     break;
@@ -787,6 +821,7 @@ public class HksDecompiler : ILanguageDecompiler
                     assignment = new Assignment(irFunction.GetRegister(a),
                         new UnaryOp(new IdentifierReference(irFunction.GetRegister((uint)b)),
                             UnaryOp.OperationType.OpNegate));
+                    FirstAssigned(a);
                     CheckLocal(assignment, function, pc);
                     instructions.Add(assignment);
                     break;
@@ -794,6 +829,7 @@ public class HksDecompiler : ILanguageDecompiler
                     assignment = new Assignment(irFunction.GetRegister(a),
                         new UnaryOp(new IdentifierReference(irFunction.GetRegister((uint)b)),
                             UnaryOp.OperationType.OpNot, true));
+                    FirstAssigned(a);
                     CheckLocal(assignment, function, pc);
                     instructions.Add(assignment);
                     break;
@@ -801,6 +837,7 @@ public class HksDecompiler : ILanguageDecompiler
                     assignment = new Assignment(irFunction.GetRegister(a),
                         new UnaryOp(new IdentifierReference(irFunction.GetRegister((uint)b)),
                             UnaryOp.OperationType.OpLength));
+                    FirstAssigned(a);
                     CheckLocal(assignment, function, pc);
                     instructions.Add(assignment);
                     break;
@@ -812,6 +849,7 @@ public class HksDecompiler : ILanguageDecompiler
                     }
 
                     assignment = new Assignment(irFunction.GetRegister(a), new Concat(args));
+                    FirstAssigned(a);
                     CheckLocal(assignment, function, pc);
                     instructions.Add(assignment);
                     break;
@@ -967,11 +1005,13 @@ public class HksDecompiler : ILanguageDecompiler
                     for (var r = (int)a; r <= a + c - 2; r++)
                     {
                         rets.Add(new IdentifierReference(irFunction.GetRegister((uint)r)));
+                        FirstAssigned((uint)r);
                     }
 
                     if (c == 0)
                     {
                         rets.Add(new IdentifierReference(irFunction.GetRegister(a)));
+                        FirstAssigned(a);
                     }
 
                     var functionCall = new FunctionCall(new IdentifierReference(irFunction.GetRegister(a)), args)
@@ -1030,12 +1070,14 @@ public class HksDecompiler : ILanguageDecompiler
                     if (c == 0)
                     {
                         rets.Add(new IdentifierReference(irFunction.GetRegister(a + 3)));
+                        FirstAssigned(a + 3);
                     }
                     else
                     {
                         for (var r = (int)a + 3; r <= a + c + 2; r++)
                         {
                             rets.Add(new IdentifierReference(irFunction.GetRegister((uint)r)));
+                            FirstAssigned((uint)r);
                         }
                     }
 
@@ -1049,6 +1091,7 @@ public class HksDecompiler : ILanguageDecompiler
                             new Constant(Constant.ConstantType.ConstNil, -1), BinOp.OperationType.OpEqual)));
                     instructions.Add(new Assignment(irFunction.GetRegister(a + 2),
                         new IdentifierReference(irFunction.GetRegister(a + 3))));
+                    FirstAssigned(a + 2);
                     break;
                 case LuaHksOps.OpForPrep:
                     addr = (uint)(i / 4 + 2 + ((sbx << 16) >> 16));
@@ -1063,12 +1106,16 @@ public class HksDecompiler : ILanguageDecompiler
                     // the scope so that any prior definitions get marked as temporaries and get inlined
                     assignment = new Assignment(new IdentifierReference(irFunction.GetRegister(a)),
                         new IdentifierReference(irFunction.GetRegister(a))) { IsLocalDeclaration = true };
+                    FirstAssigned(a);
                     CheckLocal(assignment, function, pc + 1);
                     instructions.Add(assignment);
                     instructions.Add(new Assignment(new IdentifierReference(irFunction.GetRegister(a + 1)),
                         new IdentifierReference(irFunction.GetRegister(a + 1))) { IsLocalDeclaration = true });
+                    FirstAssigned(a + 1);
                     instructions.Add(new Assignment(new IdentifierReference(irFunction.GetRegister(a + 2)),
                         new IdentifierReference(irFunction.GetRegister(a + 2))) { IsLocalDeclaration = true });
+                    FirstAssigned(a + 2);
+                    FirstAssigned(a + 3);
                     
                     instructions.Add(new JumpLabel(irFunction.GetLabel(addr)));
                     break;
@@ -1102,6 +1149,7 @@ public class HksDecompiler : ILanguageDecompiler
                     var closureFunction = irFunction.LookupClosure(bx);
                     assignment = new Assignment(irFunction.GetRegister(a),
                         new Closure(closureFunction)) { OpLocation = i / 4 };
+                    FirstAssigned(a);
                     CheckLocal(assignment, function, pc);
                     instructions.Add(assignment);
                     
@@ -1131,6 +1179,7 @@ public class HksDecompiler : ILanguageDecompiler
                     assignment = new Assignment(Register(irFunction, a),
                         new IdentifierReference(irFunction.GetRegister((uint)b),
                             new Constant(function.Constants[c].ToString(), -1)));
+                    FirstAssigned(a);
                     CheckLocal(assignment, function, pc);
                     instructions.Add(assignment);
                     break;
@@ -1151,6 +1200,7 @@ public class HksDecompiler : ILanguageDecompiler
                     for (var arg = (int)a; arg <= a + b - 1; arg++)
                     {
                         varArgs.Add(new IdentifierReference(irFunction.GetRegister((uint)arg)));
+                        FirstAssigned((uint)arg);
                     }
 
                     if (b != 0)
@@ -1165,6 +1215,7 @@ public class HksDecompiler : ILanguageDecompiler
                             IsAmbiguousVararg = true,
                             VarargAssignmentReg = a
                         };
+                        FirstAssigned(a);
                     }
 
                     CheckLocal(assignment, function, pc);
@@ -1207,6 +1258,12 @@ public class HksDecompiler : ILanguageDecompiler
                 irFunction.BeginBlock.Instructions.Add(inst);
             }
         }
+        
+        // Something is up where we can't trust lua function parameter count, so registers below the first register
+        // defined in this function are parameters.
+        if (irFunction.IsVarargs)
+            firstAssignedRegister--;
+        irFunction.ParameterCount = Math.Max(firstAssignedRegister, irFunction.ParameterCount);
     }
 
     public void AddDecompilePasses(PassManager passManager)
