@@ -571,13 +571,24 @@ namespace LuaDecompilerCore.IR
         public Expression Right;
         public OperationType Operation;
 
+        /// <summary>
+        /// Whether or not this bin-op comparison came from a LT_BK or LE_BK instruction and has position requirements
+        /// for the left constant.
+        /// </summary>
+        public bool IsBkComparison { get; private set; }
         public bool HasParentheses { get; private set; }
 
-        public BinOp(Expression left, Expression right, OperationType op)
+        public bool IsNonEqualityComparison => Operation is OperationType.OpLessThan or OperationType.OpLessEqual
+            or OperationType.OpGreaterThan or OperationType.OpGreaterEqual;
+
+        public bool IsBkLegal => IsBkComparison ? Left is Constant : Left is not Constant;
+
+        public BinOp(Expression left, Expression right, OperationType op, bool isBkComparison = false)
         {
             Left = left;
             Right = right;
             Operation = op;
+            IsBkComparison = isBkComparison;
         }
 
         /// <summary>

@@ -903,14 +903,14 @@ public class HksDecompiler : ILanguageDecompiler
                         instructions.Add(
                             new ConditionalJumpLabel(irFunction.GetLabel((uint)(i / 4 + 2)),
                                 new BinOp(ToConstantIr(function.Constants[b], b),
-                                    Register(irFunction, (uint)c), BinOp.OperationType.OpLessThan)));
+                                    Register(irFunction, (uint)c), BinOp.OperationType.OpLessThan, true)));
                     }
                     else
                     {
                         instructions.Add(
                             new ConditionalJumpLabel(irFunction.GetLabel((uint)(i / 4 + 2)),
                                 new BinOp(ToConstantIr(function.Constants[b], b),
-                                    Register(irFunction, (uint)c), BinOp.OperationType.OpGreaterEqual)));
+                                    Register(irFunction, (uint)c), BinOp.OperationType.OpGreaterEqual, true)));
                     }
 
                     break;
@@ -937,13 +937,13 @@ public class HksDecompiler : ILanguageDecompiler
                         instructions.Add(
                             new ConditionalJumpLabel(irFunction.GetLabel((uint)(i / 4 + 2)),
                                 new BinOp(ToConstantIr(function.Constants[b], b),
-                                    Register(irFunction, (uint)c), BinOp.OperationType.OpLessEqual)));
+                                    Register(irFunction, (uint)c), BinOp.OperationType.OpLessEqual, true)));
                     }
                     else
                     {
                         instructions.Add(new ConditionalJumpLabel(irFunction.GetLabel((uint)(i / 4 + 2)),
                             new BinOp(ToConstantIr(function.Constants[b], b),
-                                Register(irFunction, (uint)c), BinOp.OperationType.OpGreaterThan)));
+                                Register(irFunction, (uint)c), BinOp.OperationType.OpGreaterThan, true)));
                     }
 
                     break;

@@ -34,6 +34,8 @@ public class ExpressionPropagationPass : IPass
                     foreach (var use in usesSet)
                     {
                         var definingInstruction = defineUseAnalysis.DefiningInstruction(use);
+                        bool isListElementDefine = definingInstruction?.GetSingleDefine(true) is { } def &&
+                                                   defineUseAnalysis.IsListInitializerElement(def);
                         if (definingInstruction is Assignment
                             {
                                 IsSingleAssignment: true, 
@@ -41,7 +43,7 @@ public class ExpressionPropagationPass : IPass
                                 Right: not null
                             } a &&
                             ((defineUseAnalysis.UseCount(use) == 1 && 
-                              ((i - 1 >= 0 && b.Instructions[i - 1] == definingInstruction &&
+                              (((i - 1 >= 0 && b.Instructions[i - 1] == definingInstruction || isListElementDefine) &&
                                 definingInstruction.OriginalBlock == inst.OriginalBlock) || 
                                inst is Assignment { IsListAssignment: true }) && 
                               !localVariableAnalysis.LocalVariables.Contains(use)) ||
