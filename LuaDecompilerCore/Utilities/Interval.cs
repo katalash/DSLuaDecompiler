@@ -64,7 +64,7 @@ public struct Interval
             _range += _start - value;
             _start = value;
         }
-        else if (value > _start + _range)
+        else if (value >= _start + _range)
         {
             _range = value - _start + 1;
         }

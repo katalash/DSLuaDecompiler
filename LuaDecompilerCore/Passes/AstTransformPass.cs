@@ -22,9 +22,7 @@ public class AstTransformPass : IPass
 
         // Heads of for statements
         var forHeads = new HashSet<BasicBlock>();
-
-        var relocalize = new HashSet<Identifier>();
-
+        
         // Order the blocks sequentially
         for (var i = 0; i < f.BlockList.Count; i++)
         {
@@ -35,23 +33,6 @@ public class AstTransformPass : IPass
         var definesSet = new HashSet<Identifier>(2);
         foreach (var node in f.PostorderTraversal(true))
         {
-            // Search instructions for identifiers we need to relocalize
-            foreach (var inst in node.Instructions)
-            {
-                if (inst is Assignment asn)
-                {
-                    definesSet.Clear();
-                    foreach (var def in inst.GetDefines(definesSet, true))
-                    {
-                        if (relocalize.Contains(def))
-                        {
-                            asn.IsLocalDeclaration = true;
-                            relocalize.Remove(def);
-                        }
-                    }
-                }
-            }
-
             // A for loop is a pretested loop where the follow does not match the head
             if (node.LoopFollow != null && node.LoopFollow != node && node.Predecessors.Count >= 2 && node.LoopType == LoopType.LoopPretested)
             {
@@ -61,12 +42,16 @@ public class AstTransformPass : IPass
                 if (node.Instructions.Last() is 
                     ConditionalJump { Condition: BinOp { Operation: BinOp.OperationType.OpLoopCompare } loopCondition })
                 {
+                    // If the loop instruction hasn't had its jump to the loop head removed yet then go ahead and do that
+                    if (loopInitializer.Instructions[^1] is IJump)
+                        loopInitializer.Instructions.RemoveAt(loopInitializer.Instructions.Count - 1);
+                    
                     var loopVariable = (loopCondition.Left as IdentifierReference)?.Identifier;
                     Assignment incrementInstruction = node.Instructions[^2] as Assignment ?? throw new Exception();
                     Expression increment = (incrementInstruction.Right as BinOp)?.Right ?? throw new Exception();
 
                     // Lua 5.0 has a sub instruction at the end of the initializer that needs to be removed
-                    if (loopInitializer.GetInstruction(loopInitializer.Instructions.Count - 2) is Assignment
+                    if (loopInitializer.GetInstruction(loopInitializer.Instructions.Count - 1) is Assignment
                         {
                             IsSingleAssignment: true,
                             Left: { HasIndex: false, Identifier: { IsRegister: true } id1 },
@@ -78,45 +63,33 @@ public class AstTransformPass : IPass
                             }
                         } && id1.RegNum == id2.RegNum && id1.RegNum + 2 == id3.RegNum)
                     {
-                        loopInitializer.Instructions.RemoveAt(loopInitializer.Instructions.Count - 2);
+                        loopInitializer.Instructions.RemoveAt(loopInitializer.Instructions.Count - 1);
                     }
 
                     // Extract the step variable definition
-                    if (loopInitializer.GetInstruction(loopInitializer.Instructions.Count - 2) is 
+                    if (loopInitializer.GetInstruction(loopInitializer.Instructions.Count - 1) is 
                         Assignment { Right: not null } incrementAssignment)
                     {
                         increment = incrementAssignment.Right;
-                        if (incrementAssignment.IsLocalDeclaration)
-                        {
-                            relocalize.Add(incrementAssignment.Left.Identifier);
-                        }
-                        loopInitializer.Instructions.RemoveAt(loopInitializer.Instructions.Count - 2);
+                        loopInitializer.Instructions.RemoveAt(loopInitializer.Instructions.Count - 1);
                     }
 
                     // Extract the limit variable definition
                     Expression? limit = null;
-                    if (loopInitializer.GetInstruction(loopInitializer.Instructions.Count - 2) is 
+                    if (loopInitializer.GetInstruction(loopInitializer.Instructions.Count - 1) is 
                         Assignment limitAssignment)
                     {
                         limit = limitAssignment.Right;
-                        if (limitAssignment.IsLocalDeclaration)
-                        {
-                            relocalize.Add(limitAssignment.Left.Identifier);
-                        }
-                        loopInitializer.Instructions.RemoveAt(loopInitializer.Instructions.Count - 2);
+                        loopInitializer.Instructions.RemoveAt(loopInitializer.Instructions.Count - 1);
                     }
 
                     // Extract the initializer variable definition
                     Assignment? initial = null;
-                    if (loopInitializer.GetInstruction(loopInitializer.Instructions.Count - 2) is 
+                    if (loopInitializer.GetInstruction(loopInitializer.Instructions.Count - 1) is 
                         Assignment initAssignment)
                     {
                         initial = initAssignment;
-                        if (initAssignment.IsLocalDeclaration)
-                        {
-                            relocalize.Add(initAssignment.Left.Identifier);
-                        }
-                        loopInitializer.Instructions.RemoveAt(loopInitializer.Instructions.Count - 2);
+                        loopInitializer.Instructions.RemoveAt(loopInitializer.Instructions.Count - 1);
                     }
 
                     var body = node.EdgeFalse;

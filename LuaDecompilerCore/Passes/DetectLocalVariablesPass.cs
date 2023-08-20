@@ -45,15 +45,33 @@ public class DetectLocalVariablesPass : IPass
                     }
                 }
             }
-
+            
             // Visit and merge the children in the dominance hierarchy
             var inherited = new Dictionary<Identifier, List<Assignment>>();
             var phiInduced = new HashSet<Identifier>();
             dominance.RunOnDominanceTreeSuccessors(f, b, successor =>
             {
-                var cDeclared = Visit(successor, newDeclared);
+                // Loop heads may have temporary local variables that are declared before the actual loop itself that
+                // need to go out of scope upon entry of the follow. We must manually make sure we don't send these
+                // local variables into the follow or take them back up in the inherited.
+                var loopFollowKilledLocals = b.IsLoopHead && b.LoopFollow == successor && b.KilledLocals.Count > 0;
+                var successorDeclared = newDeclared;
+                if (loopFollowKilledLocals)
+                {
+                    successorDeclared = new HashSet<Identifier>(newDeclared);
+                    for (uint i = 0; i < b.KilledLocals.Count; i++)
+                    {
+                        successorDeclared.Remove(Identifier.GetRegister((uint)b.KilledLocals.Begin + i));
+                    }
+                }
+                
+                var cDeclared = Visit(successor, successorDeclared);
                 foreach (var entry in cDeclared)
                 {
+                    // Don't take up loop locals that were killed entering the loop follow
+                    if (loopFollowKilledLocals && b.KilledLocals.Contains((int)entry.Key.RegNum))
+                        continue;
+                    
                     if (!inherited.ContainsKey(entry.Key))
                     {
                         inherited.Add(entry.Key, new List<Assignment>(entry.Value));

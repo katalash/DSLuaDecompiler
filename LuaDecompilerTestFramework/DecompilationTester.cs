@@ -142,7 +142,8 @@ public sealed class DecompilationTester
 
             for (var index = 0; index < f1.ChildFunctions.Length; ++index)
             {
-                if (!CompareFunction(f1.ChildFunctions[index], f2.ChildFunctions[index]))
+                if (index >= f2.ChildFunctions.Length ||
+                    !CompareFunction(f1.ChildFunctions[index], f2.ChildFunctions[index]))
                     functionMatched = false;
             }
 
