@@ -19,7 +19,7 @@ public class DetectGenericListInitializersPass : IPass
                 if (b.Instructions[i] is Assignment { 
                         IsSingleAssignment: true, 
                         Left.HasIndex: false, 
-                        Right: InitializerList { Expressions.Count: 0 } il 
+                        Right: InitializerList il 
                     } a)
                 {
                     while (i + 1 < b.Instructions.Count)
