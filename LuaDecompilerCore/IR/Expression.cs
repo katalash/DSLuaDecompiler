@@ -217,6 +217,11 @@ namespace LuaDecompilerCore.IR
         public bool HasSingleIndex => TableIndices.Count == 1;
         public Expression TableIndex => TableIndices[0];
 
+        /// <summary>
+        /// This identifier reference comes from a SELF op and should be printed with this (':') semantics
+        /// </summary>
+        public bool IsSelfReference = false;
+
         public IdentifierReference(Identifier id)
         {
             Identifier = id;

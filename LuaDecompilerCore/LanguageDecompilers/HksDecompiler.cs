@@ -700,10 +700,11 @@ public class HksDecompiler : ILanguageDecompiler
                         irFunction.GetRegister(a + 1), Register(irFunction, (uint)b));
                     op.SelfAssignMinRegister = (int)a;
                     instructions.Add(op);
-                    op = new Assignment(
-                        irFunction.GetRegister(a),
+                    var selfIdentifier =
                         new IdentifierReference(irFunction.GetRegister((uint)b),
-                            RkIrHks(irFunction, function, c, sZero)));
+                            RkIrHks(irFunction, function, c, sZero));
+                    selfIdentifier.IsSelfReference = true;
+                    op = new Assignment(irFunction.GetRegister(a),selfIdentifier);
                     op.SelfAssignMinRegister = (int)a;
                     FirstAssigned(a);
                     FirstAssigned(a + 1);

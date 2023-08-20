@@ -387,9 +387,10 @@ public class Lua50Decompiler : ILanguageDecompiler
                         irFunction.GetRegister(a + 1), new IdentifierReference(irFunction.GetRegister(b)));
                     op.SelfAssignMinRegister = (int)a;
                     instructions.Add(op);
-                    op = new Assignment(
-                        irFunction.GetRegister(a),
-                        new IdentifierReference(irFunction.GetRegister(b), RkIr(irFunction, function, c)));
+                    var selfIdentifier =
+                        new IdentifierReference(irFunction.GetRegister(b), RkIr(irFunction, function, c));
+                    selfIdentifier.IsSelfReference = true;
+                    op = new Assignment(irFunction.GetRegister(a), selfIdentifier);
                     op.SelfAssignMinRegister = (int)a;
                     instructions.Add(op);
                     break;

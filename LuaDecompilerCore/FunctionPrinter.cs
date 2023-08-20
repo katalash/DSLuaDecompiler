@@ -231,7 +231,7 @@ public partial class FunctionPrinter
         PushFunction(function);
         if (function.FunctionId != 0 || _debugPrint)
         {
-            Append(name == null ? @"function (" : $@"function {name}(");
+            Append(name == null ? "function (" : $"function {name}(");
             for (var i = 0; i < function.ParameterCount; i++)
             {
                 VisitIdentifier(Identifier.GetRegister((uint)i));
@@ -585,7 +585,7 @@ public partial class FunctionPrinter
         {
             Append('(');
         }
-        Append($@"{op}");
+        Append($"{op}");
         VisitExpression(unaryOp.Expression);
         if (unaryOp.HasParentheses)
         {
@@ -601,19 +601,20 @@ public partial class FunctionPrinter
             {
                 TableIndices.Count: 1, 
                 TableIndex: Constant { ConstType: Constant.ConstantType.ConstString } c, 
-                Identifier.IsGlobalTable: false
+                Identifier.IsGlobalTable: false,
+                IsSelfReference: true
             } ir)
         {
             VisitIdentifier(ir.Identifier);
             if (functionCall.Args is [IdentifierReference { TableIndices.Count: 0 } thisIdentifier, ..] && 
                 thisIdentifier.Identifier == ir.Identifier)
             {
-                Append($@":{c.String}(");
+                Append($":{c.String}(");
                 beginArg = 1;
             }
             else
             {
-                Append($@".{c.String}(");
+                Append($".{c.String}(");
             }
         }
         else if (functionCall.Function is IdentifierReference { TableIndices.Count: 2 } ir2 &&
@@ -625,7 +626,7 @@ public partial class FunctionPrinter
                  ir2.TableIndices[0] is Constant { ConstType: Constant.ConstantType.ConstString } c4 && 
                  c3.String == c4.String)
         {
-            Append($@"{c3.String}:{c2.String}(");
+            Append($"{c3.String}:{c2.String}(");
             beginArg = 1;
         }
         else
@@ -713,7 +714,7 @@ public partial class FunctionPrinter
             a.IsGenericForAssignment = true;
         }
 
-        Append(@"for ");
+        Append("for ");
         VisitAssignment(genericFor.Iterator);
         Append(" do");
         NewLine();
@@ -789,7 +790,7 @@ public partial class FunctionPrinter
     
     private void VisitConditionalJumpLabel(ConditionalJumpLabel jump)
     {
-        Append(@"if ");
+        Append("if ");
         VisitExpression(jump.Condition);
         Append(" else ");
         Append("goto ");
@@ -798,7 +799,7 @@ public partial class FunctionPrinter
     
     private void VisitConditionalJump(ConditionalJump jump)
     {
-        Append(@"if ");
+        Append("if ");
         VisitExpression(jump.Condition);
         Append(" else ");
         Append("goto ");
@@ -807,7 +808,7 @@ public partial class FunctionPrinter
 
     private void VisitLabel(Label label)
     {
-        Append($@"{label.LabelName}:");
+        Append($"{label.LabelName}:");
     }
 
     private void VisitNumericFor(NumericFor numericFor)
@@ -817,7 +818,7 @@ public partial class FunctionPrinter
             a.IsLocalDeclaration = false;
         }
 
-        Append(@"for ");
+        Append("for ");
         if (numericFor.Initial != null)
             VisitAssignment(numericFor.Initial);
         Append(", ");
@@ -890,12 +891,12 @@ public partial class FunctionPrinter
     {
         if (@while.IsPostTested)
         {
-            Append(@"repeat");
+            Append("repeat");
             NewLine();
         }
         else
         {
-            Append(@"while ");
+            Append("while ");
             VisitExpression(@while.Condition);
             Append(" do");
             NewLine();
@@ -908,7 +909,7 @@ public partial class FunctionPrinter
         Indent();
         if (@while.IsPostTested)
         {
-            Append(@"until ");
+            Append("until ");
             VisitExpression(@while.Condition);
         }
         else
