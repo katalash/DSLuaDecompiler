@@ -26,7 +26,7 @@ namespace LuaDecompilerCore.IR
 
         public static bool ShouldReplace(Identifier orig, Expression cand)
         {
-            return cand is IdentifierReference ident && ident.TableIndices.Count == 0 && ident.Identifier == orig;
+            return cand is IdentifierReference { TableIndices.Count: 0 } ident && ident.Identifier == orig;
         }
 
         public virtual bool ReplaceUses(Identifier original, Expression sub) { return false; }
@@ -1022,7 +1022,7 @@ namespace LuaDecompilerCore.IR
         public override bool ReplaceUses(Identifier original, Expression sub)
         {
             bool replaced;
-            if (ShouldReplace(original, Function) && sub is IdentifierReference or Constant)
+            if (ShouldReplace(original, Function) && sub is IdentifierReference or Constant or FunctionCall)
             {
                 Function = sub;
                 replaced = true;
