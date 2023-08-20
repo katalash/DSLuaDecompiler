@@ -24,7 +24,7 @@ public class RenameVariablesPass : IPass
             }
             else
             {
-                f.IdentifierNames[identifier] = $@"arg{i}";
+                f.IdentifierNames[identifier] = $"f{f.FunctionId}_arg{i}";
             }
         }
         
@@ -52,7 +52,7 @@ public class RenameVariablesPass : IPass
                             }
                             else
                             {
-                                f.IdentifierNames[l.Identifier] = $@"f{f.FunctionId}_local{localCounter}";
+                                f.IdentifierNames[l.Identifier] = $"f{f.FunctionId}_local{localCounter}";
                                 localCounter++;
                             }
                         }

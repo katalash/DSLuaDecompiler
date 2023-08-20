@@ -602,12 +602,10 @@ public partial class FunctionPrinter
                 TableIndices.Count: 1, 
                 TableIndex: Constant { ConstType: Constant.ConstantType.ConstString } c, 
                 Identifier.IsGlobalTable: false,
-                IsSelfReference: true
             } ir)
         {
             VisitIdentifier(ir.Identifier);
-            if (functionCall.Args is [IdentifierReference { TableIndices.Count: 0 } thisIdentifier, ..] && 
-                thisIdentifier.Identifier == ir.Identifier)
+            if (functionCall.IsThisCall)
             {
                 Append($":{c.String}(");
                 beginArg = 1;

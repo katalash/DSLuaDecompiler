@@ -32,6 +32,16 @@ public class ResolveAmbiguousCallArguments : IPass
                         lastAmbiguousReturn = null;
                         break;
                     }
+                    case Return { ReturnExpressions: [FunctionCall { HasAmbiguousArgumentCount: true } fc2]} when lastAmbiguousReturn == null:
+                        throw new Exception("Error: Ambiguous argument function tail call without preceding ambiguous return function call");
+                    case Return { ReturnExpressions: [FunctionCall { HasAmbiguousArgumentCount: true } fc2]}:
+                        for (var r = fc2.BeginArg; r <= lastAmbiguousReturn.Value.RegNum; r++)
+                        {
+                            fc2.Args.Add(new IdentifierReference(f.GetRegister(r)));
+                            changed = true;
+                        }
+                        lastAmbiguousReturn = null;
+                        break;
                     case Return { IsAmbiguousReturnCount: true } when lastAmbiguousReturn == null:
                         throw new Exception("Error: Ambiguous return without preceding ambiguous return function call");
                     case Return { IsAmbiguousReturnCount: true } ret:

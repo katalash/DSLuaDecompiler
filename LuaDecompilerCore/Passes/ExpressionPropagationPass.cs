@@ -121,6 +121,22 @@ public class ExpressionPropagationPass : IPass
                         changed = true;
                         irChanged = true;
                     }
+                    
+                    // match tail calls
+                    if (inst is Return { ReturnExpressions: [FunctionCall { Args.Count: > 0 } fc2] } ret &&
+                        fc2.Args[0] is IdentifierReference { HasIndex: false } ir2 &&
+                        defineUseAnalysis.UseCount(ir2.Identifier) == 2 &&
+                        i > 0 && b.Instructions[i - 1] is Assignment { IsSingleAssignment: true, Left.HasIndex: false } a4 && 
+                        a4.Left.Identifier == ir2.Identifier &&
+                        a4.Right is IdentifierReference or Constant)
+                    {
+                        ret.ReplaceUses(a4.Left.Identifier, a4.Right);
+                        ret.Absorb(a4);
+                        b.Instructions.RemoveAt(i - 1);
+                        i--;
+                        changed = true;
+                        irChanged = true;
+                    }
                 }
             }
         } while (changed);

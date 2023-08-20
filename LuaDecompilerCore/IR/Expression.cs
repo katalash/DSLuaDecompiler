@@ -989,6 +989,11 @@ namespace LuaDecompilerCore.IR
         /// </summary>
         public int FunctionDefIndex = -1;
 
+        /// <summary>
+        /// Call is a "this" call where the first argument is implicit
+        /// </summary>
+        public bool IsThisCall = false;
+
         public FunctionCall(Expression fun, List<Expression> args)
         {
             Function = fun;
@@ -1024,6 +1029,10 @@ namespace LuaDecompilerCore.IR
             bool replaced;
             if (ShouldReplace(original, Function) && sub is IdentifierReference or Constant or FunctionCall)
             {
+                if (sub is IdentifierReference { IsSelfReference: true })
+                {
+                    IsThisCall = true;
+                }
                 Function = sub;
                 replaced = true;
             }

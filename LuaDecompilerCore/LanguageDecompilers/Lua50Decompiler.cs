@@ -536,6 +536,7 @@ public class Lua50Decompiler : ILanguageDecompiler
                         RkIr(irFunction, function, c)));
                     break;
                 case Lua50Ops.OpCall:
+                case Lua50Ops.OpTailCall:
                     args = new List<Expression>();
                     var rets = new List<IdentifierReference>();
                     for (var arg = (int)a + 1; arg < a + b; arg++)
@@ -559,21 +560,24 @@ public class Lua50Decompiler : ILanguageDecompiler
                         HasAmbiguousReturnCount = c == 0,
                         BeginArg = a + 1
                     };
-                    assignment = new Assignment(rets, functionCall);
-                    CheckLocal(assignment, function, pc);
-                    instructions.Add(assignment);
-                    break;
-                case Lua50Ops.OpTailCall:
-                    args = new List<Expression>();
-                    for (var arg = (int)a + 1; arg < a + b; arg++)
+                    
+
+                    if ((Lua50Ops)opcode == Lua50Ops.OpTailCall)
                     {
-                        args.Add(new IdentifierReference(irFunction.GetRegister((uint)arg)));
+                        functionCall.HasAmbiguousReturnCount = false;
+                        var ret2 = new Return(functionCall)
+                        {
+                            IsTailReturn = true,
+                        };
+                        instructions.Add(ret2);
+                    }
+                    else
+                    {
+                        assignment = new Assignment(rets, functionCall);
+                        CheckLocal(assignment, function, pc);
+                        instructions.Add(assignment);
                     }
 
-                    var ret2 = new Return(
-                        new FunctionCall(new IdentifierReference(irFunction.GetRegister(a)), args));
-                    ret2.IsTailReturn = true;
-                    instructions.Add(ret2);
                     break;
                 case Lua50Ops.OpReturn:
                     args = new List<Expression>();
