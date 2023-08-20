@@ -326,15 +326,17 @@ public class Lua50Decompiler : ILanguageDecompiler
 
                     break;
                 case Lua50Ops.OpLoadNil:
-                    var nilAssignment = new List<IdentifierReference>();
                     for (var arg = (int)a; arg <= b; arg++)
                     {
-                        nilAssignment.Add(new IdentifierReference(irFunction.GetRegister((uint)arg)));
+                        // Assignments are unrolled because the Lua compiler will opportunistically fuse them as an
+                        // optimization.
+                        assignment = new Assignment(new IdentifierReference(irFunction.GetRegister((uint)arg)), 
+                            new Constant(Constant.ConstantType.ConstNil, -1));
+                        instructions.Add(assignment);
+                        
+                        // TODO: CheckLocal for fused opcodes
+                        // CheckLocal(assignment, function, pc);
                     }
-
-                    assignment = new Assignment(nilAssignment, new Constant(Constant.ConstantType.ConstNil, -1));
-                    CheckLocal(assignment, function, pc);
-                    instructions.Add(assignment);
                     break;
                 case Lua50Ops.OpGetUpVal:
                     var up = irFunction.GetUpValue(b);
