@@ -151,20 +151,33 @@ public class DetectTwoWayConditionalsPass : IPass
             // The loop head or latch is the implicit follow of any unmatched conditionals
             if (b.IsLoopHead)
             {
+                bool loopFollowUnresolved = false;
                 foreach (var ur in unresolved)
                 {
+                    // If the unresolved block is the follow of the loop then the loop head is not the follow. This may
+                    // need to be updated to use the interval information and exclude blocks that occur outside the
+                    // loop's interval.
+                    if (b.LoopFollow == ur)
+                    {
+                        loopFollowUnresolved = true;
+                        continue;
+                    }
+
                     // If there's a single loop latch and it has multiple predecessors, it's probably the follow
                     if (b.LoopLatches is [{ Predecessors.Count: > 1 }])
                     {
                         ur.Follow = b.LoopLatches[0];
                     }
-                    // Otherwise the detected latch (of multiple) is probably within an if statement and the head is the true follow
+                    // Otherwise the detected latch (of multiple) is probably within an if statement and the head is the
+                    // true follow
                     else
                     {
                         ur.Follow = b;
                     }
                 }
                 unresolved.Clear();
+                if (loopFollowUnresolved && b.LoopFollow != null)
+                    unresolved.Add(b.LoopFollow);
             }
 
             return unresolved;
