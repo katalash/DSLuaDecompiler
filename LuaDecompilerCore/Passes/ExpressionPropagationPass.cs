@@ -140,9 +140,12 @@ public class ExpressionPropagationPass : IPass
                 }
             }
         } while (changed);
-        
-        functionContext.InvalidateAnalysis<IdentifierDefinitionUseAnalyzer>();
-        functionContext.InvalidateAnalysis<LocalVariablesAnalyzer>();
+
+        if (irChanged)
+        {
+            functionContext.InvalidateAnalysis<IdentifierDefinitionUseAnalyzer>();
+            functionContext.InvalidateAnalysis<LocalVariablesAnalyzer>();
+        }
 
         return irChanged;
     }

@@ -452,7 +452,8 @@ public class AstTransformPass : IPass
                         }
                         else if (ifStatement.True.IsLoopLatch || !ifStatement.True.EdgeTrue.IsLoopHead)
                         {
-                            if (!ifStatement.True.IsLoopLatch && 
+                            if (!ifStatement.True.IsLoopLatch &&
+                                !ifStatement.True.IsEmptyIf &&
                                 lj.Destination == node.Follow && 
                                 node.EdgeFalse == node.Follow && 
                                 ifStatement.True.OrderNumber + 1 == node.Follow.OrderNumber)

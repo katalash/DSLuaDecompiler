@@ -709,6 +709,7 @@ public class Lua50Decompiler : ILanguageDecompiler
         passManager.AddPass("merge-conditional-assignments", new MergeConditionalAssignmentsPass());
         passManager.PopLoopUntilUnchanged();
 
+        passManager.AddPass("multi-assignment-propagation", new MultiAssignmentPropagationPass());
         passManager.AddPass("detect-loops", new DetectLoopsPass());
         passManager.AddPass("detect-break-continue", new DetectLoopBreakContinuePass());
         passManager.AddPass("detect-two-way-conditionals", new DetectTwoWayConditionalsPass());

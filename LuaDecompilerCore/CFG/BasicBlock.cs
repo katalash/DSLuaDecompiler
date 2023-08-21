@@ -54,6 +54,7 @@ namespace LuaDecompilerCore.CFG
 
         // Code gen
         public bool IsInfiniteLoop = false;
+        public bool IsEmptyIf = false;
         private bool _isCodeGenerated;
 
         /// <summary>

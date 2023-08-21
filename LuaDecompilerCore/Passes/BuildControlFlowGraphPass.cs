@@ -66,6 +66,7 @@ public class BuildControlFlowGraphPass : IPass
                             // Empty if statement. Generate a dummy block so the true block and else block are different
                             newBlock = f.CreateAndAddBasicBlock();
                             currentBlock.AddInstruction(new JumpLabel(l));
+                            currentBlock.IsEmptyIf = true;
                             currentBlock = newBlock;
                         }
                         labelBasicBlockMap.Add(l, currentBlock);

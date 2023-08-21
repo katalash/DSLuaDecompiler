@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Buffers;
 using System.Collections.Generic;
+using LuaDecompilerCore.CFG;
 using LuaDecompilerCore.IR;
 using LuaDecompilerCore.Utilities;
 
@@ -16,6 +17,45 @@ public class LocalVariablesAnalyzer : IAnalyzer
 
     public IReadOnlySet<Identifier> LocalVariables => _localVariables;
 
+    private bool IsMultiAssignmentTemporary(BasicBlock block, int instruction)
+    {
+        var multiAssignment = block.Instructions[instruction] as Assignment ?? throw new Exception();
+        
+        // Assignment must be a contiguous set of registers
+        var assignedRegisters = new Interval();
+        foreach (var identifier in multiAssignment.LeftList)
+        {
+            if (!identifier.Identifier.IsRegister || identifier.HasIndex)
+                return false;
+            
+            if (assignedRegisters.Count == 0 || assignedRegisters.End == identifier.Identifier.RegNum)
+                assignedRegisters.AddToRange((int)identifier.Identifier.RegNum);
+            else
+                return false;
+        }
+        
+        // There must be a sequence of assignment instructions that directly use these registers, and they must not
+        // define any registers that exceed the interval of assigned registers.
+        for (var i = 0; i < assignedRegisters.Count; i++)
+        {
+            if (instruction + i + 1 >= block.Instructions.Count)
+                return false;
+
+            if (block.Instructions[instruction + i + 1] is not Assignment a)
+                return false;
+            
+            if (!a.IsSingleAssignment || (a.Left.Identifier.IsRegister && 
+                                         a.Left.Identifier.RegNum >= assignedRegisters.End))
+                return false;
+
+            if (!(a.Right is IdentifierReference { HasIndex: false, Identifier: { IsRegister: true } identifier } &&
+                  identifier.RegNum == assignedRegisters.Begin + i))
+                return false;
+        }
+
+        return true;
+    }
+    
     public void Run(DecompilationContext decompilationContext, FunctionContext functionContext, Function function)
     {
         var dominance = functionContext.GetAnalysis<DominanceAnalyzer>();
@@ -116,7 +156,7 @@ public class LocalVariablesAnalyzer : IAnalyzer
             {
                 if (blockLocals[i].Count > 0)
                 {
-                    for (uint j = (uint)blockLocals[i].Begin; j < blockLocals[i].End; j++)
+                    for (var j = (uint)blockLocals[i].Begin; j < blockLocals[i].End; j++)
                         _localVariables.Add(Identifier.GetRenamedRegister(i, j));
                 }
             }
@@ -129,7 +169,7 @@ public class LocalVariablesAnalyzer : IAnalyzer
         // exploit this to figure out local variables in the original source code even if they only had one use:
         // If the next register defined within the scope (dominance hierarchy) after the first use of a recently
         // defined register is not that register, then it's likely an actual local variable.
-        int LocalIdentifyVisit(CFG.BasicBlock b, int incomingMaxLocalRegister)
+        int LocalIdentifyVisit(BasicBlock b, int incomingMaxLocalRegister)
         {
             var thisMaxLocalRegister = incomingMaxLocalRegister;
 
@@ -185,27 +225,11 @@ public class LocalVariablesAnalyzer : IAnalyzer
 
                 definesSet.Clear();
                 b.Instructions[i].GetDefines(definesSet, true);
-
-                // If this is a multi-assignment then these variables are almost certainly locals
-                if (definesSet.Count > 1)
+                
+                // Analyze each define individually. Multiple assignment definitions are actually either all locals or
+                // all temporaries, but hopefully we can get away without modeling that for now.
+                foreach (var def in definesSet)
                 {
-                    foreach (var def in definesSet)
-                    {
-                        // Unfortunately this pretty much kills any previous def of this in scope's chances to actually
-                        // be a local
-                        if (recentlyUsed.ContainsKey(def.RegNum))
-                        {
-                            recentlyUsed.Remove(def.RegNum);
-                            AddLocal(def);
-                            thisMaxLocalRegister = Math.Max(thisMaxLocalRegister, (int)def.RegNum);
-                        }
-                    }
-                }
-                // This is more interesting
-                else if (definesSet.Count == 1)
-                {
-                    var def = b.Instructions[i].GetSingleDefine(true) ?? throw new Exception();
-                    
                     // Self instructions have a lot of information because they always use the next available temp
                     // registers. This means that any pending uses up until this instruction that haven't been redefined
                     // yet are actually locals.
