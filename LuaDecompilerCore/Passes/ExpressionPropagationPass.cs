@@ -16,6 +16,7 @@ public class ExpressionPropagationPass : IPass
         
         // GetUses calls have a lot of allocation overhead so reusing the same set has huge perf gains.
         var usesSet = new HashSet<Identifier>(10);
+        var usesSet2 = new HashSet<Identifier>(10);
 
         var localVariableAnalysis = functionContext.GetAnalysis<LocalVariablesAnalyzer>();
         var defineUseAnalysis = functionContext.GetAnalysis<IdentifierDefinitionUseAnalyzer>();
@@ -57,8 +58,10 @@ public class ExpressionPropagationPass : IPass
                         {
                             // Don't substitute if this use's define was defined before the code gen for the function
                             // call even began
+                            usesSet2.Clear();
                             if (!a.PropagateAlways && inst is Assignment { Right: FunctionCall fc } && 
-                                definingInstruction.InstructionIndices.End - 1 < fc.FunctionDefIndex)
+                                definingInstruction.InstructionIndices.End - 1 < fc.FunctionDefIndex &&
+                                fc.GetUses(usesSet2, true).Contains(use))
                             {
                                 continue;
                             }

@@ -10,9 +10,9 @@ namespace LuaDecompilerCore.IR
     /// </summary>
     public abstract class Expression : IMatchable
     {
-        public virtual void GetUses(HashSet<Identifier> uses, bool registersOnly)
+        public virtual HashSet<Identifier> GetUses(HashSet<Identifier> uses, bool registersOnly)
         {
-            
+            return uses;
         }
         
         public HashSet<Identifier> GetUses(bool registersOnly)
@@ -173,13 +173,15 @@ namespace LuaDecompilerCore.IR
             Function = fun;
         }
 
-        public override void GetUses(HashSet<Identifier> uses, bool registersOnly)
+        public override HashSet<Identifier> GetUses(HashSet<Identifier> uses, bool registersOnly)
         {
             foreach (var binding in Function.UpValueBindings)
             {
                 if (!registersOnly || binding.IsRegister)
                     uses.Add(binding);
             }
+
+            return uses;
         }
 
         public override void RenameUses(Identifier original, Identifier newIdentifier)
@@ -241,7 +243,7 @@ namespace LuaDecompilerCore.IR
             }
         }
 
-        public override void GetUses(HashSet<Identifier> uses, bool registersOnly)
+        public override HashSet<Identifier> GetUses(HashSet<Identifier> uses, bool registersOnly)
         {
             if (!registersOnly || Identifier.IsRegister)
             {
@@ -251,6 +253,8 @@ namespace LuaDecompilerCore.IR
             {
                 idx.GetUses(uses, registersOnly);
             }
+
+            return uses;
         }
 
         public override void RenameUses(Identifier original, Identifier newIdentifier)
@@ -374,12 +378,14 @@ namespace LuaDecompilerCore.IR
             }
         }
 
-        public override void GetUses(HashSet<Identifier> uses, bool registersOnly)
+        public override HashSet<Identifier> GetUses(HashSet<Identifier> uses, bool registersOnly)
         {
             foreach (var arg in Expressions)
             {
                 arg.GetUses(uses, registersOnly);
             }
+
+            return uses;
         }
 
         public override void RenameUses(Identifier original, Identifier newIdentifier)
@@ -471,12 +477,14 @@ namespace LuaDecompilerCore.IR
             Expressions.ForEach(x => x.Parenthesize());
         }
 
-        public override void GetUses(HashSet<Identifier> uses, bool registersOnly)
+        public override HashSet<Identifier> GetUses(HashSet<Identifier> uses, bool registersOnly)
         {
             foreach (var arg in Expressions)
             {
                 arg.GetUses(uses, registersOnly);
             }
+
+            return uses;
         }
 
         public override void RenameUses(Identifier original, Identifier newIdentifier)
@@ -787,10 +795,11 @@ namespace LuaDecompilerCore.IR
             _ => false
         };
 
-        public override void GetUses(HashSet<Identifier> uses, bool registersOnly)
+        public override HashSet<Identifier> GetUses(HashSet<Identifier> uses, bool registersOnly)
         {
             Left.GetUses(uses, registersOnly);
             Right.GetUses(uses, registersOnly);
+            return uses;
         }
 
         public override void RenameUses(Identifier original, Identifier newIdentifier)
@@ -888,9 +897,10 @@ namespace LuaDecompilerCore.IR
             Preserve = preserve;
         }
 
-        public override void GetUses(HashSet<Identifier> uses, bool registersOnly)
+        public override HashSet<Identifier> GetUses(HashSet<Identifier> uses, bool registersOnly)
         {
             Expression.GetUses(uses, registersOnly);
+            return uses;
         }
 
         public override void RenameUses(Identifier original, Identifier newIdentifier)
@@ -1006,13 +1016,14 @@ namespace LuaDecompilerCore.IR
             Args.ForEach(x => x.Parenthesize());
         }
 
-        public override void GetUses(HashSet<Identifier> uses, bool registersOnly)
+        public override HashSet<Identifier> GetUses(HashSet<Identifier> uses, bool registersOnly)
         {
             foreach (var arg in Args)
             {
                 arg.GetUses(uses, registersOnly);
             }
             Function.GetUses(uses, registersOnly);
+            return uses;
         }
 
         public override void RenameUses(Identifier original, Identifier newIdentifier)

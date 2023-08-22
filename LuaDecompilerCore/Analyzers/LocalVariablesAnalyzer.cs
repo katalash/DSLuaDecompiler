@@ -16,45 +16,6 @@ public class LocalVariablesAnalyzer : IAnalyzer
     private readonly HashSet<Identifier> _localVariables = new(10);
 
     public IReadOnlySet<Identifier> LocalVariables => _localVariables;
-
-    private bool IsMultiAssignmentTemporary(BasicBlock block, int instruction)
-    {
-        var multiAssignment = block.Instructions[instruction] as Assignment ?? throw new Exception();
-        
-        // Assignment must be a contiguous set of registers
-        var assignedRegisters = new Interval();
-        foreach (var identifier in multiAssignment.LeftList)
-        {
-            if (!identifier.Identifier.IsRegister || identifier.HasIndex)
-                return false;
-            
-            if (assignedRegisters.Count == 0 || assignedRegisters.End == identifier.Identifier.RegNum)
-                assignedRegisters.AddToRange((int)identifier.Identifier.RegNum);
-            else
-                return false;
-        }
-        
-        // There must be a sequence of assignment instructions that directly use these registers, and they must not
-        // define any registers that exceed the interval of assigned registers.
-        for (var i = 0; i < assignedRegisters.Count; i++)
-        {
-            if (instruction + i + 1 >= block.Instructions.Count)
-                return false;
-
-            if (block.Instructions[instruction + i + 1] is not Assignment a)
-                return false;
-            
-            if (!a.IsSingleAssignment || (a.Left.Identifier.IsRegister && 
-                                         a.Left.Identifier.RegNum >= assignedRegisters.End))
-                return false;
-
-            if (!(a.Right is IdentifierReference { HasIndex: false, Identifier: { IsRegister: true } identifier } &&
-                  identifier.RegNum == assignedRegisters.Begin + i))
-                return false;
-        }
-
-        return true;
-    }
     
     public void Run(DecompilationContext decompilationContext, FunctionContext functionContext, Function function)
     {
