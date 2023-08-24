@@ -320,7 +320,7 @@ public class LocalVariablesAnalyzer : IAnalyzer
                 }
             }
 
-            // Find the register of the first non-local define to return
+            // Find the register of the first define that isn't an incoming local to return
             var firstTempDef = int.MaxValue;
             foreach (var inst in b.Instructions)
             {
@@ -339,6 +339,11 @@ public class LocalVariablesAnalyzer : IAnalyzer
                 if (firstTempDef != int.MaxValue)
                     break;
             }
+
+            // If we don't have any new defines then pass up the first define from the dominance successors
+            if (firstTempDef == int.MaxValue)
+                firstTempDef = minFirstChildTemporaryDefine;
+            
             return firstTempDef;
         }
         
