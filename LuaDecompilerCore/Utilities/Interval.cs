@@ -29,12 +29,20 @@ public struct Interval
     /// <summary>
     /// The first value in the interval inclusive
     /// </summary>
-    public int Begin => _start;
+    public int Begin
+    {
+        get => _start;
+        set => _start = value;
+    }
 
     /// <summary>
     /// The last value in the interval exclusive
     /// </summary>
-    public int End => _start + _range;
+    public int End
+    {
+        get => _start + _range;
+        set => _range = value - _start;
+    }
 
     /// <summary>
     /// The number of values contained in the range
@@ -88,6 +96,24 @@ public struct Interval
         return result;
     }
 
+    public Interval IntersectWith(Interval interval)
+    {
+        if (_range == 0 || interval._range == 0)
+            return new Interval();
+
+        if (interval.End > Begin && End < interval.Begin)
+        {
+            return new Interval
+            {
+                Begin = Begin,
+                End = Math.Min(End, interval.End)
+            };
+        }
+
+        return new Interval();
+    }
+
+    
     /// <summary>
     /// Sets the beginning of the range without affecting the end. If the new beginning is bigger than the current end,
     /// then the range will be made empty.

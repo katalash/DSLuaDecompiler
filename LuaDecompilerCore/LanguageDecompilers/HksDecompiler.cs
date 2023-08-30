@@ -440,7 +440,7 @@ public class HksDecompiler : ILanguageDecompiler
                     builder.Append($"R({a})(");
                     for (var arg = (int)a + 1; arg < a + b; arg++)
                     {
-                        if (arg != a + b - 1)
+                        if (arg != a + 1)
                             builder.Append(", ");
                         builder.Append($"R({arg})");
                     }

@@ -147,6 +147,7 @@ public class LocalVariablesAnalyzer : IAnalyzer
             {
                 // First add registers such that the set contains all the registers used up to this point
                 uint minTemporaryUse = int.MaxValue;
+                Interval temporaryUses = new Interval();
                 usesSet.Clear();
                 b.Instructions[i].GetUses(usesSet, true);
                 foreach (var use in usesSet)
@@ -182,10 +183,27 @@ public class LocalVariablesAnalyzer : IAnalyzer
                     // Otherwise this is a candidate for a temporary variable
                     recentlyUsed.Add(use.RegNum, use);
                     minTemporaryUse = Math.Min(use.RegNum, minTemporaryUse);
+                    temporaryUses.AddToRange((int)use.RegNum);
                 }
 
                 definesSet.Clear();
                 b.Instructions[i].GetDefines(definesSet, true);
+                
+                // If this instruction has no defines, but has inlined expressions that did define, then we still need
+                // to compare the outstanding recently used against what has been inlined to detect if any of them are
+                // local.
+                if (definesSet.Count == 0 && temporaryUses.Count > 0 && b.Instructions[i].InlinedRegisters.Count > 0)
+                {
+                    if (temporaryUses.Begin < b.Instructions[i].InlinedRegisters.Begin)
+                        thisMaxLocalRegister = Math.Max(thisMaxLocalRegister, 
+                            Math.Min(temporaryUses.End - 1, b.Instructions[i].InlinedRegisters.Begin));
+                    foreach (var use in recentlyUsed)
+                    {
+                        if (temporaryUses.Contains((int)use.Key) && use.Key <= thisMaxLocalRegister)
+                            AddLocal(use.Value);
+                    }
+                    recentlyUsed.Clear();
+                }
                 
                 // Analyze each define individually. Multiple assignment definitions are actually either all locals or
                 // all temporaries, but hopefully we can get away without modeling that for now.

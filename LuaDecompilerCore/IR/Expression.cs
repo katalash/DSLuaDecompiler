@@ -281,7 +281,7 @@ namespace LuaDecompilerCore.IR
                 }
                 else
                 {
-                    changed = TableIndices[i].ReplaceUses(original, sub);
+                    changed = changed || TableIndices[i].ReplaceUses(original, sub);
                 }
             }
             if (original == Identifier && sub is IdentifierReference ir && ir.TableIndices.Count == 0)
