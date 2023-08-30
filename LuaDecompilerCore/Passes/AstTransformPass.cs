@@ -165,10 +165,6 @@ public class AstTransformPass : IPass
                         (node.EdgeTrue.ReversePostorderNumber < node.EdgeFalse.ReversePostorderNumber) ? 
                             node.EdgeTrue : node.EdgeFalse;
                     body.MarkCodeGenerated(f.FunctionId, f.Warnings);
-                    if (body.First is Assignment)
-                    {
-                        body.Instructions.RemoveAt(0);
-                    }
 
                     BasicBlock? follow = null;
                     if (!usedFollows.Contains(node.LoopFollow))

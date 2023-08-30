@@ -1,7 +1,9 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using LuaDecompilerCore.Analyzers;
+using LuaDecompilerCore.CFG;
 using LuaDecompilerCore.IR;
 
 namespace LuaDecompilerCore.Passes;
@@ -30,6 +32,10 @@ public class DetectLoopBreakContinuePass : IPass
             if (nextHead != null && b.IsConditionalJump && 
                 b is not { IsLoopHead: true, LoopType: CFG.LoopType.LoopPretested })
             {
+                if (b.LoopType == LoopType.LoopEndless)
+                {
+                    throw new Exception("Infinite loops not handled");
+                }
                 Debug.Assert(nextHead.LoopFollow != null);
                 
                 // An if statement is unstructured but recoverable if it has a forward edge to the loop follow (break)

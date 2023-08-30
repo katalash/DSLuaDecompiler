@@ -91,6 +91,11 @@ public class Lua50Decompiler : ILanguageDecompiler
         new OpProperties("CLOSE", OpMode.IABC),
         new OpProperties("CLOSURE", OpMode.IABx),
     };
+    
+    private static IdentifierReference Register(Function function, uint reg)
+    {
+        return new IdentifierReference(function.GetRegister(reg));
+    }
 
     private static string Rk(LuaFile.Function function, uint val)
     {
@@ -176,7 +181,7 @@ public class Lua50Decompiler : ILanguageDecompiler
                     break;
                 case OpMode.IAsBx:
                     builder.Append(
-                        $"{$"{OpProperties[opcode].OpName} {a} {bx}",-20}");
+                        $"{$"{OpProperties[opcode].OpName} {a} {sbx}",-20}");
                     break;
             }
             
@@ -248,24 +253,64 @@ public class Lua50Decompiler : ILanguageDecompiler
                     builder.Append($"-- R({a})[{Rk(function, b)}] := R({c})");
                     break;
                 case Lua50Ops.OpCall:
-                    args = "";
-                    for (var arg = (int)a + 1; arg < a + b; arg++)
+                    builder.Append("-- ");
+                    for (var r = (int)a; r <= (int)a + c - 2; r++)
                     {
-                        if (arg != a + 1)
-                            args += ", ";
-                        args += $"R({arg})";
+                        builder.Append($"R({r})");
+                        if (r != (int)a + c - 2)
+                            builder.Append(", ");
+                    }
+                    if (c == 0)
+                    {
+                        builder.Append($"R({a})...");
                     }
 
-                    builder.Append($"-- R({a}) := R({a})({args})");
+                    if ((int)a + c - 2 >= (int)a || c == 0)
+                        builder.Append(" := ");
+
+                    builder.Append($"R({a})(");
+                    for (var arg = (int)a + 1; arg < (int)a + b; arg++)
+                    {
+                        if (arg != a + b - 1)
+                            builder.Append(", ");
+                        builder.Append($"R({arg})");
+                    }
+
+                    if (c == 0)
+                    {
+                        builder.Append($"R({a})...");
+                    }
+                    builder.Append(')');
                     break;
                 case Lua50Ops.OpReturn:
                     builder.Append("-- return ");
-                    for (var arg = (int)a; arg < a + b - 1; arg++)
+                    for (var arg = (int)a; arg < (int)a + b - 1; arg++)
                     {
                         if (arg != a)
                             builder.Append(", ");
                         builder.Append($"R({arg})");
                     }
+                    break;
+                case Lua50Ops.OpForLoop:
+                    builder.Append($"-- R({a}) += R({a + 2}); ");
+                    builder.Append($"if R({a}) <?= R({a + 1}) then PC += {sbx} (PC = {i / 4 + sbx + 1})");
+                    break;
+                case Lua50Ops.OpTForLoop:
+                    builder.Append("-- ");
+                    for (var r = (int)a + 2; r <= a + c + 2; r++)
+                    {
+                        builder.Append($"R({r})");
+                        if (r != a + c + 2)
+                            builder.Append(", ");
+                    }
+                    builder.Append(" := ");
+                    builder.Append($"R({a})(R({a + 1}), R({a + 2})); ");
+                    builder.Append($"if R({a+2}) ~= nil then PC++ (PC = {i / 4 + 2})");
+                    break;
+                case Lua50Ops.OpTForPRep:
+                    builder.Append($"-- if type(R({a})) == table then ");
+                    builder.Append($"R({a + 1}) := R({a}), R({a}) := next; ");
+                    builder.Append($"PC += {sbx} (PC = {i / 4 + sbx + 1})");
                     break;
                 case Lua50Ops.OpClosure:
                     builder.Append($"-- R({a}) := closure(KPROTO[{bx}]");
@@ -275,6 +320,24 @@ public class Lua50Decompiler : ILanguageDecompiler
                     }
                     builder.Append(')');
                     break;
+                case Lua50Ops.OpLoadNil:
+                    break;
+                case Lua50Ops.OpGetUpVal:
+                    break;
+                case Lua50Ops.OpSetUpVal:
+                    break;
+                case Lua50Ops.OpConcat:
+                    break;
+                case Lua50Ops.OpTailCall:
+                    break;
+                case Lua50Ops.OpSetList:
+                    break;
+                case Lua50Ops.OpSetListTo:
+                    break;
+                case Lua50Ops.OpClose:
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException();
             }
 
             builder.AppendLine();
@@ -608,6 +671,38 @@ public class Lua50Decompiler : ILanguageDecompiler
                                 irFunction.GetRegister(a + 1)), BinOp.OperationType.OpLoopCompare), 
                         null, new Interval((int)a, (int)a + 3)));
                     break;
+                case Lua50Ops.OpTForLoop:
+                    args = new List<Expression>();
+                    rets = new List<IdentifierReference>();
+                    args.Add(new IdentifierReference(irFunction.GetRegister(a + 1)));
+                    args.Add(new IdentifierReference(irFunction.GetRegister(a + 2)));
+                    if (c == 0)
+                    {
+                        rets.Add(new IdentifierReference(irFunction.GetRegister(a + 2)));
+                    }
+                    else
+                    {
+                        for (var r = (int)a + 2; r <= a + c + 2; r++)
+                        {
+                            rets.Add(new IdentifierReference(irFunction.GetRegister((uint)r)));
+                        }
+                    }
+
+                    functionCall = new FunctionCall(new IdentifierReference(irFunction.GetRegister(a)), args)
+                    {
+                        HasAmbiguousReturnCount = c == 0
+                    };
+                    assignment = new Assignment(rets, functionCall);
+                    CheckLocal(assignment, function, pc);
+                    instructions.Add(assignment);
+                    instructions.Add(new ConditionalJumpLabel(irFunction.GetLabel((uint)(i / 4 + 2)),
+                        new BinOp(Register(irFunction, a + 2),
+                            new Constant(Constant.ConstantType.ConstNil, -1), BinOp.OperationType.OpNotEqual),
+                        null, new Interval((int)a, (int)a + (int)c + 3)));
+                    break;
+                case Lua50Ops.OpTForPRep:
+                    instructions.Add(new JumpLabel(irFunction.GetLabel((uint)(i / 4 + sbx + 1))));
+                    break;
                 case Lua50Ops.OpSetList:
                 case Lua50Ops.OpSetListTo:
                     for (var j = 1; j <= bx % 32 + 1; j++)
@@ -652,6 +747,7 @@ public class Lua50Decompiler : ILanguageDecompiler
                         instructions.Add(closureBinding);
                     }
                     break;
+                case Lua50Ops.OpClose:
                 default:
                     switch (OpProperties[opcode].OpMode)
                     {
@@ -689,7 +785,7 @@ public class Lua50Decompiler : ILanguageDecompiler
     {
         passManager.AddPass("apply-labels", new ApplyLabelsPass());
         passManager.AddPass("vararg-list-assignment", new RewriteVarargListAssignmentPass());
-        passManager.AddPass("eliminate-redundant-assignments", new EliminateRedundantAssignmentsPass());
+        //passManager.AddPass("eliminate-redundant-assignments", new EliminateRedundantAssignmentsPass());
         passManager.AddPass("merge-conditional-jumps", new MergeConditionalJumpsPass());
         passManager.AddPass("validate-jump-dest-labels", new ValidateJumpDestinationLabelsPass());
 

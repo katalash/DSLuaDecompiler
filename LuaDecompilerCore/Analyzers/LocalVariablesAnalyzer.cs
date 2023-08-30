@@ -63,7 +63,7 @@ public class LocalVariablesAnalyzer : IAnalyzer
                             FunctionDefIndex: -1,
                             Function: IdentifierReference { Identifier.IsRegister: true } fir
                         } fc
-                    }:
+                    } when defines.ContainsKey(fir.Identifier):
                     {
                         fc.FunctionDefIndex = defines[fir.Identifier];
                         if (selfIdentifiers.Contains(fir.Identifier))
