@@ -23,7 +23,12 @@ public class EliminateRedundantAssignmentsPass : IPass
                 {
                     i += c.Function.UpValueCount;
                 }
-                else if (b.Instructions[i] is Assignment { IsSingleAssignment: true, Left.HasIndex: false } assn)
+                else if (b.Instructions[i] is Assignment
+                         {
+                             IsSingleAssignment: true, 
+                             Left.HasIndex: false, 
+                             IsLocalDeclaration: false
+                         } assn)
                 {
                     if (assn.Right is IdentifierReference { HasIndex: false } reference &&
                         assn.Left.Identifier == reference.Identifier)

@@ -785,7 +785,7 @@ public class Lua50Decompiler : ILanguageDecompiler
     {
         passManager.AddPass("apply-labels", new ApplyLabelsPass());
         passManager.AddPass("vararg-list-assignment", new RewriteVarargListAssignmentPass());
-        //passManager.AddPass("eliminate-redundant-assignments", new EliminateRedundantAssignmentsPass());
+        passManager.AddPass("eliminate-redundant-assignments", new EliminateRedundantAssignmentsPass());
         passManager.AddPass("merge-conditional-jumps", new MergeConditionalJumpsPass());
         passManager.AddPass("validate-jump-dest-labels", new ValidateJumpDestinationLabelsPass());
 
