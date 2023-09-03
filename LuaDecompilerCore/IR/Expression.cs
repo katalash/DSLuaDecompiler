@@ -2,23 +2,34 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using LuaDecompilerCore.Utilities;
 
 namespace LuaDecompilerCore.IR
 {
     /// <summary>
     /// Base class for an expression, which can basically do anything expressive
     /// </summary>
-    public abstract class Expression : IMatchable
+    public abstract class Expression : IIrNode
     {
-        public virtual HashSet<Identifier> GetUses(HashSet<Identifier> uses, bool registersOnly)
+        /// <summary>
+        /// Range of registers that this expression was first assigned to before expression propagation
+        /// </summary>
+        public Interval OriginalAssignmentRegisters = new();
+
+        public HashSet<Identifier> GetDefinedRegisters(HashSet<Identifier> defines)
+        {
+            return defines;
+        }
+        
+        public virtual HashSet<Identifier> GetUsedRegisters(HashSet<Identifier> uses)
         {
             return uses;
         }
         
-        public HashSet<Identifier> GetUses(bool registersOnly)
+        public HashSet<Identifier> GetUsedRegisters()
         {
             var uses = new HashSet<Identifier>(5);
-            GetUses(uses, registersOnly);
+            GetUsedRegisters(uses);
             return uses;
         }
 
@@ -50,7 +61,17 @@ namespace LuaDecompilerCore.IR
             return FunctionPrinter.DebugPrintExpression(this);
         }
 
-        public abstract bool MatchAny(Func<IMatchable, bool> condition);
+        public abstract bool MatchAny(Func<IIrNode, bool> condition);
+        
+        public virtual void IterateUses(Action<IIrNode, Identifier> function) { }
+
+        protected void IterateUsesSuccessor(IIrNode expression, Action<IIrNode, Identifier> function)
+        {
+            if (expression is IdentifierReference { HasIndex:false, Identifier: { IsRegister:true } identifier })
+                function.Invoke(this, identifier);
+            else
+                expression.IterateUses(function);
+        }
     }
 
     /// <summary>
@@ -59,7 +80,7 @@ namespace LuaDecompilerCore.IR
     /// </summary>
     public sealed class EmptyExpression : Expression
     {
-        public override bool MatchAny(Func<IMatchable, bool> condition)
+        public override bool MatchAny(Func<IIrNode, bool> condition)
         {
             return condition.Invoke(this);
         }
@@ -125,7 +146,7 @@ namespace LuaDecompilerCore.IR
             return ConstantId;
         }
 
-        public override bool MatchAny(Func<IMatchable, bool> condition)
+        public override bool MatchAny(Func<IIrNode, bool> condition)
         {
             return condition.Invoke(this);
         }
@@ -173,11 +194,11 @@ namespace LuaDecompilerCore.IR
             Function = fun;
         }
 
-        public override HashSet<Identifier> GetUses(HashSet<Identifier> uses, bool registersOnly)
+        public override HashSet<Identifier> GetUsedRegisters(HashSet<Identifier> uses)
         {
             foreach (var binding in Function.UpValueBindings)
             {
-                if (!registersOnly || binding.IsRegister)
+                if (binding.IsRegister)
                     uses.Add(binding);
             }
 
@@ -202,9 +223,18 @@ namespace LuaDecompilerCore.IR
             return Function.UpValueBindings.Count(binding => use == binding) * 2;
         }
 
-        public override bool MatchAny(Func<IMatchable, bool> condition)
+        public override bool MatchAny(Func<IIrNode, bool> condition)
         {
             return condition.Invoke(this);
+        }
+
+        public override void IterateUses(Action<IIrNode, Identifier> function)
+        {
+            foreach (var binding in Function.UpValueBindings)
+            {
+                if (binding.IsRegister)
+                    function.Invoke(this, binding);
+            }
         }
     }
 
@@ -243,15 +273,15 @@ namespace LuaDecompilerCore.IR
             }
         }
 
-        public override HashSet<Identifier> GetUses(HashSet<Identifier> uses, bool registersOnly)
+        public override HashSet<Identifier> GetUsedRegisters(HashSet<Identifier> uses)
         {
-            if (!registersOnly || Identifier.IsRegister)
+            if (Identifier.IsRegister)
             {
                 uses.Add(Identifier);
             }
             foreach (var idx in TableIndices)
             {
-                idx.GetUses(uses, registersOnly);
+                idx.GetUsedRegisters(uses);
             }
 
             return uses;
@@ -335,7 +365,7 @@ namespace LuaDecompilerCore.IR
             return id;
         }
 
-        public override bool MatchAny(Func<IMatchable, bool> condition)
+        public override bool MatchAny(Func<IIrNode, bool> condition)
         {
             var result = condition.Invoke(this);
             foreach (var idx in TableIndices)
@@ -343,6 +373,18 @@ namespace LuaDecompilerCore.IR
                 result = result || idx.MatchAny(condition);
             }
             return result;
+        }
+
+        public override void IterateUses(Action<IIrNode, Identifier> function)
+        {
+            if (Identifier.IsRegister)
+            {
+                function.Invoke(this, Identifier);
+            }
+            foreach (var idx in TableIndices)
+            {
+                IterateUsesSuccessor(idx, function);
+            }
         }
     }
 
@@ -378,11 +420,11 @@ namespace LuaDecompilerCore.IR
             }
         }
 
-        public override HashSet<Identifier> GetUses(HashSet<Identifier> uses, bool registersOnly)
+        public override HashSet<Identifier> GetUsedRegisters(HashSet<Identifier> uses)
         {
             foreach (var arg in Expressions)
             {
-                arg.GetUses(uses, registersOnly);
+                arg.GetUsedRegisters(uses);
             }
 
             return uses;
@@ -448,7 +490,7 @@ namespace LuaDecompilerCore.IR
             return id != int.MaxValue ? id : -1;
         }
 
-        public override bool MatchAny(Func<IMatchable, bool> condition)
+        public override bool MatchAny(Func<IIrNode, bool> condition)
         {
             var result = condition.Invoke(this);
             foreach (var idx in Expressions)
@@ -456,6 +498,14 @@ namespace LuaDecompilerCore.IR
                 result = result || idx.MatchAny(condition);
             }
             return result;
+        }
+
+        public override void IterateUses(Action<IIrNode, Identifier> function)
+        {
+            foreach (var arg in Expressions)
+            {
+                IterateUsesSuccessor(arg, function);
+            }
         }
     }
 
@@ -477,11 +527,11 @@ namespace LuaDecompilerCore.IR
             Expressions.ForEach(x => x.Parenthesize());
         }
 
-        public override HashSet<Identifier> GetUses(HashSet<Identifier> uses, bool registersOnly)
+        public override HashSet<Identifier> GetUsedRegisters(HashSet<Identifier> uses)
         {
             foreach (var arg in Expressions)
             {
-                arg.GetUses(uses, registersOnly);
+                arg.GetUsedRegisters(uses);
             }
 
             return uses;
@@ -542,7 +592,7 @@ namespace LuaDecompilerCore.IR
             return id != int.MaxValue ? id : -1;
         }
 
-        public override bool MatchAny(Func<IMatchable, bool> condition)
+        public override bool MatchAny(Func<IIrNode, bool> condition)
         {
             var result = condition.Invoke(this);
             foreach (var idx in Expressions)
@@ -550,6 +600,14 @@ namespace LuaDecompilerCore.IR
                 result = result || idx.MatchAny(condition);
             }
             return result;
+        }
+
+        public override void IterateUses(Action<IIrNode, Identifier> function)
+        {
+            foreach (var arg in Expressions)
+            {
+                IterateUsesSuccessor(arg, function);
+            }
         }
     }
 
@@ -795,10 +853,10 @@ namespace LuaDecompilerCore.IR
             _ => false
         };
 
-        public override HashSet<Identifier> GetUses(HashSet<Identifier> uses, bool registersOnly)
+        public override HashSet<Identifier> GetUsedRegisters(HashSet<Identifier> uses)
         {
-            Left.GetUses(uses, registersOnly);
-            Right.GetUses(uses, registersOnly);
+            Left.GetUsedRegisters(uses);
+            Right.GetUsedRegisters(uses);
             return uses;
         }
 
@@ -860,11 +918,17 @@ namespace LuaDecompilerCore.IR
             return Math.Min(left, right);
         }
 
-        public override bool MatchAny(Func<IMatchable, bool> condition)
+        public override bool MatchAny(Func<IIrNode, bool> condition)
         {
             var result = condition.Invoke(this);
             result = result || Left.MatchAny(condition) || Right.MatchAny(condition);
             return result;
+        }
+
+        public override void IterateUses(Action<IIrNode, Identifier> function)
+        {
+            IterateUsesSuccessor(Left, function);
+            IterateUsesSuccessor(Right, function);
         }
 
         public void SetHasParentheses(bool paren)
@@ -897,9 +961,9 @@ namespace LuaDecompilerCore.IR
             Preserve = preserve;
         }
 
-        public override HashSet<Identifier> GetUses(HashSet<Identifier> uses, bool registersOnly)
+        public override HashSet<Identifier> GetUsedRegisters(HashSet<Identifier> uses)
         {
-            Expression.GetUses(uses, registersOnly);
+            Expression.GetUsedRegisters(uses);
             return uses;
         }
 
@@ -948,11 +1012,16 @@ namespace LuaDecompilerCore.IR
             return Expression.GetLowestConstantId();
         }
 
-        public override bool MatchAny(Func<IMatchable, bool> condition)
+        public override bool MatchAny(Func<IIrNode, bool> condition)
         {
             var result = condition.Invoke(this);
             result = result || Expression.MatchAny(condition);
             return result;
+        }
+
+        public override void IterateUses(Action<IIrNode, Identifier> function)
+        {
+            IterateUsesSuccessor(Expression, function);
         }
 
         public int GetPrecedence()
@@ -1016,13 +1085,13 @@ namespace LuaDecompilerCore.IR
             Args.ForEach(x => x.Parenthesize());
         }
 
-        public override HashSet<Identifier> GetUses(HashSet<Identifier> uses, bool registersOnly)
+        public override HashSet<Identifier> GetUsedRegisters(HashSet<Identifier> uses)
         {
             foreach (var arg in Args)
             {
-                arg.GetUses(uses, registersOnly);
+                arg.GetUsedRegisters(uses);
             }
-            Function.GetUses(uses, registersOnly);
+            Function.GetUsedRegisters(uses);
             return uses;
         }
 
@@ -1100,7 +1169,7 @@ namespace LuaDecompilerCore.IR
             return id;
         }
 
-        public override bool MatchAny(Func<IMatchable, bool> condition)
+        public override bool MatchAny(Func<IIrNode, bool> condition)
         {
             var result = condition.Invoke(this);
             foreach (var idx in Args)
@@ -1110,6 +1179,15 @@ namespace LuaDecompilerCore.IR
 
             result = result || Function.MatchAny(condition);
             return result;
+        }
+
+        public override void IterateUses(Action<IIrNode, Identifier> function)
+        {
+            foreach (var arg in Args)
+            {
+                IterateUsesSuccessor(arg, function);
+            }
+            IterateUsesSuccessor(Function, function);
         }
     }
 }

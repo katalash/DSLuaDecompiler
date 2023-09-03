@@ -12,7 +12,7 @@ public class EliminateUnusedPhiFunctionsPass : IPass
     {
         bool irChanged = false;
         
-        // GetUses calls have a lot of allocation overhead so reusing the same set has huge perf gains.
+        // GetUsedRegisters calls have a lot of allocation overhead so reusing the same set has huge perf gains.
         var usesSet = new HashSet<Identifier>(10);
         
         var phisToKeep = new HashSet<PhiFunction>(f.BlockList.Count);
@@ -24,7 +24,7 @@ public class EliminateUnusedPhiFunctionsPass : IPass
             foreach (var inst in b.Instructions)
             {
                 usesSet.Clear();
-                inst.GetUses(usesSet, true);
+                inst.GetUsedRegisters(usesSet);
                 foreach (var use in usesSet)
                 {
                     usedIdentifiers.Add(use);

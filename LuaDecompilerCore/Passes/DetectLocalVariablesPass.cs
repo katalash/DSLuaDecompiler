@@ -33,7 +33,7 @@ public class DetectLocalVariablesPass : IPass
                 if (inst is Assignment { IsSingleAssignment: true } a)
                 {
                     definesSet.Clear();
-                    foreach (var def in a.GetDefines(definesSet, true))
+                    foreach (var def in a.GetDefinedRegisters(definesSet))
                     {
                         // Make this the local declaration if it hasn't been declared yet
                         if (!newDeclared.Contains(def))

@@ -15,7 +15,7 @@ public class DropSsaNaivePass : IPass
     {
         var dominance = functionContext.GetAnalysis<DominanceAnalyzer>();
         
-        // GetDefines and GetUses calls have a lot of allocation overhead so reusing the same set has huge perf gains.
+        // GetDefinedRegisters and GetUsedRegisters calls have a lot of allocation overhead so reusing the same set has huge perf gains.
         var definesSet = new HashSet<Identifier>(2);
         var usesSet = new HashSet<Identifier>(10);
         
@@ -32,7 +32,7 @@ public class DropSsaNaivePass : IPass
             {
                 var inst = b.Instructions[i];
                 definesSet.Clear();
-                var defs = inst.GetDefines(definesSet, true);
+                var defs = inst.GetDefinedRegisters(definesSet);
                 foreach (var def in defs)
                 {
                     if (inReplacements.TryGetValue(def, out var value))
@@ -42,7 +42,7 @@ public class DropSsaNaivePass : IPass
                     }
                 }
                 usesSet.Clear();
-                foreach (var use in inst.GetUses(usesSet, true))
+                foreach (var use in inst.GetUsedRegisters(usesSet))
                 {
                     if (inReplacements.TryGetValue(use, out var replacement))
                     {
@@ -137,7 +137,7 @@ public class DropSsaNaivePass : IPass
             {
                 var inst = b.Instructions[i];
                 definesSet.Clear();
-                var defs = inst.GetDefines(definesSet, true);
+                var defs = inst.GetDefinedRegisters(definesSet);
                 foreach (var def in defs)
                 {
                     if (replacements.ContainsKey(def))
@@ -151,7 +151,7 @@ public class DropSsaNaivePass : IPass
                     }
                 }
                 usesSet.Clear();
-                foreach (var use in inst.GetUses(usesSet, true))
+                foreach (var use in inst.GetUsedRegisters(usesSet))
                 {
                     if (replacements.TryGetValue(use, out var replacement))
                     {
@@ -182,7 +182,7 @@ public class DropSsaNaivePass : IPass
             foreach (var i in b.Instructions)
             {
                 usesSet.Clear();
-                foreach (var use in i.GetUses(usesSet, true))
+                foreach (var use in i.GetUsedRegisters(usesSet))
                 {
                     if (globalRenames.TryGetValue(use, out var rename))
                     {
@@ -190,7 +190,7 @@ public class DropSsaNaivePass : IPass
                     }
                 }
                 definesSet.Clear();
-                foreach (var use in i.GetDefines(definesSet, true))
+                foreach (var use in i.GetDefinedRegisters(definesSet))
                 {
                     if (globalRenames.TryGetValue(use, out var rename))
                     {

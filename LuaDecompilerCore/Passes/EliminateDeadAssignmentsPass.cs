@@ -19,7 +19,7 @@ public class EliminateDeadAssignmentsPass : IPass
     {
         var irChanged = false;
         
-        // GetDefines and GetUses calls have a lot of allocation overhead so reusing the same set has huge perf gains.
+        // GetDefinedRegisters and GetUsedRegisters calls have a lot of allocation overhead so reusing the same set has huge perf gains.
         var definesSet = new HashSet<Identifier>(2);
         var usesSet = new HashSet<Identifier>(10);
         
@@ -77,8 +77,8 @@ public class EliminateDeadAssignmentsPass : IPass
                 {
                     usesSet.Clear();
                     definesSet.Clear();
-                    inst.GetUses(usesSet, true);
-                    inst.GetDefines(definesSet, true);
+                    inst.GetUsedRegisters(usesSet);
+                    inst.GetDefinedRegisters(definesSet);
                     foreach (var use in usesSet)
                     {
                         usageCounts.TryAdd(use, 0);
@@ -124,7 +124,7 @@ public class EliminateDeadAssignmentsPass : IPass
                 var toRemove = new List<Instruction>();
                 foreach (var inst in b.Instructions)
                 {
-                    if (inst.GetSingleDefine(true) is {} define && usageCounts[define] == 0)
+                    if (inst.GetSingleDefine() is {} define && usageCounts[define] == 0)
                     {
                         if (inst is Assignment { Right: FunctionCall } a && !_phiOnly)
                         {

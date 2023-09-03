@@ -15,7 +15,7 @@ public class ClosureBinding : Instruction
         Identifier = identifier;
     }
     
-    public override HashSet<Identifier> GetUses(HashSet<Identifier> uses, bool registersOnly)
+    public override HashSet<Identifier> GetUsedRegisters(HashSet<Identifier> uses)
     {
         if (Identifier.IsRegister)
             uses.Add(Identifier);

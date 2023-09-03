@@ -82,6 +82,8 @@ namespace LuaDecompilerCore.IR
         {
             LeftList = new List<IdentifierReference>(1) { new IdentifierReference(l) };
             Right = r;
+            if (l.IsRegister)
+                Right?.OriginalAssignmentRegisters.AddToRange((int)l.RegNum);
             InitDefinedRegisters();
         }
 
@@ -89,6 +91,8 @@ namespace LuaDecompilerCore.IR
         {
             LeftList = new List<IdentifierReference>(1) { l };
             Right = r;
+            if (l.Identifier.IsRegister && !l.HasIndex)
+                Right?.OriginalAssignmentRegisters.AddToRange((int)l.Identifier.RegNum);
             InitDefinedRegisters();
         }
 
@@ -96,6 +100,11 @@ namespace LuaDecompilerCore.IR
         {
             LeftList = l;
             Right = r;
+            foreach (var left in l)
+            {
+                if (left.Identifier.IsRegister && !left.HasIndex)
+                    Right?.OriginalAssignmentRegisters.AddToRange((int)left.Identifier.RegNum);
+            }
             InitDefinedRegisters();
         }
 
@@ -105,12 +114,12 @@ namespace LuaDecompilerCore.IR
             Right?.Parenthesize();
         }
 
-        public override HashSet<Identifier> GetDefines(HashSet<Identifier> set, bool registersOnly)
+        public override HashSet<Identifier> GetDefinedRegisters(HashSet<Identifier> set)
         {
             foreach (var id in LeftList)
             {
                 // If the reference is not an indirect one (i.e. not an array access), then it is a definition
-                if (!id.HasIndex && (!registersOnly || id.Identifier.IsRegister))
+                if (id is { HasIndex: false, Identifier.IsRegister: true })
                 {
                     set.Add(id.Identifier);
                 }
@@ -118,14 +127,14 @@ namespace LuaDecompilerCore.IR
             return set;
         }
 
-        public override Identifier? GetSingleDefine(bool registersOnly)
+        public override Identifier? GetSingleDefine()
         {
             Identifier? ret = null;
             int count = 0;
             foreach (var id in LeftList)
             {
                 // If the reference is not an indirect one (i.e. not an array access), then it is a definition
-                if (!id.HasIndex && (!registersOnly || id.Identifier.IsRegister))
+                if (id is { HasIndex: false, Identifier.IsRegister: true })
                 {
                     ret = id.Identifier;
                     count++;
@@ -135,26 +144,26 @@ namespace LuaDecompilerCore.IR
             return count == 1 ? ret : null;
         }
 
-        public override HashSet<Identifier> GetUses(HashSet<Identifier> uses, bool registersOnly)
+        public override HashSet<Identifier> GetUsedRegisters(HashSet<Identifier> uses)
         {
             foreach (var id in LeftList)
             {
                 // If the reference is an indirect one (i.e. an array access), then it is a use
-                if (id.HasIndex && (!registersOnly || id.Identifier.IsRegister))
+                if (id is { HasIndex: true, Identifier.IsRegister: true })
                 {
-                    id.GetUses(uses, registersOnly);
+                    id.GetUsedRegisters(uses);
                 }
                 // Indices are also uses
                 if (id.HasIndex)
                 {
                     foreach (var idx in id.TableIndices)
                     {
-                        idx.GetUses(uses, registersOnly);
+                        idx.GetUsedRegisters(uses);
                     }
                 }
             }
 
-            Right?.GetUses(uses, registersOnly);
+            Right?.GetUsedRegisters(uses);
             return uses;
         }
 
@@ -208,7 +217,7 @@ namespace LuaDecompilerCore.IR
                        .Sum(id => id.UseCount(use)) + (Right?.UseCount(use) ?? 0);
         }
 
-        public override bool MatchAny(Func<IMatchable, bool> condition)
+        public override bool MatchAny(Func<IIrNode, bool> condition)
         {
             var result = condition.Invoke(this);
             foreach (var exp in LeftList)
@@ -218,6 +227,20 @@ namespace LuaDecompilerCore.IR
 
             result = result || (Right != null && Right.MatchAny(condition));
             return result;
+        }
+
+        public override void IterateUses(Action<IIrNode, Identifier> function)
+        {
+            foreach (var id in LeftList)
+            {
+                if (id is { HasIndex: true })
+                {
+                    id.IterateUses(function);
+                }
+            }
+
+            if (Right != null)
+                IterateUsesSuccessor(Right, function);
         }
 
         public override List<Expression> GetExpressions()

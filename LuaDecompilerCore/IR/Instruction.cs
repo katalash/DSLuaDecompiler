@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 using LuaDecompilerCore.Utilities;
 
 namespace LuaDecompilerCore.IR
@@ -9,7 +8,7 @@ namespace LuaDecompilerCore.IR
     /// A single instruction or statement, initially translated from a Lua opcode,
     /// but can be simplified into more powerful "instructions"
     /// </summary>
-    public abstract class Instruction : IMatchable
+    public abstract class Instruction : IIrNode
     {
         /// <summary>
         /// The original lua bytecode op within the function that generated this instruction
@@ -80,7 +79,7 @@ namespace LuaDecompilerCore.IR
         /// <summary>
         /// Gets all the identifiers that are defined by this instruction and adds them to the input set
         /// </summary>
-        public virtual HashSet<Identifier> GetDefines(HashSet<Identifier> defines, bool registersOnly)
+        public virtual HashSet<Identifier> GetDefinedRegisters(HashSet<Identifier> defines)
         {
             return defines;
         }
@@ -89,7 +88,7 @@ namespace LuaDecompilerCore.IR
         /// Gets all the identifiers that are used (but not defined) by this instruction and adds them
         /// to the input set
         /// </summary>
-        public virtual HashSet<Identifier> GetUses(HashSet<Identifier> uses, bool registersOnly)
+        public virtual HashSet<Identifier> GetUsedRegisters(HashSet<Identifier> uses)
         {
             return uses;
         }
@@ -98,7 +97,7 @@ namespace LuaDecompilerCore.IR
         /// If this instruction defines only a single identifier, return that identifier
         /// </summary>
         /// <returns></returns>
-        public virtual Identifier? GetSingleDefine(bool registersOnly)
+        public virtual Identifier? GetSingleDefine()
         {
             return null;
         }
@@ -121,9 +120,19 @@ namespace LuaDecompilerCore.IR
             return FunctionPrinter.DebugPrintInstruction(this);
         }
 
-        public virtual bool MatchAny(Func<IMatchable, bool> condition)
+        public virtual bool MatchAny(Func<IIrNode, bool> condition)
         {
             return condition.Invoke(this);
+        }
+        
+        public virtual void IterateUses(Action<IIrNode, Identifier> function) { }
+
+        protected void IterateUsesSuccessor(IIrNode expression, Action<IIrNode, Identifier> function)
+        {
+            if (expression is IdentifierReference { HasIndex:false, Identifier: { IsRegister:true } identifier })
+                function.Invoke(this, identifier);
+            else
+                expression.IterateUses(function);
         }
     }
 }

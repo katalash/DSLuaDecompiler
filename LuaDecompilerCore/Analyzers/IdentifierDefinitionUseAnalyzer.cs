@@ -93,7 +93,7 @@ public class IdentifierDefinitionUseAnalyzer : IAnalyzer
         // If we survived all of that, we have a list initializer and can mark the element defines as such
         for (i = instruction + 1; i < elementAssignmentEnd; i++)
         {
-            var def = block.Instructions[i].GetSingleDefine(true) ?? throw new Exception();
+            var def = block.Instructions[i].GetSingleDefine() ?? throw new Exception();
             GetIdentifierInfo(def).IsListInitializerElement = true;
         }
     }
@@ -115,13 +115,13 @@ public class IdentifierDefinitionUseAnalyzer : IAnalyzer
             foreach (var phi in block.PhiFunctions)
             {
                 definesSet.Clear();
-                foreach (var def in phi.Value.GetDefines(definesSet, true))
+                foreach (var def in phi.Value.GetDefinedRegisters(definesSet))
                 {
                     GetIdentifierInfo(def).DefiningInstruction = phi.Value;
                 }
                 
                 usesSet.Clear();
-                foreach (var use in phi.Value.GetUses(definesSet, true))
+                foreach (var use in phi.Value.GetUsedRegisters(definesSet))
                 {
                     GetIdentifierInfo(use).UseCount++;
                 }
@@ -131,7 +131,7 @@ public class IdentifierDefinitionUseAnalyzer : IAnalyzer
             {
                 var instruction = block.Instructions[i];
                 definesSet.Clear();
-                foreach (var def in instruction.GetDefines(definesSet, true))
+                foreach (var def in instruction.GetDefinedRegisters(definesSet))
                 {
                     GetIdentifierInfo(def).DefiningInstruction = instruction;
                     GetIdentifierInfo(def).DefiningInstructionBlock = b;
@@ -139,7 +139,7 @@ public class IdentifierDefinitionUseAnalyzer : IAnalyzer
                 }
                 
                 usesSet.Clear();
-                foreach (var use in instruction.GetUses(usesSet, true))
+                foreach (var use in instruction.GetUsedRegisters(usesSet))
                 {
                     if (!definesSet.Contains(use))
                         GetIdentifierInfo(use).UseCount += instruction.UseCount(use);

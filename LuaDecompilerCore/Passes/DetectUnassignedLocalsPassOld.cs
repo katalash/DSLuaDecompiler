@@ -58,7 +58,7 @@ public class DetectUnassignedLocalsPass : IPass
                 
                 // Next check defined locals
                 definesSet.Clear();
-                instruction.GetDefines(definesSet, true);
+                instruction.GetDefinedRegisters(definesSet);
                 if (instruction is Assignment { IsLocalDeclaration: true } && definesSet.Count > 0)
                 {
                     var defined = new Interval();

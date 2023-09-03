@@ -27,11 +27,11 @@ namespace LuaDecompilerCore.IR
             ReturnExpressions.ForEach(x => x.Parenthesize());
         }
 
-        public override HashSet<Identifier> GetUses(HashSet<Identifier> uses, bool registersOnly)
+        public override HashSet<Identifier> GetUsedRegisters(HashSet<Identifier> uses)
         {
             foreach (var exp in ReturnExpressions)
             {
-                exp.GetUses(uses, registersOnly);
+                exp.GetUsedRegisters(uses);
             }
 
             return uses;
@@ -68,7 +68,7 @@ namespace LuaDecompilerCore.IR
             return ReturnExpressions.Sum(e => e.UseCount(use));
         }
         
-        public override bool MatchAny(Func<IMatchable, bool> condition)
+        public override bool MatchAny(Func<IIrNode, bool> condition)
         {
             var result = condition.Invoke(this);
             foreach (var exp in ReturnExpressions)
@@ -76,6 +76,14 @@ namespace LuaDecompilerCore.IR
                 result = result || exp.MatchAny(condition);
             }
             return result;
+        }
+
+        public override void IterateUses(Action<IIrNode, Identifier> function)
+        {
+            foreach (var exp in ReturnExpressions)
+            {
+                IterateUsesSuccessor(exp, function);
+            }
         }
 
         public override List<Expression> GetExpressions()

@@ -19,9 +19,9 @@ namespace LuaDecompilerCore.IR
             Condition.Parenthesize();
         }
 
-        public override HashSet<Identifier> GetUses(HashSet<Identifier> uses, bool registersOnly)
+        public override HashSet<Identifier> GetUsedRegisters(HashSet<Identifier> uses)
         {
-            Condition.GetUses(uses, registersOnly);
+            Condition.GetUsedRegisters(uses);
             return uses;
         }
 
@@ -48,6 +48,11 @@ namespace LuaDecompilerCore.IR
         public override List<Expression> GetExpressions()
         {
             return Condition.GetExpressions();
+        }
+
+        public override void IterateUses(Action<IIrNode, Identifier> function)
+        {
+            IterateUsesSuccessor(Condition, function);
         }
     }
 
@@ -82,7 +87,7 @@ namespace LuaDecompilerCore.IR
             Destination = destination;
         }
 
-        public override bool MatchAny(Func<IMatchable, bool> condition)
+        public override bool MatchAny(Func<IIrNode, bool> condition)
         {
             var result = condition.Invoke(this);
             result = result || Destination.MatchAny(condition);
@@ -147,7 +152,7 @@ namespace LuaDecompilerCore.IR
             KilledLocals = killedLocals;
         }
 
-        public override bool MatchAny(Func<IMatchable, bool> condition)
+        public override bool MatchAny(Func<IIrNode, bool> condition)
         {
             var result = condition.Invoke(this);
             result = result || Condition.MatchAny(condition);
@@ -172,7 +177,7 @@ namespace LuaDecompilerCore.IR
             Destination = destination;
         }
         
-        public override bool MatchAny(Func<IMatchable, bool> condition)
+        public override bool MatchAny(Func<IIrNode, bool> condition)
         {
             var result = condition.Invoke(this);
             result = result || Condition.MatchAny(condition);

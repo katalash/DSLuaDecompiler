@@ -50,7 +50,7 @@ public class DetectUnassignedLocalsPassOld : IPass
                 while (i < b.Instructions.Count && b.Instructions[i].OpLocation == currentOpcodeIndex)
                 {
                     var instruction = b.Instructions[i];
-                    instruction.GetDefines(definesSet, true);
+                    instruction.GetDefinedRegisters(definesSet);
                     i++;
                 }
                 

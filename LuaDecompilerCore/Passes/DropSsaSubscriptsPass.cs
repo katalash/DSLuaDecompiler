@@ -14,7 +14,7 @@ public class DropSsaSubscriptsPass : IPass
     {
         var dominance = functionContext.GetAnalysis<DominanceAnalyzer>();
         
-        // GetDefines and GetUses calls have a lot of allocation overhead so reusing the same set has huge perf gains.
+        // GetDefinedRegisters and GetUsedRegisters calls have a lot of allocation overhead so reusing the same set has huge perf gains.
         var definesSet = new HashSet<Identifier>(2);
         var usesSet = new HashSet<Identifier>(10);
         
@@ -29,8 +29,8 @@ public class DropSsaSubscriptsPass : IPass
             {
                 definesSet.Clear();
                 usesSet.Clear();
-                i.GetDefines(definesSet, true);
-                i.GetUses(usesSet, true);
+                i.GetDefinedRegisters(definesSet);
+                i.GetUsedRegisters(usesSet);
                 foreach (var def in definesSet)
                 {
                     if (def.IsRenamedRegister)
@@ -82,7 +82,7 @@ public class DropSsaSubscriptsPass : IPass
                 {
                     changed = false;
                     usesSet.Clear();
-                    instruction.GetUses(usesSet, true);
+                    instruction.GetUsedRegisters(usesSet);
                     foreach (var use in usesSet)
                     {
                         if (newReplacements.TryGetValue(use, out var value) && newReplacements[use] != newDef)
@@ -92,7 +92,7 @@ public class DropSsaSubscriptsPass : IPass
                         }
                     }
                     definesSet.Clear();
-                    instruction.GetDefines(definesSet, true);
+                    instruction.GetDefinedRegisters(definesSet);
                     foreach (var def in definesSet)
                     {
                         if (instruction is Assignment { LocalAssignments: not null } && !reassigned)

@@ -232,7 +232,7 @@ namespace LuaDecompilerCore.IR
                 foreach (var phi in block.PhiFunctions)
                 {
                     definesSet.Clear();
-                    phi.Value.GetDefines(definesSet, true);
+                    phi.Value.GetDefinedRegisters(definesSet);
                     foreach(var def in definesSet)
                     {
                         killedIdentifiers.Set(block.BlockIndex, identifierToId[def], true);
@@ -244,7 +244,7 @@ namespace LuaDecompilerCore.IR
                     if (inst is not PhiFunction)
                     {
                         usesSet.Clear();
-                        inst.GetUses(usesSet, true);
+                        inst.GetUsedRegisters(usesSet);
                         foreach (var use in usesSet)
                         {
                             if (killedIdentifiers.Get(block.BlockIndex, identifierToId[use])) continue;
@@ -253,7 +253,7 @@ namespace LuaDecompilerCore.IR
                         }
                     }
                     definesSet.Clear();
-                    inst.GetDefines(definesSet, true);
+                    inst.GetDefinedRegisters(definesSet);
                     foreach(var def in definesSet)
                     {
                         killedIdentifiers.Set(block.BlockIndex, identifierToId[def], true);

@@ -21,7 +21,7 @@ public class LocalVariablesAnalyzer : IAnalyzer
     {
         var dominance = functionContext.GetAnalysis<DominanceAnalyzer>();
         
-        // GetDefines and GetUses calls have a lot of allocation overhead so reusing the same set has huge perf gains.
+        // GetDefinedRegisters and GetUsedRegisters calls have a lot of allocation overhead so reusing the same set has huge perf gains.
         var definesSet = new HashSet<Identifier>(2);
         var usesSet = new HashSet<Identifier>(10);
         
@@ -40,7 +40,7 @@ public class LocalVariablesAnalyzer : IAnalyzer
             selfIdentifiers.Clear();
             foreach (var instruction in b.Instructions)
             {
-                if (instruction.GetSingleDefine(true) is { } define)
+                if (instruction.GetSingleDefine() is { } define)
                 {
                     defines.Add(define, instruction.InstructionIndices.Begin);
                     if (instruction is Assignment
@@ -149,7 +149,7 @@ public class LocalVariablesAnalyzer : IAnalyzer
                 uint minTemporaryUse = int.MaxValue;
                 Interval temporaryUses = new Interval();
                 usesSet.Clear();
-                b.Instructions[i].GetUses(usesSet, true);
+                b.Instructions[i].GetUsedRegisters(usesSet);
                 foreach (var use in usesSet)
                 {
                     // If it's used it's no longer an unused definition
@@ -187,7 +187,7 @@ public class LocalVariablesAnalyzer : IAnalyzer
                 }
 
                 definesSet.Clear();
-                b.Instructions[i].GetDefines(definesSet, true);
+                b.Instructions[i].GetDefinedRegisters(definesSet);
                 
                 // If this instruction has no defines, but has inlined expressions that did define, then we still need
                 // to compare the outstanding recently used against what has been inlined to detect if any of them are
@@ -347,7 +347,7 @@ public class LocalVariablesAnalyzer : IAnalyzer
                     firstTempDef = inst.InlinedRegisters.Begin;
                 }
 
-                if (inst.GetSingleDefine(true) is { } def && def.RegNum > incomingMaxLocalRegister)
+                if (inst.GetSingleDefine() is { } def && def.RegNum > incomingMaxLocalRegister)
                 {
                     firstTempDef = Math.Min(firstTempDef, (int)def.RegNum);
                 }

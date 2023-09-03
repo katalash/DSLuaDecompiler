@@ -43,6 +43,16 @@ namespace LuaDecompilerCore
                 // Add function to run decompilation passes on
                 functions.Add(irFunction);
                 
+                // Strip local information from the function if specified
+                if (DecompilationOptions.IgnoreDebugInfo)
+                {
+                    foreach (var i in irFunction.BeginBlock.Instructions)
+                    {
+                        if (i is Assignment a)
+                            a.LocalAssignments = null;
+                    }
+                }
+                
                 // Now visit all the child closures unless they are excluded
                 for (var i = 0; i < luaFunction.ChildFunctions.Length; i++)
                 {

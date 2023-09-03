@@ -22,7 +22,7 @@ namespace LuaDecompilerCore.IR
             Follow = follow;
         }
         
-        public override bool MatchAny(Func<IMatchable, bool> condition)
+        public override bool MatchAny(Func<IIrNode, bool> condition)
         {
             var result = condition.Invoke(this);
             result = result || Iterator.MatchAny(condition);

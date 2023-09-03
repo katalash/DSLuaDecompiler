@@ -47,4 +47,9 @@ public class DecompilationOptions
     /// Add comments to the decompiled output with various debugging info.
     /// </summary>
     public bool OutputDebugComments = false;
+
+    /// <summary>
+    /// Ignore debug info in the Lua file if it exists. Useful for testing local variable detection.
+    /// </summary>
+    public bool IgnoreDebugInfo = false;
 }

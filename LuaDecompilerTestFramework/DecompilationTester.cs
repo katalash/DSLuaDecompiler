@@ -31,6 +31,11 @@ public sealed class DecompilationTesterOptions
     /// Test cases will be processed in parallel.
     /// </summary>
     public bool MultiThreaded { get; init; } = true;
+
+    /// <summary>
+    /// Ignore debug info in the compiled Lua file if it exists.
+    /// </summary>
+    public bool IgnoreDebugInfo { get; init; } = false;
 }
 
 /// <summary>
@@ -67,6 +72,7 @@ public sealed class DecompilationTester
             CatchPassExceptions = options.HandleDecompilationExceptions || options.MultiThreaded,
             DumpIrPasses = options.DumpPassIr ? new HashSet<string> { "all" } : new HashSet<string>(),
             DumpDotGraphPasses = options.DumpCfg ? new HashSet<string> { "cfg-mutated" } : new HashSet<string>(),
+            IgnoreDebugInfo = options.IgnoreDebugInfo
         };
         _decompiler = new LuaDecompiler(decompilationOptions);
         _encoding = encoding;

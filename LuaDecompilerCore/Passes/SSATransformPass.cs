@@ -15,7 +15,7 @@ public class SsaTransformPass : IPass
 {
     public bool RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
     {
-        // GetDefines and GetUses calls have a lot of allocation overhead so reusing the same set has huge perf gains.
+        // GetDefinedRegisters and GetUsedRegisters calls have a lot of allocation overhead so reusing the same set has huge perf gains.
         var definesSet = new HashSet<Identifier>(2);
         var usesSet = new HashSet<Identifier>(10);
         
@@ -108,7 +108,7 @@ public class SsaTransformPass : IPass
             foreach (var inst in b.Instructions)
             {
                 usesSet.Clear();
-                inst.GetUses(usesSet, true);
+                inst.GetUsedRegisters(usesSet);
                 foreach (var use in usesSet)
                 {
                     if (stacks[use.RegNum].Count != 0)
@@ -117,7 +117,7 @@ public class SsaTransformPass : IPass
                     }
                 }
                 definesSet.Clear();
-                inst.GetDefines(definesSet, true);
+                inst.GetDefinedRegisters(definesSet);
                 foreach (var def in definesSet)
                 {
                     inst.RenameDefines(def, NewName(def));
@@ -173,7 +173,7 @@ public class SsaTransformPass : IPass
             foreach (var inst in b.Instructions)
             {
                 definesSet.Clear();
-                inst.GetDefines(definesSet, true);
+                inst.GetDefinedRegisters(definesSet);
                 foreach (var def in definesSet)
                 {
                     stacks[def.RegNum].Pop();

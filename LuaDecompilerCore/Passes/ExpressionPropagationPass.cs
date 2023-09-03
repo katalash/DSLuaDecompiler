@@ -14,7 +14,7 @@ public class ExpressionPropagationPass : IPass
     {
         var irChanged = false;
         
-        // GetUses calls have a lot of allocation overhead so reusing the same set has huge perf gains.
+        // GetUsedRegisters calls have a lot of allocation overhead so reusing the same set has huge perf gains.
         var usesSet = new HashSet<Identifier>(10);
         var usesSet2 = new HashSet<Identifier>(10);
 
@@ -31,11 +31,11 @@ public class ExpressionPropagationPass : IPass
                 {
                     var inst = b.Instructions[i];
                     usesSet.Clear();
-                    inst.GetUses(usesSet, true);
+                    inst.GetUsedRegisters(usesSet);
                     foreach (var use in usesSet)
                     {
                         var definingInstruction = defineUseAnalysis.DefiningInstruction(use);
-                        bool isListElementDefine = definingInstruction?.GetSingleDefine(true) is { } def &&
+                        bool isListElementDefine = definingInstruction?.GetSingleDefine() is { } def &&
                                                    defineUseAnalysis.IsListInitializerElement(def);
                         if (definingInstruction is Assignment
                             {
@@ -61,7 +61,7 @@ public class ExpressionPropagationPass : IPass
                             usesSet2.Clear();
                             if (!a.PropagateAlways && inst is Assignment { Right: FunctionCall fc } && 
                                 definingInstruction.InstructionIndices.End - 1 < fc.FunctionDefIndex &&
-                                fc.GetUses(usesSet2, true).Contains(use))
+                                fc.GetUsedRegisters(usesSet2).Contains(use))
                             {
                                 continue;
                             }

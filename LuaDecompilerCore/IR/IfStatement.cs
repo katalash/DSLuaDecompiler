@@ -13,7 +13,7 @@ namespace LuaDecompilerCore.IR
         public CFG.BasicBlock? Follow = null;
         public bool IsElseIf = false;
         
-        public override bool MatchAny(Func<IMatchable, bool> condition)
+        public override bool MatchAny(Func<IIrNode, bool> condition)
         {
             var result = condition.Invoke(this);
             result = result || Condition.MatchAny(condition);

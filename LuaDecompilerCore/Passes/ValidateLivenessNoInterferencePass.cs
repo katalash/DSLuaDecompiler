@@ -11,7 +11,7 @@ public class ValidateLivenessNoInterferencePass : IPass
 {
     public bool RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
     {
-        // GetDefines and GetUses calls have a lot of allocation overhead so reusing the same set has huge perf gains.
+        // GetDefinedRegisters and GetUsedRegisters calls have a lot of allocation overhead so reusing the same set has huge perf gains.
         var definesSet = new HashSet<Identifier>(2);
         var usesSet = new HashSet<Identifier>(10);
         
@@ -48,7 +48,7 @@ public class ValidateLivenessNoInterferencePass : IPass
             for (var i = b.Instructions.Count - 1; i >= 0; i--)
             {
                 definesSet.Clear();
-                b.Instructions[i].GetDefines(definesSet, true);
+                b.Instructions[i].GetDefinedRegisters(definesSet);
                 foreach (var def in definesSet)
                 {
                     foreach (var live in liveNow)
@@ -62,7 +62,7 @@ public class ValidateLivenessNoInterferencePass : IPass
                     liveNow.Remove(def);
                 }
                 usesSet.Clear();
-                b.Instructions[i].GetUses(usesSet, true);
+                b.Instructions[i].GetUsedRegisters(usesSet);
                 foreach (var use in usesSet)
                 {
                     liveNow.Add(use);
