@@ -54,12 +54,12 @@ public class AstTransformPass : IPass
                     if (loopInitializer.GetInstruction(loopInitializer.Instructions.Count - 1) is Assignment
                         {
                             IsSingleAssignment: true,
-                            Left: { HasIndex: false, Identifier: { IsRegister: true } id1 },
+                            Left: IdentifierReference { Identifier: { IsRegister: true } id1 },
                             Right: BinOp
                             {
                                 Operation: BinOp.OperationType.OpSub,
-                                Left: IdentifierReference { HasIndex: false, Identifier: { IsRegister: true } id2 },
-                                Right: IdentifierReference { HasIndex: false, Identifier: { IsRegister: true } id3 }
+                                Left: IdentifierReference { Identifier: { IsRegister: true } id2 },
+                                Right: IdentifierReference { Identifier: { IsRegister: true } id3 }
                             }
                         } && id1.RegNum == id2.RegNum && id1.RegNum + 2 == id3.RegNum)
                     {
@@ -133,7 +133,7 @@ public class AstTransformPass : IPass
                                  HasInstructions: true, 
                                  Last: ConditionalJump { Condition: BinOp }, 
                                  First: Assignment { Right: FunctionCall { Function: IdentifierReference fci } } 
-                             } && loopInitializer.Instructions is [.., Assignment { Left: { } f2 }, _] && 
+                             } && loopInitializer.Instructions is [.., Assignment { Left: IdentifierReference f2 }, _] && 
                          fci.Identifier == f2.Identifier)
                 {
                     // Search the predecessor block for the initial assignment which contains the right expression

@@ -632,30 +632,30 @@ public class HksDecompiler : ILanguageDecompiler
             var sbx = (int)bx;
             uint addr;
             List<Expression> args;
-            List<IdentifierReference> rets;
+            List<IAssignable> rets;
             instructions.Clear();
-            Assignment assignment;
+            Assignment Assignment;
             switch ((LuaHksOps)opcode)
             {
                 case LuaHksOps.OpMove:
-                    assignment = new Assignment(irFunction.GetRegister(a), Register(irFunction, (uint)b));
+                    Assignment = new Assignment(irFunction.GetRegister(a), Register(irFunction, (uint)b));
                     FirstAssigned(a);
-                    CheckLocal(assignment, function, pc);
-                    instructions.Add(assignment);
+                    CheckLocal(Assignment, function, pc);
+                    instructions.Add(Assignment);
                     break;
                 case LuaHksOps.OpLoadK:
-                    assignment = new Assignment(irFunction.GetRegister(a),
+                    Assignment = new Assignment(irFunction.GetRegister(a),
                         ToConstantIr(function.Constants[bx], (int)bx));
                     FirstAssigned(a);
-                    CheckLocal(assignment, function, pc);
-                    instructions.Add(assignment);
+                    CheckLocal(Assignment, function, pc);
+                    instructions.Add(Assignment);
                     break;
                 case LuaHksOps.OpLoadBool:
-                    assignment = new Assignment(irFunction.GetRegister(a), new Constant(b == 1, -1));
-                    assignment.NilAssignmentReg = a;
+                    Assignment = new Assignment(irFunction.GetRegister(a), new Constant(b == 1, -1));
+                    Assignment.NilAssignmentReg = a;
                     FirstAssigned(a);
-                    CheckLocal(assignment, function, pc);
-                    instructions.Add(assignment);
+                    CheckLocal(Assignment, function, pc);
+                    instructions.Add(Assignment);
                     if (c > 0)
                     {
                         instructions.Add(new JumpLabel(irFunction.GetLabel((uint)(i / 4 + 2))));
@@ -663,17 +663,17 @@ public class HksDecompiler : ILanguageDecompiler
 
                     break;
                 case LuaHksOps.OpLoadNil:
-                    var nlist = new List<IdentifierReference>();
+                    var nlist = new List<IAssignable>();
                     for (var arg = (int)a; arg <= b; arg++)
                     {
                         nlist.Add(new IdentifierReference(irFunction.GetRegister((uint)arg)));
                         FirstAssigned((uint)arg);
                     }
 
-                    assignment = new Assignment(nlist, new Constant(Constant.ConstantType.ConstNil, -1));
-                    assignment.NilAssignmentReg = a;
-                    CheckLocal(assignment, function, pc);
-                    instructions.Add(assignment);
+                    Assignment = new Assignment(nlist, new Constant(Constant.ConstantType.ConstNil, -1));
+                    Assignment.NilAssignmentReg = a;
+                    CheckLocal(Assignment, function, pc);
+                    instructions.Add(Assignment);
                     break;
                 case LuaHksOps.OpGetUpVal:
                     var up = irFunction.GetUpValue((uint)b);
@@ -691,32 +691,32 @@ public class HksDecompiler : ILanguageDecompiler
                     break;
                 case LuaHksOps.OpGetGlobalMem:
                 case LuaHksOps.OpGetGlobal:
-                    assignment = new Assignment(irFunction.GetRegister(a),
+                    Assignment = new Assignment(irFunction.GetRegister(a),
                         new IdentifierReference(Identifier.GetGlobal(bx)));
                     FirstAssigned(a);
-                    CheckLocal(assignment, function, pc);
-                    instructions.Add(assignment);
+                    CheckLocal(Assignment, function, pc);
+                    instructions.Add(Assignment);
                     break;
                 case LuaHksOps.OpGetTableS:
                 case LuaHksOps.OpGetTable:
-                    assignment = new Assignment(irFunction.GetRegister(a),
-                        new IdentifierReference(irFunction.GetRegister((uint)b),
+                    Assignment = new Assignment(irFunction.GetRegister(a),
+                        new TableAccess(new IdentifierReference(irFunction.GetRegister((uint)b)),
                             RkIrHks(irFunction, function, c, sZero)));
                     FirstAssigned(a);
-                    CheckLocal(assignment, function, pc);
-                    instructions.Add(assignment);
+                    CheckLocal(Assignment, function, pc);
+                    instructions.Add(Assignment);
                     break;
                 case LuaHksOps.OpSetGlobal:
                     instructions.Add(new Assignment(Identifier.GetGlobal(bx),
                         new IdentifierReference(irFunction.GetRegister(a))));
                     break;
                 case LuaHksOps.OpNewTable:
-                    assignment = new Assignment(irFunction.GetRegister(a),
+                    Assignment = new Assignment(irFunction.GetRegister(a),
                         new InitializerList(new List<Expression>()));
-                    assignment.VarargAssignmentReg = a;
+                    Assignment.VarargAssignmentReg = a;
                     FirstAssigned(a);
-                    CheckLocal(assignment, function, pc);
-                    instructions.Add(assignment);
+                    CheckLocal(Assignment, function, pc);
+                    instructions.Add(Assignment);
                     break;
 
                 case LuaHksOps.OpSelf:
@@ -725,146 +725,146 @@ public class HksDecompiler : ILanguageDecompiler
                     op.SelfAssignMinRegister = (int)a;
                     instructions.Add(op);
                     var selfIdentifier =
-                        new IdentifierReference(irFunction.GetRegister((uint)b),
+                        new TableAccess(new IdentifierReference(irFunction.GetRegister((uint)b)),
                             RkIrHks(irFunction, function, c, sZero));
                     selfIdentifier.IsSelfReference = true;
-                    op = new Assignment(irFunction.GetRegister(a),selfIdentifier);
+                    op = new Assignment(irFunction.GetRegister(a), selfIdentifier);
                     op.SelfAssignMinRegister = (int)a;
                     FirstAssigned(a);
                     FirstAssigned(a + 1);
                     instructions.Add(op);
                     break;
                 case LuaHksOps.OpAdd:
-                    assignment = new Assignment(
+                    Assignment = new Assignment(
                         irFunction.GetRegister(a),
                         new BinOp(Register(irFunction, (uint)b),
                             RkIrHks(irFunction, function, c, sZero), BinOp.OperationType.OpAdd));
                     FirstAssigned(a);
-                    CheckLocal(assignment, function, pc);
-                    instructions.Add(assignment);
+                    CheckLocal(Assignment, function, pc);
+                    instructions.Add(Assignment);
                     break;
                 case LuaHksOps.OpAddBk:
-                    assignment = new Assignment(
+                    Assignment = new Assignment(
                         irFunction.GetRegister(a),
                         new BinOp(ToConstantIr(function.Constants[b], b),
                             Register(irFunction, (uint)c), BinOp.OperationType.OpAdd));
                     FirstAssigned(a);
-                    CheckLocal(assignment, function, pc);
-                    instructions.Add(assignment);
+                    CheckLocal(Assignment, function, pc);
+                    instructions.Add(Assignment);
                     break;
                 case LuaHksOps.OpSub:
-                    assignment = new Assignment(
+                    Assignment = new Assignment(
                         irFunction.GetRegister(a),
                         new BinOp(Register(irFunction, (uint)b),
                             RkIrHks(irFunction, function, c, sZero), BinOp.OperationType.OpSub));
                     FirstAssigned(a);
-                    CheckLocal(assignment, function, pc);
-                    instructions.Add(assignment);
+                    CheckLocal(Assignment, function, pc);
+                    instructions.Add(Assignment);
                     break;
                 case LuaHksOps.OpSubBk:
-                    assignment = new Assignment(
+                    Assignment = new Assignment(
                         irFunction.GetRegister(a),
                         new BinOp(ToConstantIr(function.Constants[b], b),
                             Register(irFunction, (uint)c), BinOp.OperationType.OpSub));
                     FirstAssigned(a);
-                    CheckLocal(assignment, function, pc);
-                    instructions.Add(assignment);
+                    CheckLocal(Assignment, function, pc);
+                    instructions.Add(Assignment);
                     break;
                 case LuaHksOps.OpMul:
-                    assignment = new Assignment(
+                    Assignment = new Assignment(
                         irFunction.GetRegister(a),
                         new BinOp(Register(irFunction, (uint)b),
                             RkIrHks(irFunction, function, c, sZero), BinOp.OperationType.OpMul));
                     FirstAssigned(a);
-                    CheckLocal(assignment, function, pc);
-                    instructions.Add(assignment);
+                    CheckLocal(Assignment, function, pc);
+                    instructions.Add(Assignment);
                     break;
                 case LuaHksOps.OpMulBk:
-                    assignment = new Assignment(
+                    Assignment = new Assignment(
                         irFunction.GetRegister(a),
                         new BinOp(ToConstantIr(function.Constants[b], b),
                             Register(irFunction, (uint)c), BinOp.OperationType.OpMul));
                     FirstAssigned(a);
-                    CheckLocal(assignment, function, pc);
-                    instructions.Add(assignment);
+                    CheckLocal(Assignment, function, pc);
+                    instructions.Add(Assignment);
                     break;
                 case LuaHksOps.OpDiv:
-                    assignment = new Assignment(
+                    Assignment = new Assignment(
                         irFunction.GetRegister(a),
                         new BinOp(Register(irFunction, (uint)b),
                             RkIrHks(irFunction, function, c, sZero), BinOp.OperationType.OpDiv));
                     FirstAssigned(a);
-                    CheckLocal(assignment, function, pc);
-                    instructions.Add(assignment);
+                    CheckLocal(Assignment, function, pc);
+                    instructions.Add(Assignment);
                     break;
                 case LuaHksOps.OpDivBk:
-                    assignment = new Assignment(
+                    Assignment = new Assignment(
                         irFunction.GetRegister(a),
                         new BinOp(ToConstantIr(function.Constants[b], b),
                             Register(irFunction, (uint)c), BinOp.OperationType.OpDiv));
                     FirstAssigned(a);
-                    CheckLocal(assignment, function, pc);
-                    instructions.Add(assignment);
+                    CheckLocal(Assignment, function, pc);
+                    instructions.Add(Assignment);
                     break;
                 case LuaHksOps.OpMod:
-                    assignment = new Assignment(
+                    Assignment = new Assignment(
                         irFunction.GetRegister(a),
                         new BinOp(Register(irFunction, (uint)b),
                             RkIrHks(irFunction, function, c, sZero), BinOp.OperationType.OpMod));
                     FirstAssigned(a);
-                    CheckLocal(assignment, function, pc);
-                    instructions.Add(assignment);
+                    CheckLocal(Assignment, function, pc);
+                    instructions.Add(Assignment);
                     break;
                 case LuaHksOps.OpModBk:
-                    assignment = new Assignment(
+                    Assignment = new Assignment(
                         irFunction.GetRegister(a),
                         new BinOp(ToConstantIr(function.Constants[b], b),
                             Register(irFunction, (uint)c), BinOp.OperationType.OpMod));
                     FirstAssigned(a);
-                    CheckLocal(assignment, function, pc);
-                    instructions.Add(assignment);
+                    CheckLocal(Assignment, function, pc);
+                    instructions.Add(Assignment);
                     break;
                 case LuaHksOps.OpPow:
-                    assignment = new Assignment(
+                    Assignment = new Assignment(
                         irFunction.GetRegister(a),
                         new BinOp(Register(irFunction, (uint)b),
                             RkIrHks(irFunction, function, c, sZero), BinOp.OperationType.OpPow));
                     FirstAssigned(a);
-                    CheckLocal(assignment, function, pc);
-                    instructions.Add(assignment);
+                    CheckLocal(Assignment, function, pc);
+                    instructions.Add(Assignment);
                     break;
                 case LuaHksOps.OpPowBk:
-                    assignment = new Assignment(
+                    Assignment = new Assignment(
                         irFunction.GetRegister(a),
                         new BinOp(ToConstantIr(function.Constants[b], b),
                             Register(irFunction, (uint)c), BinOp.OperationType.OpPow));
                     FirstAssigned(a);
-                    CheckLocal(assignment, function, pc);
-                    instructions.Add(assignment);
+                    CheckLocal(Assignment, function, pc);
+                    instructions.Add(Assignment);
                     break;
                 case LuaHksOps.OpUnm:
-                    assignment = new Assignment(irFunction.GetRegister(a),
+                    Assignment = new Assignment(irFunction.GetRegister(a),
                         new UnaryOp(new IdentifierReference(irFunction.GetRegister((uint)b)),
                             UnaryOp.OperationType.OpNegate));
                     FirstAssigned(a);
-                    CheckLocal(assignment, function, pc);
-                    instructions.Add(assignment);
+                    CheckLocal(Assignment, function, pc);
+                    instructions.Add(Assignment);
                     break;
                 case LuaHksOps.OpNot:
-                    assignment = new Assignment(irFunction.GetRegister(a),
+                    Assignment = new Assignment(irFunction.GetRegister(a),
                         new UnaryOp(new IdentifierReference(irFunction.GetRegister((uint)b)),
                             UnaryOp.OperationType.OpNot, true));
                     FirstAssigned(a);
-                    CheckLocal(assignment, function, pc);
-                    instructions.Add(assignment);
+                    CheckLocal(Assignment, function, pc);
+                    instructions.Add(Assignment);
                     break;
                 case LuaHksOps.OpLen:
-                    assignment = new Assignment(irFunction.GetRegister(a),
+                    Assignment = new Assignment(irFunction.GetRegister(a),
                         new UnaryOp(new IdentifierReference(irFunction.GetRegister((uint)b)),
                             UnaryOp.OperationType.OpLength));
                     FirstAssigned(a);
-                    CheckLocal(assignment, function, pc);
-                    instructions.Add(assignment);
+                    CheckLocal(Assignment, function, pc);
+                    instructions.Add(Assignment);
                     break;
                 case LuaHksOps.OpConcat:
                     args = new List<Expression>();
@@ -873,10 +873,10 @@ public class HksDecompiler : ILanguageDecompiler
                         args.Add(new IdentifierReference(irFunction.GetRegister((uint)arg)));
                     }
 
-                    assignment = new Assignment(irFunction.GetRegister(a), new Concat(args));
+                    Assignment = new Assignment(irFunction.GetRegister(a), new Concat(args));
                     FirstAssigned(a);
-                    CheckLocal(assignment, function, pc);
-                    instructions.Add(assignment);
+                    CheckLocal(Assignment, function, pc);
+                    instructions.Add(Assignment);
                     break;
                 case LuaHksOps.OpJmp:
                     addr = (uint)(i / 4 + 2 + ((sbx << 16) >> 16));
@@ -991,7 +991,7 @@ public class HksDecompiler : ILanguageDecompiler
                 case LuaHksOps.OpSetTable:
                     instructions.Add(
                         new Assignment(
-                            new IdentifierReference(irFunction.GetRegister(a),
+                            new TableAccess(new IdentifierReference(irFunction.GetRegister(a)),
                                 RkIrHks(irFunction, function, b, false)),
                             RkIrHks(irFunction, function, c, false)));
                     break;
@@ -1013,7 +1013,7 @@ public class HksDecompiler : ILanguageDecompiler
                 case LuaHksOps.OpSetTableSBK:
                     instructions.Add(
                         new Assignment(
-                            new IdentifierReference(irFunction.GetRegister(a),
+                            new TableAccess(new IdentifierReference(irFunction.GetRegister(a)),
                                 ToConstantIr(function.Constants[b], b)),
                             RkIrHks(irFunction, function, c, false)));
                     break;
@@ -1021,7 +1021,7 @@ public class HksDecompiler : ILanguageDecompiler
                 case LuaHksOps.OpCallIR1:
                 case LuaHksOps.OpCall:
                     args = new List<Expression>();
-                    rets = new List<IdentifierReference>();
+                    rets = new List<IAssignable>();
                     for (var arg = (int)a + 1; arg < a + b; arg++)
                     {
                         args.Add(new IdentifierReference(irFunction.GetRegister((uint)arg)));
@@ -1045,9 +1045,9 @@ public class HksDecompiler : ILanguageDecompiler
                         HasAmbiguousReturnCount = c == 0,
                         BeginArg = a + 1
                     };
-                    assignment = new Assignment(rets, functionCall);
-                    CheckLocal(assignment, function, pc);
-                    instructions.Add(assignment);
+                    Assignment = new Assignment(rets, functionCall);
+                    CheckLocal(Assignment, function, pc);
+                    instructions.Add(Assignment);
                     break;
                 case LuaHksOps.OpReturn:
                     args = new List<Expression>();
@@ -1091,7 +1091,7 @@ public class HksDecompiler : ILanguageDecompiler
                     // The IR generated by this is technically wrong, but done in a way to make high level loop recovery
                     // much easier
                     args = new List<Expression>();
-                    rets = new List<IdentifierReference>();
+                    rets = new List<IAssignable>();
                     args.Add(new IdentifierReference(irFunction.GetRegister(a + 1)));
                     args.Add(new IdentifierReference(irFunction.GetRegister(a + 2)));
                     if (c == 0)
@@ -1112,9 +1112,9 @@ public class HksDecompiler : ILanguageDecompiler
                     {
                         HasAmbiguousReturnCount = c == 0
                     };
-                    assignment = new Assignment(rets, functionCall);
-                    CheckLocal(assignment, function, pc);
-                    instructions.Add(assignment);
+                    Assignment = new Assignment(rets, functionCall);
+                    CheckLocal(Assignment, function, pc);
+                    instructions.Add(Assignment);
                     instructions.Add(new ConditionalJumpLabel(irFunction.GetLabel((uint)(i / 4 + 2)),
                         new BinOp(Register(irFunction, a + 3),
                             new Constant(Constant.ConstantType.ConstNil, -1), BinOp.OperationType.OpNotEqual),
@@ -1131,11 +1131,11 @@ public class HksDecompiler : ILanguageDecompiler
                     // Emit self assignments for the index, limit, and step for local names and to ensure they get
                     // properly inlined into the loop. These are marked as the local declarations for the registers in
                     // the scope so that any prior definitions get marked as temporaries and get inlined
-                    assignment = new Assignment(new IdentifierReference(irFunction.GetRegister(a)),
+                    Assignment = new Assignment(new IdentifierReference(irFunction.GetRegister(a)),
                         new IdentifierReference(irFunction.GetRegister(a))) { IsLocalDeclaration = true };
                     FirstAssigned(a);
-                    CheckLocal(assignment, function, pc + 1);
-                    instructions.Add(assignment);
+                    CheckLocal(Assignment, function, pc + 1);
+                    instructions.Add(Assignment);
                     instructions.Add(new Assignment(new IdentifierReference(irFunction.GetRegister(a + 1)),
                         new IdentifierReference(irFunction.GetRegister(a + 1))) { IsLocalDeclaration = true });
                     FirstAssigned(a + 1);
@@ -1149,36 +1149,36 @@ public class HksDecompiler : ILanguageDecompiler
                 case LuaHksOps.OpSetList:
                     if (b == 0)
                     {
-                        // Ambiguous assignment
+                        // Ambiguous Assignment
                         if (c == 1)
                         {
-                            assignment = new Assignment(irFunction.GetRegister(a), Register(irFunction, a + 1));
-                            assignment.VarargAssignmentReg = a;
-                            assignment.IsAmbiguousVararg = true;
-                            CheckLocal(assignment, function, pc);
-                            instructions.Add(assignment);
+                            Assignment = new Assignment(irFunction.GetRegister(a), Register(irFunction, a + 1));
+                            Assignment.VarargAssignmentReg = a;
+                            Assignment.IsAmbiguousVararg = true;
+                            CheckLocal(Assignment, function, pc);
+                            instructions.Add(Assignment);
                         }
                     }
                     else
                     {
                         for (var j = 1; j <= b; j++)
                         {
-                            assignment = new Assignment(new IdentifierReference(irFunction.GetRegister(a),
+                            Assignment = new Assignment(new TableAccess(new IdentifierReference(irFunction.GetRegister(a)),
                                     new Constant((double)(c - 1) * 32 + j, -1)),
                                 new IdentifierReference(irFunction.GetRegister(a + (uint)j)));
-                            CheckLocal(assignment, function, pc);
-                            instructions.Add(assignment);
+                            CheckLocal(Assignment, function, pc);
+                            instructions.Add(Assignment);
                         }
                     }
 
                     break;
                 case LuaHksOps.OpClosure:
                     var closureFunction = irFunction.LookupClosure(bx);
-                    assignment = new Assignment(irFunction.GetRegister(a),
+                    Assignment = new Assignment(irFunction.GetRegister(a),
                         new Closure(closureFunction)) { OpLocation = i / 4 };
                     FirstAssigned(a);
-                    CheckLocal(assignment, function, pc);
-                    instructions.Add(assignment);
+                    CheckLocal(Assignment, function, pc);
+                    instructions.Add(Assignment);
                     
                     // Closure instructions for closures that have upValues seem to be followed by a data instruction
                     // for each upValue where A is 1 and Bx is number for the register that is bound to the upValue.
@@ -1203,12 +1203,12 @@ public class HksDecompiler : ILanguageDecompiler
                     break;
                 case LuaHksOps.OpGetField:
                 case LuaHksOps.OpGetFieldR1:
-                    assignment = new Assignment(Register(irFunction, a),
-                        new IdentifierReference(irFunction.GetRegister((uint)b),
+                    Assignment = new Assignment(Register(irFunction, a),
+                        new TableAccess(new IdentifierReference(irFunction.GetRegister((uint)b)),
                             new Constant(function.Constants[c].ToString(), -1)));
                     FirstAssigned(a);
-                    CheckLocal(assignment, function, pc);
-                    instructions.Add(assignment);
+                    CheckLocal(Assignment, function, pc);
+                    instructions.Add(Assignment);
                     break;
                 case LuaHksOps.OpData:
                     var dat = new Data();
@@ -1216,14 +1216,14 @@ public class HksDecompiler : ILanguageDecompiler
                     instructions.Add(dat);
                     break;
                 case LuaHksOps.OpSetField:
-                    assignment = new Assignment(new IdentifierReference(irFunction.GetRegister(a),
+                    Assignment = new Assignment(new TableAccess(new IdentifierReference(irFunction.GetRegister(a)),
                             new Constant(function.Constants[b].ToString(), b)),
                         Register(irFunction, (uint)c));
-                    CheckLocal(assignment, function, pc);
-                    instructions.Add(assignment);
+                    CheckLocal(Assignment, function, pc);
+                    instructions.Add(Assignment);
                     break;
                 case LuaHksOps.OpVarArg:
-                    var varArgs = new List<IdentifierReference>();
+                    var varArgs = new List<IAssignable>();
                     for (var arg = (int)a; arg <= a + b - 1; arg++)
                     {
                         varArgs.Add(new IdentifierReference(irFunction.GetRegister((uint)arg)));
@@ -1232,11 +1232,11 @@ public class HksDecompiler : ILanguageDecompiler
 
                     if (b != 0)
                     {
-                        assignment = new Assignment(varArgs, new IdentifierReference(Identifier.GetVarArgs()));
+                        Assignment = new Assignment(varArgs, new IdentifierReference(Identifier.GetVarArgs()));
                     }
                     else
                     {
-                        assignment = new Assignment(irFunction.GetRegister(a),
+                        Assignment = new Assignment(irFunction.GetRegister(a),
                             new IdentifierReference(Identifier.GetVarArgs()))
                         {
                             IsAmbiguousVararg = true,
@@ -1245,8 +1245,8 @@ public class HksDecompiler : ILanguageDecompiler
                         FirstAssigned(a);
                     }
 
-                    CheckLocal(assignment, function, pc);
-                    instructions.Add(assignment);
+                    CheckLocal(Assignment, function, pc);
+                    instructions.Add(Assignment);
                     irFunction.IsVarargs = true;
                     break;
                 default:

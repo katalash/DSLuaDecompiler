@@ -52,7 +52,7 @@ public class ExpressionPropagationPass : IPass
                              {
                                  IsLocalDeclaration: true, 
                                  IsSingleAssignment: true,
-                                 Left: { HasIndex: false, Identifier: { IsRegister: true, RegNum: {} reg} }
+                                 Left: IdentifierReference { Identifier: { IsRegister: true, RegNum: var reg } }
                              } && use.RegNum == reg) ||
                              a.PropagateAlways))
                         {
@@ -76,7 +76,7 @@ public class ExpressionPropagationPass : IPass
                             if (a is { PropagateAlways: false, Right: FunctionCall } &&
                                 inst is Return
                                 {
-                                    IsTailReturn: false, ReturnExpressions: [IdentifierReference { HasIndex: false }]
+                                    IsTailReturn: false, ReturnExpressions: [IdentifierReference]
                                 })
                             {
                                 continue;
@@ -111,13 +111,13 @@ public class ExpressionPropagationPass : IPass
                 {
                     var inst = b.Instructions[i];
                     if (inst is Assignment { Right: FunctionCall { Args.Count: > 0 } fc } a &&
-                        fc.Args[0] is IdentifierReference { HasIndex: false } ir &&
+                        fc.Args[0] is IdentifierReference ir &&
                         defineUseAnalysis.UseCount(ir.Identifier) == 2 &&
-                        i > 0 && b.Instructions[i - 1] is Assignment { IsSingleAssignment: true, Left.HasIndex: false } a2 && 
-                        a2.Left.Identifier == ir.Identifier &&
+                        i > 0 && b.Instructions[i - 1] is Assignment { IsSingleAssignment: true, Left: IdentifierReference ir2 } a2 && 
+                        ir2.Identifier == ir.Identifier &&
                         a2.Right is IdentifierReference or Constant)
                     {
-                        a.ReplaceUses(a2.Left.Identifier, a2.Right);
+                        a.ReplaceUses(ir2.Identifier, a2.Right);
                         a.Absorb(a2);
                         b.Instructions.RemoveAt(i - 1);
                         i--;
@@ -127,13 +127,13 @@ public class ExpressionPropagationPass : IPass
                     
                     // match tail calls
                     if (inst is Return { ReturnExpressions: [FunctionCall { Args.Count: > 0 } fc2] } ret &&
-                        fc2.Args[0] is IdentifierReference { HasIndex: false } ir2 &&
-                        defineUseAnalysis.UseCount(ir2.Identifier) == 2 &&
-                        i > 0 && b.Instructions[i - 1] is Assignment { IsSingleAssignment: true, Left.HasIndex: false } a4 && 
-                        a4.Left.Identifier == ir2.Identifier &&
+                        fc2.Args[0] is IdentifierReference ir3 &&
+                        defineUseAnalysis.UseCount(ir3.Identifier) == 2 &&
+                        i > 0 && b.Instructions[i - 1] is Assignment { IsSingleAssignment: true, Left: IdentifierReference ir4 } a4 && 
+                        ir4.Identifier == ir3.Identifier &&
                         a4.Right is IdentifierReference or Constant)
                     {
-                        ret.ReplaceUses(a4.Left.Identifier, a4.Right);
+                        ret.ReplaceUses(ir4.Identifier, a4.Right);
                         ret.Absorb(a4);
                         b.Instructions.RemoveAt(i - 1);
                         i--;

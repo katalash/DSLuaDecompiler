@@ -13,13 +13,13 @@ namespace LuaDecompilerCore.IR
         /// <summary>
         /// Functions can have multiple returns, so we store the assignment identifiers as a list
         /// </summary>
-        public readonly List<IdentifierReference> LeftList;
+        public readonly List<IAssignable> LeftList;
         public Expression? Right;
 
         /// <summary>
         /// Convenience for when there's only a single assignment identifier
         /// </summary>
-        public IdentifierReference Left => LeftList[0];
+        public IAssignable Left => LeftList[0];
 
         /// <summary>
         /// If debug info exist, these are the local variables that are assigned if any (null if none are assigned and thus a "temp")
@@ -33,7 +33,7 @@ namespace LuaDecompilerCore.IR
         public bool PropagateAlways = false;
 
         /// <summary>
-        /// This assignment represents an assignment to an indeterminant number of varargs
+        /// This assignment represents an assignment to an ambiguous number of varargs
         /// </summary>
         public bool IsAmbiguousVararg = false;
         public uint VarargAssignmentReg = 0;
@@ -71,39 +71,39 @@ namespace LuaDecompilerCore.IR
         {
             foreach (var l in LeftList)
             {
-                if (l is { HasIndex: false, Identifier.IsRegister: true })
+                if (l is IdentifierReference { Identifier: { IsRegister: true } identifier })
                 {
-                    DefinedRegisters.AddToRange((int)l.Identifier.RegNum);
+                    DefinedRegisters.AddToRange((int)identifier.RegNum);
                 }
             }
         }
         
         public Assignment(Identifier l, Expression? r)
         {
-            LeftList = new List<IdentifierReference>(1) { new IdentifierReference(l) };
+            LeftList = new List<IAssignable>(1) { new IdentifierReference(l) };
             Right = r;
             if (l.IsRegister)
                 Right?.OriginalAssignmentRegisters.AddToRange((int)l.RegNum);
             InitDefinedRegisters();
         }
 
-        public Assignment(IdentifierReference l, Expression? r)
+        public Assignment(IAssignable l, Expression? r)
         {
-            LeftList = new List<IdentifierReference>(1) { l };
+            LeftList = new List<IAssignable>(1) { l };
             Right = r;
-            if (l.Identifier.IsRegister && !l.HasIndex)
-                Right?.OriginalAssignmentRegisters.AddToRange((int)l.Identifier.RegNum);
+            if (l is IdentifierReference { Identifier: { IsRegister:true } identifier})
+                Right?.OriginalAssignmentRegisters.AddToRange((int)identifier.RegNum);
             InitDefinedRegisters();
         }
 
-        public Assignment(List<IdentifierReference> l, Expression? r)
+        public Assignment(List<IAssignable> l, Expression? r)
         {
             LeftList = l;
             Right = r;
             foreach (var left in l)
             {
-                if (left.Identifier.IsRegister && !left.HasIndex)
-                    Right?.OriginalAssignmentRegisters.AddToRange((int)left.Identifier.RegNum);
+                if (left is IdentifierReference { Identifier: { IsRegister:true } identifier})
+                    Right?.OriginalAssignmentRegisters.AddToRange((int)identifier.RegNum);
             }
             InitDefinedRegisters();
         }
@@ -119,9 +119,9 @@ namespace LuaDecompilerCore.IR
             foreach (var id in LeftList)
             {
                 // If the reference is not an indirect one (i.e. not an array access), then it is a definition
-                if (id is { HasIndex: false, Identifier.IsRegister: true })
+                if (id is IdentifierReference { Identifier: { IsRegister: true } identifier })
                 {
-                    set.Add(id.Identifier);
+                    set.Add(identifier);
                 }
             }
             return set;
@@ -134,9 +134,9 @@ namespace LuaDecompilerCore.IR
             foreach (var id in LeftList)
             {
                 // If the reference is not an indirect one (i.e. not an array access), then it is a definition
-                if (id is { HasIndex: false, Identifier.IsRegister: true })
+                if (id is IdentifierReference { Identifier: { IsRegister: true } identifier })
                 {
-                    ret = id.Identifier;
+                    ret = identifier;
                     count++;
                 }
             }
@@ -148,18 +148,9 @@ namespace LuaDecompilerCore.IR
         {
             foreach (var id in LeftList)
             {
-                // If the reference is an indirect one (i.e. an array access), then it is a use
-                if (id is { HasIndex: true, Identifier.IsRegister: true })
+                if (id is TableAccess access)
                 {
-                    id.GetUsedRegisters(uses);
-                }
-                // Indices are also uses
-                if (id.HasIndex)
-                {
-                    foreach (var idx in id.TableIndices)
-                    {
-                        idx.GetUsedRegisters(uses);
-                    }
+                    access.GetUsedRegisters(uses);
                 }
             }
 
@@ -171,10 +162,10 @@ namespace LuaDecompilerCore.IR
         {
             foreach (var id in LeftList)
             {
-                // If the reference is not an indirect one (i.e. not an array access), then it is a definition
-                if (!id.HasIndex && id.Identifier == original)
+                // If the reference is not an indirect one (i.e. not a table access), then it is a definition
+                if (id is IdentifierReference ir && ir.Identifier == original)
                 {
-                    id.Identifier = newIdentifier;
+                    ir.Identifier = newIdentifier;
                 }
             }
         }
@@ -183,10 +174,9 @@ namespace LuaDecompilerCore.IR
         {
             foreach (var id in LeftList)
             {
-                // If the reference is an indirect one (i.e. an array access), then it is a use
-                if (id.HasIndex)
+                if (id is TableAccess access)
                 {
-                    id.RenameUses(original, newIdentifier);
+                    access.RenameUses(original, newIdentifier);
                 }
             }
             Right?.RenameUses(original, newIdentifier);
@@ -197,7 +187,10 @@ namespace LuaDecompilerCore.IR
             bool replaced = false;
             foreach (var l in LeftList)
             {
-                replaced = replaced || l.ReplaceUses(orig, sub);
+                if (l is TableAccess access)
+                {
+                    replaced = replaced || access.ReplaceUses(orig, sub);
+                }
             }
             if (Right != null && Expression.ShouldReplace(orig, Right))
             {
@@ -213,8 +206,8 @@ namespace LuaDecompilerCore.IR
 
         public override int UseCount(Identifier use)
         {
-            return LeftList.Where(id => id.HasIndex)
-                       .Sum(id => id.UseCount(use)) + (Right?.UseCount(use) ?? 0);
+            return LeftList.Where(id => id is TableAccess)
+                       .Sum(id => (id as TableAccess)!.UseCount(use)) + (Right?.UseCount(use) ?? 0);
         }
 
         public override bool MatchAny(Func<IIrNode, bool> condition)
@@ -233,7 +226,7 @@ namespace LuaDecompilerCore.IR
         {
             foreach (var id in LeftList)
             {
-                if (id is { HasIndex: true })
+                if (id is TableAccess)
                 {
                     id.IterateUses(function);
                 }
@@ -248,7 +241,8 @@ namespace LuaDecompilerCore.IR
             var ret = new List<Expression>();
             foreach (var left in LeftList)
             {
-                ret.AddRange(left.GetExpressions());
+                if (left is TableAccess access)
+                    ret.AddRange(access.GetExpressions());
             }
             if (Right != null)
                 ret.AddRange(Right.GetExpressions());

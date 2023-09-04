@@ -59,11 +59,11 @@ public class ResolveAmbiguousCallArguments : IPass
                 if (i is Assignment 
                     { 
                         IsSingleAssignment: true, 
-                        Left.HasIndex: false, 
+                        Left: IdentifierReference ir, 
                         Right: FunctionCall { HasAmbiguousReturnCount: true }
                     } a)
                 {
-                    lastAmbiguousReturn = a.Left.Identifier;
+                    lastAmbiguousReturn = ir.Identifier;
                 }
             }
         }

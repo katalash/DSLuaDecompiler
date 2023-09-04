@@ -26,12 +26,12 @@ public class EliminateRedundantAssignmentsPass : IPass
                 else if (b.Instructions[i] is Assignment
                          {
                              IsSingleAssignment: true, 
-                             Left.HasIndex: false, 
+                             Left: IdentifierReference ir, 
                              IsLocalDeclaration: false
                          } assn)
                 {
-                    if (assn.Right is IdentifierReference { HasIndex: false } reference &&
-                        assn.Left.Identifier == reference.Identifier)
+                    if (assn.Right is IdentifierReference reference &&
+                        ir.Identifier == reference.Identifier)
                     {
                         b.Instructions.RemoveAt(i);
                         i--;

@@ -18,7 +18,7 @@ public class DetectListInitializersPass : IPass
                 if (b.Instructions[i] is Assignment 
                     {
                         IsSingleAssignment: true, 
-                        Left.HasIndex: false, 
+                        Left: IdentifierReference tableIr,
                         Right: InitializerList
                         {
                             ExpressionsEmpty: true
@@ -31,10 +31,15 @@ public class DetectListInitializersPass : IPass
                     {
                         if (b.Instructions[i + 1] is Assignment
                             {
-                                IsSingleAssignment: true, Left: { HasIndex: true, TableIndex: Constant c }
+                                IsSingleAssignment: true,
+                                Left: TableAccess
+                                {
+                                    Table: IdentifierReference ir,
+                                    TableIndex: Constant c
+                                }
                             } a2 && 
                             Math.Abs(c.Number - initIndex) < 0.0001 && 
-                            a2.Left.Identifier == a.Left.Identifier)
+                            ir.Identifier == tableIr.Identifier)
                         {
                             if (a2.Right == null)
                                 throw new Exception("Expected assignment");

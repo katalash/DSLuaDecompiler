@@ -24,6 +24,8 @@ public interface IIrNode
     /// <param name="uses">The set to add used registers to</param>
     /// <returns>The uses set after the used registers are added</returns>
     public HashSet<Identifier> GetUsedRegisters(HashSet<Identifier> uses);
+
+    public void Parenthesize();
     
     public bool MatchAny(Func<IIrNode, bool> condition);
 

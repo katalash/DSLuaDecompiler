@@ -24,13 +24,13 @@ public class MergeMultipleBoolAssignmentPass : IPass
                 if (b.Instructions[i] is Assignment 
                     { 
                         LeftAny: true, 
-                        Left.HasIndex: false, 
+                        Left: IdentifierReference, 
                         Right: Constant { ConstType: Constant.ConstantType.ConstBool, Boolean: false }
                     } a1 &&
                     b.Instructions[i + 1] is Assignment
                     { 
                         LeftAny: true, 
-                        Left.HasIndex: false, 
+                        Left: IdentifierReference, 
                         Right: Constant { ConstType: Constant.ConstantType.ConstNil }
                     } a2)
                 {

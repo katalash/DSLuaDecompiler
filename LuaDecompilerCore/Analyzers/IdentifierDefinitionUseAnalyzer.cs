@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics;
 using LuaDecompilerCore.CFG;
@@ -41,7 +40,8 @@ public class IdentifierDefinitionUseAnalyzer : IAnalyzer
     private void DetectListInitializerElements(BasicBlock block, int instruction)
     {
         var initializer = block.Instructions[instruction];
-        var listIdentifier = (initializer as Assignment ?? throw new Exception()).Left.Identifier;
+        var listIdentifier = ((initializer as Assignment ?? throw new Exception())
+            .Left as IdentifierReference ?? throw new Exception()).Identifier;
         Interval elementRegisters = new Interval();
         
         // Match assignments to registers that occur in a linear sequence
@@ -51,11 +51,11 @@ public class IdentifierDefinitionUseAnalyzer : IAnalyzer
             if (block.Instructions[i] is Assignment
                 {
                     IsSingleAssignment: true, 
-                    Left: { HasIndex: false, Identifier.IsRegister: true}
-                } a &&
-                (elementRegisters.Count == 0 || a.Left.Identifier.RegNum == elementRegisters.End))
+                    Left: IdentifierReference { Identifier.IsRegister: true } ir
+                } &&
+                (elementRegisters.Count == 0 || ir.Identifier.RegNum == elementRegisters.End))
             {
-                elementRegisters.AddToRange((int)a.Left.Identifier.RegNum);
+                elementRegisters.AddToRange((int)ir.Identifier.RegNum);
             }
             else
             {
@@ -76,11 +76,11 @@ public class IdentifierDefinitionUseAnalyzer : IAnalyzer
             if (block.Instructions[i] is Assignment
                 {
                     IsSingleAssignment: true,
-                    Left: { HasIndex: true, TableIndex: Constant c },
-                    Right: IdentifierReference { HasIndex: false, Identifier: { IsRegister: true} identifier }
-                } a &&
+                    Left: TableAccess { Table: IdentifierReference ir, TableIndex: Constant c },
+                    Right: IdentifierReference { Identifier: { IsRegister: true} identifier }
+                } &&
                 Math.Abs(c.Number - initIndex) < 0.0001 &&
-                a.Left.Identifier == listIdentifier && identifier.RegNum == elementRegisters.Begin + initIndex - 1)
+                ir.Identifier == listIdentifier && identifier.RegNum == elementRegisters.Begin + initIndex - 1)
             {
                 initIndex++;
             }
@@ -149,7 +149,7 @@ public class IdentifierDefinitionUseAnalyzer : IAnalyzer
                 if (instruction is Assignment
                     {
                         IsSingleAssignment: true,
-                        Left.HasIndex: false,
+                        Left: IdentifierReference,
                         Right: InitializerList
                         {
                             ExpressionsEmpty: true

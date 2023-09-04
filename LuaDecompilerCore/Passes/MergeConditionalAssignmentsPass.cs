@@ -40,7 +40,7 @@ public class MergeConditionalAssignmentsPass : IPass
                             First: Assignment
                             {
                                 IsSingleAssignment: true,
-                                Left: { Identifier.IsRegister: true } falseAssignee,
+                                Left: IdentifierReference { Identifier.IsRegister: true } falseAssignee,
                                 Right: Constant { ConstType: Constant.ConstantType.ConstBool, Boolean: false }
                             } falseAssignment
                         } edgeTrue,
@@ -52,7 +52,7 @@ public class MergeConditionalAssignmentsPass : IPass
                             First: Assignment
                             {
                                 IsSingleAssignment: true,
-                                Left: { Identifier.IsRegister: true } trueAssignee,
+                                Left: IdentifierReference { Identifier.IsRegister: true } trueAssignee,
                                 Right: Constant { ConstType: Constant.ConstantType.ConstBool, Boolean: true }
                             } trueAssignment
                         } edgeFalse
@@ -79,7 +79,7 @@ public class MergeConditionalAssignmentsPass : IPass
 
                     b.Last = falseAssignment;
                     falseAssignment.OriginalBlock = b.BlockId;
-                    falseAssignment.Left.Identifier = destReg;
+                    falseAssignee.Identifier = destReg;
                     falseAssignment.Right = jump.Condition;
                     if (falseAssignment.Right is BinOp binOp)
                         binOp.NegateConditionalExpression();

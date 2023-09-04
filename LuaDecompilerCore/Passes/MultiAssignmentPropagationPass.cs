@@ -1,5 +1,4 @@
 ﻿using System.Collections.Generic;
-using System.Linq;
 using LuaDecompilerCore.Analyzers;
 using LuaDecompilerCore.IR;
 using LuaDecompilerCore.Utilities;
@@ -26,14 +25,14 @@ public class MultiAssignmentPropagationPass : IPass
                     var assignedRegisters = new Interval();
                     foreach (var identifier in multiAssignment.LeftList)
                     {
-                        if (!identifier.Identifier.IsRegister || identifier.HasIndex)
+                        if (identifier is not IdentifierReference ir || !ir.Identifier.IsRegister)
                             goto NEXT;
                         
-                        if (localVariableAnalysis.LocalVariables.Contains(identifier.Identifier))
+                        if (localVariableAnalysis.LocalVariables.Contains(ir.Identifier))
                             goto NEXT;
             
-                        if (assignedRegisters.Count == 0 || assignedRegisters.End == identifier.Identifier.RegNum)
-                            assignedRegisters.AddToRange((int)identifier.Identifier.RegNum);
+                        if (assignedRegisters.Count == 0 || assignedRegisters.End == ir.Identifier.RegNum)
+                            assignedRegisters.AddToRange((int)ir.Identifier.RegNum);
                         else
                             goto NEXT;
                     }
@@ -46,14 +45,14 @@ public class MultiAssignmentPropagationPass : IPass
                         if (i + j + 1 >= b.Instructions.Count)
                             goto NEXT;
 
-                        if (b.Instructions[i + j + 1] is not Assignment a)
+                        if (b.Instructions[i + j + 1] is not Assignment { IsSingleAssignment:true, Left: IdentifierReference ir } a)
                             goto NEXT;
             
-                        if (!a.IsSingleAssignment || (a.Left.Identifier.IsRegister && 
-                                                      a.Left.Identifier.RegNum >= assignedRegisters.End))
+                        if (!a.IsSingleAssignment || (ir.IsRegister && 
+                                                      ir.Identifier.RegNum >= assignedRegisters.End))
                             goto NEXT;
 
-                        if (!(a.Right is IdentifierReference { HasIndex: false, Identifier: { IsRegister: true } identifier } &&
+                        if (!(a.Right is IdentifierReference { Identifier: { IsRegister: true } identifier } &&
                               identifier.RegNum == assignedRegisters.End - j - 1))
                             goto NEXT;
                         

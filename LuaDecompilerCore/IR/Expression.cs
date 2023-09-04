@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using LuaDecompilerCore.Utilities;
 
@@ -35,9 +34,9 @@ namespace LuaDecompilerCore.IR
 
         public virtual void RenameUses(Identifier original, Identifier newIdentifier) { }
 
-        public static bool ShouldReplace(Identifier orig, Expression cand)
+        public static bool ShouldReplace(Identifier orig, Expression candidate)
         {
-            return cand is IdentifierReference { TableIndices.Count: 0 } ident && ident.Identifier == orig;
+            return candidate is IdentifierReference ident && ident.Identifier == orig;
         }
 
         public virtual bool ReplaceUses(Identifier original, Expression sub) { return false; }
@@ -67,7 +66,7 @@ namespace LuaDecompilerCore.IR
 
         protected void IterateUsesSuccessor(IIrNode expression, Action<IIrNode, Identifier> function)
         {
-            if (expression is IdentifierReference { HasIndex:false, Identifier: { IsRegister:true } identifier })
+            if (expression is IdentifierReference { IsRegister: true, Identifier: var identifier })
                 function.Invoke(this, identifier);
             else
                 expression.IterateUses(function);
@@ -238,14 +237,103 @@ namespace LuaDecompilerCore.IR
         }
     }
 
-    public sealed class IdentifierReference : Expression
+    /// <summary>
+    /// An expression that can be assigned to a value
+    /// </summary>
+    public interface IAssignable : IIrNode
+    {
+        /// <summary>
+        /// The base of this assignable is a register. A base can either be a table that is indexed or an outright
+        /// register reference.
+        /// </summary>
+        public bool IsRegisterBase { get; }
+        
+        public Identifier RegisterBase { get; }
+    }
+    
+    /// <summary>
+    /// Reference to a single identifier (register, upValue, or global)
+    /// </summary>
+    public sealed class IdentifierReference : Expression, IAssignable
     {
         public Identifier Identifier;
+
+        public bool IsRegister => Identifier.IsRegister;
+
+        public bool IsRegisterBase => IsRegister;
+
+        public Identifier RegisterBase => Identifier;
+
+        public IdentifierReference(Identifier id)
+        {
+            Identifier = id;
+        }
+
+        public override HashSet<Identifier> GetUsedRegisters(HashSet<Identifier> uses)
+        {
+            if (Identifier.IsRegister)
+            {
+                uses.Add(Identifier);
+            }
+
+            return uses;
+        }
+
+        public override void RenameUses(Identifier original, Identifier newIdentifier)
+        {
+            if (Identifier == original)
+            {
+                Identifier = newIdentifier;
+            }
+        }
+
+        public override bool ReplaceUses(Identifier original, Expression sub)
+        {
+            if (original != Identifier) return false;
+            if (sub is not IdentifierReference ir)
+                throw new Exception("Replacement should be handled by parent");
+            Identifier = ir.Identifier;
+            return true;
+        }
+
+        public override int UseCount(Identifier use)
+        {
+            return Identifier == use ? 1 : 0;
+        }
+
+        public override List<Expression> GetExpressions()
+        {
+            var ret = new List<Expression> { this };
+            return ret;
+        }
+
+        public override int GetLowestConstantId()
+        {
+            return Identifier.IsGlobal ? (int)Identifier.ConstantId : 0;
+        }
+
+        public override bool MatchAny(Func<IIrNode, bool> condition)
+        {
+            return condition.Invoke(this);
+        }
+
+        public override void IterateUses(Action<IIrNode, Identifier> function)
+        {
+            if (Identifier.IsRegister)
+            {
+                throw new Exception("Iteration should be handled by parent");
+                //function.Invoke(this, Identifier);
+            }
+        }
+    }
+    
+    public sealed class TableAccess : Expression, IAssignable
+    {
+        public Expression Table;
+        
         // Each entry represents a new level of indirection for multidimensional arrays
-        public List<Expression> TableIndices = new();
-
-        public bool HasIndex => TableIndices.Count != 0;
-
+        public List<Expression> TableIndices;
+        
         public bool HasSingleIndex => TableIndices.Count == 1;
         public Expression TableIndex => TableIndices[0];
 
@@ -254,14 +342,13 @@ namespace LuaDecompilerCore.IR
         /// </summary>
         public bool IsSelfReference = false;
 
-        public IdentifierReference(Identifier id)
-        {
-            Identifier = id;
-        }
+        public bool IsRegisterBase => Table is IdentifierReference { IsRegister: true };
 
-        public IdentifierReference(Identifier id, Expression index)
+        public Identifier RegisterBase => (Table as IdentifierReference ?? throw new Exception()).Identifier;
+
+        public TableAccess(Expression table, Expression index)
         {
-            Identifier = id;
+            Table = table;
             TableIndices = new List<Expression>(1) { index };
         }
 
@@ -275,10 +362,7 @@ namespace LuaDecompilerCore.IR
 
         public override HashSet<Identifier> GetUsedRegisters(HashSet<Identifier> uses)
         {
-            if (Identifier.IsRegister)
-            {
-                uses.Add(Identifier);
-            }
+            Table.GetUsedRegisters(uses);
             foreach (var idx in TableIndices)
             {
                 idx.GetUsedRegisters(uses);
@@ -289,10 +373,7 @@ namespace LuaDecompilerCore.IR
 
         public override void RenameUses(Identifier original, Identifier newIdentifier)
         {
-            if (Identifier == original)
-            {
-                Identifier = newIdentifier;
-            }
+            Table.RenameUses(original, newIdentifier);
             foreach (var idx in TableIndices)
             {
                 idx.RenameUses(original, newIdentifier);
@@ -314,19 +395,28 @@ namespace LuaDecompilerCore.IR
                     changed = changed || TableIndices[i].ReplaceUses(original, sub);
                 }
             }
-            if (original == Identifier && sub is IdentifierReference ir && ir.TableIndices.Count == 0)
+            
+            // Don't substitute in initializer lists
+            if (sub is InitializerList)
+                return changed;
+            
+            if (ShouldReplace(original, Table) && sub is TableAccess access)
             {
-                Identifier = ir.Identifier;
-                changed = true;
-            }
-            else if (original == Identifier && sub is IdentifierReference ir2 && ir2.TableIndices.Count > 0)
-            {
-                Identifier = ir2.Identifier;
+                Table = access.Table;
                 var newTableIndices = new List<Expression>();
-                newTableIndices.AddRange(ir2.TableIndices);
+                newTableIndices.AddRange(access.TableIndices);
                 newTableIndices.AddRange(TableIndices);
                 TableIndices = newTableIndices;
                 changed = true;
+            }
+            else if (ShouldReplace(original, Table))
+            {
+                Table = sub;
+                changed = true;
+            }
+            else
+            {
+                changed = changed || Table.ReplaceUses(original, sub);
             }
             return changed;
         }
@@ -334,12 +424,13 @@ namespace LuaDecompilerCore.IR
         public override int UseCount(Identifier use)
         {
             var count = TableIndices.Sum(i => i.UseCount(use));
-            return count + (Identifier == use ? 1 : 0);
+            return count + Table.UseCount(use);
         }
 
         public override List<Expression> GetExpressions()
         {
             var ret = new List<Expression> { this };
+            ret.AddRange(Table.GetExpressions());
             foreach (var idx in TableIndices)
             {
                 ret.AddRange(idx.GetExpressions());
@@ -349,7 +440,7 @@ namespace LuaDecompilerCore.IR
 
         public override int GetLowestConstantId()
         {
-            var id = Identifier.IsGlobal ? (int)Identifier.ConstantId : 0;
+            var id = Table.GetLowestConstantId();
             foreach (var idx in TableIndices)
             {
                 var nid = idx.GetLowestConstantId();
@@ -368,6 +459,7 @@ namespace LuaDecompilerCore.IR
         public override bool MatchAny(Func<IIrNode, bool> condition)
         {
             var result = condition.Invoke(this);
+            result = result || Table.MatchAny(condition);
             foreach (var idx in TableIndices)
             {
                 result = result || idx.MatchAny(condition);
@@ -377,10 +469,7 @@ namespace LuaDecompilerCore.IR
 
         public override void IterateUses(Action<IIrNode, Identifier> function)
         {
-            if (Identifier.IsRegister)
-            {
-                function.Invoke(this, Identifier);
-            }
+            IterateUsesSuccessor(Table, function);
             foreach (var idx in TableIndices)
             {
                 IterateUsesSuccessor(idx, function);
@@ -1107,9 +1196,9 @@ namespace LuaDecompilerCore.IR
         public override bool ReplaceUses(Identifier original, Expression sub)
         {
             bool replaced;
-            if (ShouldReplace(original, Function) && sub is IdentifierReference or Constant or FunctionCall)
+            if (ShouldReplace(original, Function) && sub is IdentifierReference or TableAccess or Constant or FunctionCall)
             {
-                if (sub is IdentifierReference { IsSelfReference: true })
+                if (sub is TableAccess { IsSelfReference : true })
                 {
                     IsThisCall = true;
                 }

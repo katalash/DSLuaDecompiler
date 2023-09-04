@@ -146,6 +146,9 @@ public partial class FunctionPrinter
             case IdentifierReference identifierReference:
                 VisitIdentifierReference(identifierReference);
                 break;
+            case TableAccess tableAccess:
+                VisitTableAccess(tableAccess);
+                break;
             case Concat concat:
                 VisitConcat(concat);
                 break;
@@ -465,11 +468,16 @@ public partial class FunctionPrinter
 
     private void VisitIdentifierReference(IdentifierReference identifierReference)
     {
+        VisitIdentifier(identifierReference.Identifier);
+    }
+    
+    private void VisitTableAccess(TableAccess tableAccess)
+    {
         // Detect a Lua 5.3 global variable and don't display it as a table reference
-        var isGlobal = identifierReference.Identifier.IsGlobalTable;
+        var isGlobal = tableAccess.Table is IdentifierReference { Identifier.IsGlobalTable: true };
         if (!isGlobal) 
-            VisitIdentifier(identifierReference.Identifier);
-        foreach (var idx in identifierReference.TableIndices)
+            VisitExpression(tableAccess.Table);
+        foreach (var idx in tableAccess.TableIndices)
         {
             if (isGlobal && idx is Constant { ConstType: Constant.ConstantType.ConstString } g)
             {
@@ -597,12 +605,12 @@ public partial class FunctionPrinter
     {
         // Pattern match special lua this call
         var beginArg = 0;
-        if (functionCall.Function is IdentifierReference
+        if (functionCall.Function is TableAccess
             {
                 TableIndices.Count: 1, 
                 TableIndex: Constant { ConstType: Constant.ConstantType.ConstString } c, 
-                Identifier.IsGlobalTable: false,
-            } ir)
+                Table: IdentifierReference { Identifier.IsGlobalTable: false } ir
+            })
         {
             VisitIdentifier(ir.Identifier);
             if (functionCall.IsThisCall)
@@ -615,14 +623,29 @@ public partial class FunctionPrinter
                 Append($".{c.String}(");
             }
         }
-        else if (functionCall.Function is IdentifierReference { TableIndices.Count: 2 } ir2 &&
-                 ir2.Identifier.IsGlobalTable &&
-                 ir2.TableIndices[1] is Constant { ConstType: Constant.ConstantType.ConstString } c2 &&
-                 ir2.TableIndices[0] is Constant { ConstType: Constant.ConstantType.ConstString } c3 &&
-                 functionCall.Args.Count >= 1 && functionCall.Args[0] is IdentifierReference thisIdentifier && 
-                 thisIdentifier.TableIndices.Count == 1 && thisIdentifier.Identifier == ir2.Identifier && 
-                 ir2.TableIndices[0] is Constant { ConstType: Constant.ConstantType.ConstString } c4 && 
-                 c3.String == c4.String)
+        else if (functionCall is 
+                 { 
+                     Function: TableAccess
+                     {
+                         Table: IdentifierReference { Identifier.IsGlobalTable: true } ir2, 
+                         TableIndices: 
+                         [
+                             Constant { ConstType: Constant.ConstantType.ConstString } c3, 
+                             Constant { ConstType: Constant.ConstantType.ConstString } c2
+                         ]
+                     },
+                     Args:
+                     [
+                         TableAccess
+                         {
+                             Table: IdentifierReference thisIdentifier,
+                             TableIndices:
+                             [
+                                 Constant { ConstType: Constant.ConstantType.ConstString } c4
+                             ]
+                         }, ..
+                     ]
+                 } && thisIdentifier.Identifier == ir2.Identifier && c3.String == c4.String)
         {
             Append($"{c3.String}:{c2.String}(");
             beginArg = 1;
@@ -650,22 +673,17 @@ public partial class FunctionPrinter
         {
             Append("local ");
         }
-        if (assignment is { IsFunctionDeclaration: true, Right: Closure c })
+        if (assignment is { IsFunctionDeclaration: true, Left: IdentifierReference ir, Right: Closure c })
         {
-            VisitFunction(c.Function, LookupIdentifierName(assignment.Left.Identifier, CurrentFunction()));
+            VisitFunction(c.Function, LookupIdentifierName(ir.Identifier, CurrentFunction()));
             return;
         }
-        //if (assignment.IsSingleAssignment && assignment.Left.HasIndex && assignment.Right is Closure)
-        if (assignment is { IsSingleAssignment: true, Left.HasIndex: true, Right: Closure })
-        {
-            VisitIdentifierReference(assignment.Left);
-            Append(assignmentOp);
-        }
-        else if (assignment.LeftList.Count > 0)
+        
+        if (assignment.LeftList.Count > 0) 
         {
             for (var i = 0; i < assignment.LeftList.Count; i++)
             {
-                VisitIdentifierReference(assignment.LeftList[i]);
+                VisitExpression((Expression)assignment.LeftList[i]);
                 if (i != assignment.LeftList.Count - 1)
                 {
                     Append(", ");

@@ -47,7 +47,8 @@ public class LocalVariablesAnalyzer : IAnalyzer
                         {
                             SelfAssignMinRegister: < int.MaxValue,
                             IsSingleAssignment: true,
-                            Right: IdentifierReference { Identifier.IsRegister: true }
+                            Right: IdentifierReference { Identifier.IsRegister: true } or 
+                            TableAccess { Table: IdentifierReference { IsRegister: true } }
                         })
                     {
                         selfIdentifiers.Add(define);
@@ -61,12 +62,12 @@ public class LocalVariablesAnalyzer : IAnalyzer
                         Right: FunctionCall
                         {
                             FunctionDefIndex: -1,
-                            Function: IdentifierReference { Identifier.IsRegister: true } fir
+                            Function: IAssignable { IsRegisterBase: true } fir
                         } fc
-                    } when defines.ContainsKey(fir.Identifier):
+                    } when defines.ContainsKey(fir.RegisterBase):
                     {
-                        fc.FunctionDefIndex = defines[fir.Identifier];
-                        if (selfIdentifiers.Contains(fir.Identifier))
+                        fc.FunctionDefIndex = defines[fir.RegisterBase];
+                        if (selfIdentifiers.Contains(fir.RegisterBase))
                         {
                             // If a self op was used, the first arg will be loaded before the function name
                             fc.FunctionDefIndex--;
@@ -80,11 +81,11 @@ public class LocalVariablesAnalyzer : IAnalyzer
                         ReturnExpressions: [FunctionCall 
                         { 
                             FunctionDefIndex: -1, 
-                            Function: IdentifierReference { Identifier.IsRegister: true } fir2 
+                            Function: IAssignable { IsRegisterBase: true } fir2 
                         } fc2] }:
                     {
-                        fc2.FunctionDefIndex = defines[fir2.Identifier];
-                        if (selfIdentifiers.Contains(fir2.Identifier))
+                        fc2.FunctionDefIndex = defines[fir2.RegisterBase];
+                        if (selfIdentifiers.Contains(fir2.RegisterBase))
                         {
                             // If a self op was used, the first arg will be loaded before the function name
                             fc2.FunctionDefIndex--;

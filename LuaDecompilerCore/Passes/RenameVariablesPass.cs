@@ -39,20 +39,20 @@ public class RenameVariablesPass : IPass
                     var ll = 0;
                     foreach (var l in a.LeftList)
                     {
-                        if (l is
+                        if (l is IdentifierReference
                             {
-                                HasIndex: false, Identifier: { IsRegister: true }
-                            } && !renamed.Contains(l.Identifier))
+                                Identifier: { IsRegister: true }
+                            } ir && !renamed.Contains(ir.Identifier))
                         {
-                            renamed.Add(l.Identifier);
+                            renamed.Add(ir.Identifier);
                             if (a.LocalAssignments != null && ll < a.LocalAssignments.Count &&
                                 a.LocalAssignments[ll].Name is { } n)
                             {
-                                f.IdentifierNames[l.Identifier] = n;
+                                f.IdentifierNames[ir.Identifier] = n;
                             }
                             else
                             {
-                                f.IdentifierNames[l.Identifier] = $"f{f.FunctionId}_local{localCounter}";
+                                f.IdentifierNames[ir.Identifier] = $"f{f.FunctionId}_local{localCounter}";
                                 localCounter++;
                             }
                         }

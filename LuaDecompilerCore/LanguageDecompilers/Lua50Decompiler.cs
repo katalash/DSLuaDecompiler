@@ -363,25 +363,25 @@ public class Lua50Decompiler : ILanguageDecompiler
             var pc = i / 4;
             List<Expression> args;
             instructions.Clear();
-            Assignment assignment;
+            Assignment Assignment;
 
             switch ((Lua50Ops)opcode)
             {
                 case Lua50Ops.OpMove:
-                    assignment = new Assignment(
+                    Assignment = new Assignment(
                         irFunction.GetRegister(a), new IdentifierReference(irFunction.GetRegister(b)));
-                    CheckLocal(assignment, function, pc);
-                    instructions.Add(assignment);
+                    CheckLocal(Assignment, function, pc);
+                    instructions.Add(Assignment);
                     break;
                 case Lua50Ops.OpLoadK:
-                    assignment = new Assignment(irFunction.GetRegister(a), ToConstantIr(function.Constants[bx], (int)bx));
-                    CheckLocal(assignment, function, pc);
-                    instructions.Add(assignment);
+                    Assignment = new Assignment(irFunction.GetRegister(a), ToConstantIr(function.Constants[bx], (int)bx));
+                    CheckLocal(Assignment, function, pc);
+                    instructions.Add(Assignment);
                     break;
                 case Lua50Ops.OpLoadBool:
-                    assignment = new Assignment(irFunction.GetRegister(a), new Constant(b == 1, -1));
-                    CheckLocal(assignment, function, pc);
-                    instructions.Add(assignment);
+                    Assignment = new Assignment(irFunction.GetRegister(a), new Constant(b == 1, -1));
+                    CheckLocal(Assignment, function, pc);
+                    instructions.Add(Assignment);
                     if (c > 0)
                     {
                         instructions.Add(new JumpLabel(irFunction.GetLabel((uint)(i / 4 + 2))));
@@ -393,12 +393,12 @@ public class Lua50Decompiler : ILanguageDecompiler
                     {
                         // Assignments are unrolled because the Lua compiler will opportunistically fuse them as an
                         // optimization.
-                        assignment = new Assignment(new IdentifierReference(irFunction.GetRegister((uint)arg)), 
+                        Assignment = new Assignment(new IdentifierReference(irFunction.GetRegister((uint)arg)), 
                             new Constant(Constant.ConstantType.ConstNil, -1));
-                        instructions.Add(assignment);
+                        instructions.Add(Assignment);
                         
                         // TODO: CheckLocal for fused opcodes
-                        // CheckLocal(assignment, function, pc);
+                        // CheckLocal(Assignment, function, pc);
                     }
                     break;
                 case Lua50Ops.OpGetUpVal:
@@ -408,23 +408,23 @@ public class Lua50Decompiler : ILanguageDecompiler
                         throw new Exception("Reference to unbound upvalue");
                     }
 
-                    assignment = new Assignment(irFunction.GetRegister(a), new IdentifierReference(up));
-                    CheckLocal(assignment, function, pc);
-                    instructions.Add(assignment);
+                    Assignment = new Assignment(irFunction.GetRegister(a), new IdentifierReference(up));
+                    CheckLocal(Assignment, function, pc);
+                    instructions.Add(Assignment);
                     break;
                 case Lua50Ops.OpGetGlobal:
-                    assignment = new Assignment(
+                    Assignment = new Assignment(
                         irFunction.GetRegister(a),
                         new IdentifierReference(Identifier.GetGlobal(bx)));
-                    CheckLocal(assignment, function, pc);
-                    instructions.Add(assignment);
+                    CheckLocal(Assignment, function, pc);
+                    instructions.Add(Assignment);
                     break;
                 case Lua50Ops.OpGetTable:
-                    assignment = new Assignment(
+                    Assignment = new Assignment(
                         irFunction.GetRegister(a),
-                        new IdentifierReference(irFunction.GetRegister(b), RkIr(irFunction, function, c)));
-                    CheckLocal(assignment, function, pc);
-                    instructions.Add(assignment);
+                        new TableAccess(new IdentifierReference(irFunction.GetRegister(b)), RkIr(irFunction, function, c)));
+                    CheckLocal(Assignment, function, pc);
+                    instructions.Add(Assignment);
                     break;
                 case Lua50Ops.OpSetGlobal:
                     instructions.Add(new Assignment(Identifier.GetGlobal(bx), 
@@ -440,10 +440,10 @@ public class Lua50Decompiler : ILanguageDecompiler
                     instructions.Add(new Assignment(up, new IdentifierReference(irFunction.GetRegister(a))));
                     break;
                 case Lua50Ops.OpNewTable:
-                    assignment = new Assignment(
+                    Assignment = new Assignment(
                         irFunction.GetRegister(a), new InitializerList(new List<Expression>()));
-                    CheckLocal(assignment, function, pc);
-                    instructions.Add(assignment);
+                    CheckLocal(Assignment, function, pc);
+                    instructions.Add(Assignment);
                     break;
                 case Lua50Ops.OpSelf:
                     var op = new Assignment(
@@ -451,66 +451,66 @@ public class Lua50Decompiler : ILanguageDecompiler
                     op.SelfAssignMinRegister = (int)a;
                     instructions.Add(op);
                     var selfIdentifier =
-                        new IdentifierReference(irFunction.GetRegister(b), RkIr(irFunction, function, c));
+                        new TableAccess(new IdentifierReference(irFunction.GetRegister(b)), RkIr(irFunction, function, c));
                     selfIdentifier.IsSelfReference = true;
                     op = new Assignment(irFunction.GetRegister(a), selfIdentifier);
                     op.SelfAssignMinRegister = (int)a;
                     instructions.Add(op);
                     break;
                 case Lua50Ops.OpAdd:
-                    assignment = new Assignment(
+                    Assignment = new Assignment(
                         irFunction.GetRegister(a),
                         new BinOp(RkIr(irFunction, function, b),
                             RkIr(irFunction, function, c), BinOp.OperationType.OpAdd));
-                    CheckLocal(assignment, function, pc);
-                    instructions.Add(assignment);
+                    CheckLocal(Assignment, function, pc);
+                    instructions.Add(Assignment);
                     break;
                 case Lua50Ops.OpSub:
-                    assignment = new Assignment(
+                    Assignment = new Assignment(
                         irFunction.GetRegister(a),
                         new BinOp(RkIr(irFunction, function, b),
                             RkIr(irFunction, function, c), BinOp.OperationType.OpSub));
-                    CheckLocal(assignment, function, pc);
-                    instructions.Add(assignment);
+                    CheckLocal(Assignment, function, pc);
+                    instructions.Add(Assignment);
                     break;
                 case Lua50Ops.OpMul:
-                    assignment = new Assignment(
+                    Assignment = new Assignment(
                         irFunction.GetRegister(a),
                         new BinOp(RkIr(irFunction, function, b),
                             RkIr(irFunction, function, c), BinOp.OperationType.OpMul));
-                    CheckLocal(assignment, function, pc);
-                    instructions.Add(assignment);
+                    CheckLocal(Assignment, function, pc);
+                    instructions.Add(Assignment);
                     break;
                 case Lua50Ops.OpDiv:
-                    assignment = new Assignment(
+                    Assignment = new Assignment(
                         irFunction.GetRegister(a),
                         new BinOp(RkIr(irFunction, function, b),
                             RkIr(irFunction, function, c), BinOp.OperationType.OpDiv));
-                    CheckLocal(assignment, function, pc);
-                    instructions.Add(assignment);
+                    CheckLocal(Assignment, function, pc);
+                    instructions.Add(Assignment);
                     break;
                 case Lua50Ops.OpPow:
-                    assignment = new Assignment(
+                    Assignment = new Assignment(
                         irFunction.GetRegister(a),
                         new BinOp(RkIr(irFunction, function, b),
                             RkIr(irFunction, function, c), BinOp.OperationType.OpPow));
-                    CheckLocal(assignment, function, pc);
-                    instructions.Add(assignment);
+                    CheckLocal(Assignment, function, pc);
+                    instructions.Add(Assignment);
                     break;
                 case Lua50Ops.OpUnm:
-                    assignment = new Assignment(irFunction.GetRegister(a),
+                    Assignment = new Assignment(irFunction.GetRegister(a),
                         new UnaryOp(
                             new IdentifierReference(irFunction.GetRegister(b)), UnaryOp.OperationType.OpNegate));
-                    CheckLocal(assignment, function, pc);
-                    instructions.Add(assignment);
+                    CheckLocal(Assignment, function, pc);
+                    instructions.Add(Assignment);
                     break;
                 case Lua50Ops.OpNot:
-                    assignment = new Assignment(
+                    Assignment = new Assignment(
                         irFunction.GetRegister(a),
                         new UnaryOp(
                             new IdentifierReference(irFunction.GetRegister(b)), UnaryOp.OperationType.OpNot, true));
-                    CheckLocal(assignment, function, pc);
-                    instructions.Add(assignment);
+                    CheckLocal(Assignment, function, pc);
+                    instructions.Add(Assignment);
                     break;
                 case Lua50Ops.OpConcat:
                     args = new List<Expression>();
@@ -519,9 +519,9 @@ public class Lua50Decompiler : ILanguageDecompiler
                         args.Add(new IdentifierReference(irFunction.GetRegister((uint)arg)));
                     }
 
-                    assignment = new Assignment(irFunction.GetRegister(a), new Concat(args));
-                    CheckLocal(assignment, function, pc);
-                    instructions.Add(assignment);
+                    Assignment = new Assignment(irFunction.GetRegister(a), new Concat(args));
+                    CheckLocal(Assignment, function, pc);
+                    instructions.Add(Assignment);
                     break;
                 case Lua50Ops.OpJmp:
                     instructions.Add(new JumpLabel(irFunction.GetLabel((uint)(i / 4 + sbx + 1))));
@@ -595,13 +595,13 @@ public class Lua50Decompiler : ILanguageDecompiler
                     break;
                 case Lua50Ops.OpSetTable:
                     instructions.Add(new Assignment(
-                        new IdentifierReference(irFunction.GetRegister(a), RkIr(irFunction, function, b)),
+                        new TableAccess(new IdentifierReference(irFunction.GetRegister(a)), RkIr(irFunction, function, b)),
                         RkIr(irFunction, function, c)));
                     break;
                 case Lua50Ops.OpCall:
                 case Lua50Ops.OpTailCall:
                     args = new List<Expression>();
-                    var rets = new List<IdentifierReference>();
+                    var rets = new List<IAssignable>();
                     for (var arg = (int)a + 1; arg < a + b; arg++)
                     {
                         args.Add(new IdentifierReference(irFunction.GetRegister((uint)arg)));
@@ -636,9 +636,9 @@ public class Lua50Decompiler : ILanguageDecompiler
                     }
                     else
                     {
-                        assignment = new Assignment(rets, functionCall);
-                        CheckLocal(assignment, function, pc);
-                        instructions.Add(assignment);
+                        Assignment = new Assignment(rets, functionCall);
+                        CheckLocal(Assignment, function, pc);
+                        instructions.Add(Assignment);
                     }
 
                     break;
@@ -673,7 +673,7 @@ public class Lua50Decompiler : ILanguageDecompiler
                     break;
                 case Lua50Ops.OpTForLoop:
                     args = new List<Expression>();
-                    rets = new List<IdentifierReference>();
+                    rets = new List<IAssignable>();
                     args.Add(new IdentifierReference(irFunction.GetRegister(a + 1)));
                     args.Add(new IdentifierReference(irFunction.GetRegister(a + 2)));
                     if (c == 0)
@@ -692,9 +692,9 @@ public class Lua50Decompiler : ILanguageDecompiler
                     {
                         HasAmbiguousReturnCount = c == 0
                     };
-                    assignment = new Assignment(rets, functionCall);
-                    CheckLocal(assignment, function, pc);
-                    instructions.Add(assignment);
+                    Assignment = new Assignment(rets, functionCall);
+                    CheckLocal(Assignment, function, pc);
+                    instructions.Add(Assignment);
                     instructions.Add(new ConditionalJumpLabel(irFunction.GetLabel((uint)(i / 4 + 2)),
                         new BinOp(Register(irFunction, a + 2),
                             new Constant(Constant.ConstantType.ConstNil, -1), BinOp.OperationType.OpNotEqual),
@@ -708,7 +708,7 @@ public class Lua50Decompiler : ILanguageDecompiler
                     for (var j = 1; j <= bx % 32 + 1; j++)
                     {
                         var inst = new Assignment(
-                            new IdentifierReference(irFunction.GetRegister(a),
+                            new TableAccess(new IdentifierReference(irFunction.GetRegister(a)),
                                 new Constant((double)(bx - bx % 32 + j), -1)),
                             new IdentifierReference(irFunction.GetRegister(a + (uint)j)))
                         {
@@ -720,15 +720,15 @@ public class Lua50Decompiler : ILanguageDecompiler
                     break;
                 case Lua50Ops.OpClosure:
                     var closureFunction = irFunction.LookupClosure(bx);
-                    assignment = new Assignment(
+                    Assignment = new Assignment(
                         irFunction.GetRegister(a), 
                         new Closure(closureFunction)) { OpLocation = i / 4 };
-                    CheckLocal(assignment, function, pc);
-                    instructions.Add(assignment);
+                    CheckLocal(Assignment, function, pc);
+                    instructions.Add(Assignment);
                     
                     // Closure instructions will be followed by a move or get upValue instruction for each upValue in
                     // the child closure. Despite the op-code's semantics, the Lua interpreter does not treat the
-                    // operation as an assignment but rather a way to simply bind the value in "B" to the closure
+                    // operation as an Assignment but rather a way to simply bind the value in "B" to the closure
                     for (var j = 0; j < closureFunction.UpValueCount; j++)
                     {
                         i += 4;

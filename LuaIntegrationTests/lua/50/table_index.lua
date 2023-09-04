@@ -54,3 +54,14 @@ function index_function_call()
     end
     return get_table()[5]
 end
+
+function index_multiassign_tables()
+    function stuff()
+        return 1, 2, 3
+    end
+    function get_table()
+        return my_table
+    end
+    local a
+    a, t[1], get_table()[2] = stuff()
+end

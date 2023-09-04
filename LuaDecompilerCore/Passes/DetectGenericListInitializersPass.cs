@@ -18,7 +18,7 @@ public class DetectGenericListInitializersPass : IPass
             {
                 if (b.Instructions[i] is Assignment { 
                         IsSingleAssignment: true, 
-                        Left.HasIndex: false, 
+                        Left: IdentifierReference tableIr,
                         Right: InitializerList il 
                     } a)
                 {
@@ -27,13 +27,13 @@ public class DetectGenericListInitializersPass : IPass
                         if (b.Instructions[i + 1] is Assignment
                             {
                                 IsSingleAssignment: true, 
-                                Left:
+                                Left: TableAccess
                                 {
-                                    HasIndex: true, 
+                                    Table: IdentifierReference ir, 
                                     TableIndex: Constant { ConstType: Constant.ConstantType.ConstString } c
                                 }
                             } a2 && 
-                            a2.Left.Identifier == a.Left.Identifier)
+                            ir.Identifier == tableIr.Identifier)
                         {
                             if (a2.Right == null)
                                 throw new Exception("Expected assigned value");

@@ -57,7 +57,7 @@ namespace LuaDecompilerCore.IR
         public bool IsFunctionDeclaration => this is Assignment
         {
             IsSingleAssignment: true,
-            Left: { HasIndex: false, Identifier.IsGlobal: true },
+            Left: IdentifierReference { Identifier.IsGlobal: true },
             Right: Closure
         };
         
@@ -129,7 +129,7 @@ namespace LuaDecompilerCore.IR
 
         protected void IterateUsesSuccessor(IIrNode expression, Action<IIrNode, Identifier> function)
         {
-            if (expression is IdentifierReference { HasIndex:false, Identifier: { IsRegister:true } identifier })
+            if (expression is IdentifierReference { Identifier: { IsRegister:true } identifier })
                 function.Invoke(this, identifier);
             else
                 expression.IterateUses(function);
