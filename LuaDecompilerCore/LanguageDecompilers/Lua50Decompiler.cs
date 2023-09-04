@@ -151,7 +151,7 @@ public class Lua50Decompiler : ILanguageDecompiler
         builder.AppendLine("Constants:");
         for (var i = 0; i < function.Constants.Length; i++)
         {
-            builder.AppendLine($"{i}: {function.Constants[i]}");
+            builder.AppendLine($"{i}: {function.Constants[i]} : {function.Constants[i].Type.ToString()}");
         }
 
         builder.AppendLine();
