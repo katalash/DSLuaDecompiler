@@ -78,11 +78,11 @@ namespace LuaDecompilerCore.IR
             return result;
         }
 
-        public override void IterateUses(Action<IIrNode, Identifier> function)
+        public override void IterateUses(Action<IIrNode, UseType, Identifier> function)
         {
             foreach (var exp in ReturnExpressions)
             {
-                IterateUsesSuccessor(exp, function);
+                IterateUsesSuccessor(exp, UseType.Argument, function);
             }
         }
 

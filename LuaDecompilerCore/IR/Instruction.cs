@@ -125,12 +125,13 @@ namespace LuaDecompilerCore.IR
             return condition.Invoke(this);
         }
         
-        public virtual void IterateUses(Action<IIrNode, Identifier> function) { }
+        public virtual void IterateUses(Action<IIrNode, UseType, Identifier> function) { }
 
-        protected void IterateUsesSuccessor(IIrNode expression, Action<IIrNode, Identifier> function)
+        protected void IterateUsesSuccessor(IIrNode expression, UseType useType, 
+            Action<IIrNode, UseType, Identifier> function)
         {
             if (expression is IdentifierReference { Identifier: { IsRegister:true } identifier })
-                function.Invoke(this, identifier);
+                function.Invoke(this, useType, identifier);
             else
                 expression.IterateUses(function);
         }

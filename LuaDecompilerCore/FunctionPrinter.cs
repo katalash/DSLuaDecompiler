@@ -209,6 +209,9 @@ public partial class FunctionPrinter
             case Label label:
                 VisitLabel(label);
                 break;
+            case ListRangeAssignment listRangeAssignment:
+                VisitListRangeAssignment(listRangeAssignment);
+                break;
             case NumericFor numericFor:
                 VisitNumericFor(numericFor);
                 break;
@@ -525,10 +528,22 @@ public partial class FunctionPrinter
         // Pattern match special lua this call
         for (var i = 0; i < initializerList.Expressions.Count; i++)
         {
-            if (initializerList.Assignments.Count > 0)
+            if (!initializerList.ListRangeAssignments.Exists(r => r.Contains(i)))
             {
-                Append(initializerList.Assignments[i].String + " = ");
+                if (initializerList.Assignments[i].ConstType == Constant.ConstantType.ConstNumber)
+                {
+                    Append($"[{(int)initializerList.Assignments[i].Number}] = ");
+                }
+                else if (initializerList.Assignments[i].ConstType == Constant.ConstantType.ConstInteger)
+                {
+                    Append($"[{(int)initializerList.Assignments[i].Integer}] = ");
+                }
+                else if (initializerList.Assignments[i].ConstType == Constant.ConstantType.ConstString)
+                {
+                    Append(initializerList.Assignments[i].String + " = ");
+                }
             }
+            
             VisitExpression(initializerList.Expressions[i]);
             if (i != initializerList.Expressions.Count - 1)
             {
@@ -825,6 +840,20 @@ public partial class FunctionPrinter
     private void VisitLabel(Label label)
     {
         Append($"{label.LabelName}:");
+    }
+    
+    private void VisitListRangeAssignment(ListRangeAssignment listRangeAssignment)
+    {
+        VisitIdentifierReference(listRangeAssignment.Table);
+        Append($"[{listRangeAssignment.Indices.Begin}...{listRangeAssignment.Indices.End - 1}] := ");
+        for (var i = 0; i < listRangeAssignment.Values.Count; i++)
+        {
+            VisitExpression(listRangeAssignment.Values[i]);
+            if (i != listRangeAssignment.Values.Count - 1)
+            {
+                Append(", ");
+            }
+        }
     }
 
     private void VisitNumericFor(NumericFor numericFor)

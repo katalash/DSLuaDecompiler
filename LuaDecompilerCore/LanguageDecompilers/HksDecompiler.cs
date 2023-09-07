@@ -1161,14 +1161,15 @@ public class HksDecompiler : ILanguageDecompiler
                     }
                     else
                     {
+                        var listValues = new List<Expression>();
+                        var listIndices = new Interval();
                         for (var j = 1; j <= b; j++)
                         {
-                            Assignment = new Assignment(new TableAccess(new IdentifierReference(irFunction.GetRegister(a)),
-                                    new Constant((double)(c - 1) * 32 + j, -1)),
-                                new IdentifierReference(irFunction.GetRegister(a + (uint)j)));
-                            CheckLocal(Assignment, function, pc);
-                            instructions.Add(Assignment);
+                            listIndices.AddToRange((c - 1) * 50 + j);
+                            listValues.Add(new IdentifierReference(irFunction.GetRegister(a + (uint)j)));
                         }
+                        instructions.Add(new ListRangeAssignment(
+                            new IdentifierReference(irFunction.GetRegister(a)), listIndices, listValues));
                     }
 
                     break;

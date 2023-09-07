@@ -50,9 +50,9 @@ namespace LuaDecompilerCore.IR
             return Condition.GetExpressions();
         }
 
-        public override void IterateUses(Action<IIrNode, Identifier> function)
+        public override void IterateUses(Action<IIrNode, UseType, Identifier> function)
         {
-            IterateUsesSuccessor(Condition, function);
+            IterateUsesSuccessor(Condition, UseType.ExpressionLeft, function);
         }
     }
 

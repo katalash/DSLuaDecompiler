@@ -17,7 +17,8 @@ public class RewriteVarargListAssignmentPass : IPass
                     b.Instructions[i + 2] is Assignment { IsAmbiguousVararg: true } a3 && 
                     a3.VarargAssignmentReg == a1.VarargAssignmentReg)
                 {
-                    l1.Expressions.Add(new Constant(Constant.ConstantType.ConstVarargs, -1));
+                    l1.AddTableElement(new Constant(Constant.ConstantType.ConstVarargs, -1), 
+                        new Constant(Constant.ConstantType.ConstVarargs, -1));
                     a1.LocalAssignments = a3.LocalAssignments;
                     a1.Absorb(a2);
                     a1.Absorb(a3);

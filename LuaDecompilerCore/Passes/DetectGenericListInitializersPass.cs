@@ -37,8 +37,7 @@ public class DetectGenericListInitializersPass : IPass
                         {
                             if (a2.Right == null)
                                 throw new Exception("Expected assigned value");
-                            il.Expressions.Add(a2.Right);
-                            il.Assignments.Add(c);
+                            il.AddTableElement(c, a2.Right);
                             if (a2.LocalAssignments != null)
                             {
                                 a.LocalAssignments = a2.LocalAssignments;

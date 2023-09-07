@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Buffers;
 using System.Collections.Generic;
+using System.Diagnostics;
 using LuaDecompilerCore.CFG;
 using LuaDecompilerCore.IR;
 using LuaDecompilerCore.Utilities;
@@ -131,9 +132,23 @@ public class LocalVariablesAnalyzer : IAnalyzer
         // exploit this to figure out local variables in the original source code even if they only had one use:
         // If the next register defined within the scope (dominance hierarchy) after the first use of a recently
         // defined register is not that register, then it's likely an actual local variable.
+        // ReSharper disable AccessToModifiedClosure
         int LocalIdentifyVisit(BasicBlock b, int incomingMaxLocalRegister)
         {
             var thisMaxLocalRegister = incomingMaxLocalRegister;
+            
+            void MarkTemporary(Identifier identifier)
+            {
+                // Set max local register and clear any locals above that
+                Debug.Assert(identifier.RegNum > incomingMaxLocalRegister);
+                thisMaxLocalRegister = Math.Min((int)identifier.RegNum - 1, thisMaxLocalRegister);
+                for (uint i = identifier.RegNum; i < registerCount; i++)
+                {
+                    if (blockLocals[i].Count == 0)
+                        break;
+                    blockLocals[i] = new Interval();
+                }
+            }
 
             // Set of defines that are never used in this block (very very likely to be locals)
             var unusedDefines = new HashSet<Identifier>(b.Instructions.Count / 2);
@@ -149,9 +164,7 @@ public class LocalVariablesAnalyzer : IAnalyzer
                 // First add registers such that the set contains all the registers used up to this point
                 uint minTemporaryUse = int.MaxValue;
                 Interval temporaryUses = new Interval();
-                usesSet.Clear();
-                b.Instructions[i].GetUsedRegisters(usesSet);
-                foreach (var use in usesSet)
+                b.Instructions[i].IterateUses((node, useType, use) =>
                 {
                     // If it's used it's no longer an unused definition
                     if (unusedDefines.Contains(use))
@@ -159,17 +172,26 @@ public class LocalVariablesAnalyzer : IAnalyzer
                         unusedDefines.Remove(use);
                     }
                     
+                    // List range assignment assignees are always temporaries so undo any that were marked as locals.
+                    // The use may have been used prior for a table assignment so we need to remove from the recently
+                    // used as well.
+                    if (node is ListRangeAssignment a && useType == UseType.Assignee)
+                    {
+                        MarkTemporary(use);
+                        recentlyUsed.Remove(use.RegNum);
+                    }
+                    
                     if (use.RegNum <= thisMaxLocalRegister)
                     {
                         // Already marked as a local
-                        continue;
+                        return;
                     }
 
                     if (IsLocal(use))
                     {
                         // Add it to the local regs
                         thisMaxLocalRegister = Math.Max(thisMaxLocalRegister, (int)use.RegNum);
-                        continue;
+                        return;
                     }
 
                     if (recentlyUsed.ContainsKey(use.RegNum))
@@ -178,14 +200,15 @@ public class LocalVariablesAnalyzer : IAnalyzer
                         AddLocal(use);
                         thisMaxLocalRegister = Math.Max(thisMaxLocalRegister, (int)use.RegNum);
                         recentlyUsed.Remove(use.RegNum);
-                        continue;
+                        return;
                     }
 
                     // Otherwise this is a candidate for a temporary variable
                     recentlyUsed.Add(use.RegNum, use);
                     minTemporaryUse = Math.Min(use.RegNum, minTemporaryUse);
                     temporaryUses.AddToRange((int)use.RegNum);
-                }
+                });
+                // ReSharper restore AccessToModifiedClosure
 
                 definesSet.Clear();
                 b.Instructions[i].GetDefinedRegisters(definesSet);

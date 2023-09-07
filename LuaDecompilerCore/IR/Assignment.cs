@@ -222,7 +222,7 @@ namespace LuaDecompilerCore.IR
             return result;
         }
 
-        public override void IterateUses(Action<IIrNode, Identifier> function)
+        public override void IterateUses(Action<IIrNode, UseType, Identifier> function)
         {
             foreach (var id in LeftList)
             {
@@ -233,7 +233,7 @@ namespace LuaDecompilerCore.IR
             }
 
             if (Right != null)
-                IterateUsesSuccessor(Right, function);
+                IterateUsesSuccessor(Right, UseType.Assignee, function);
         }
 
         public override List<Expression> GetExpressions()

@@ -705,17 +705,15 @@ public class Lua50Decompiler : ILanguageDecompiler
                     break;
                 case Lua50Ops.OpSetList:
                 case Lua50Ops.OpSetListTo:
+                    var listValues = new List<Expression>();
+                    var listIndices = new Interval();
                     for (var j = 1; j <= bx % 32 + 1; j++)
                     {
-                        var inst = new Assignment(
-                            new TableAccess(new IdentifierReference(irFunction.GetRegister(a)),
-                                new Constant((double)(bx - bx % 32 + j), -1)),
-                            new IdentifierReference(irFunction.GetRegister(a + (uint)j)))
-                        {
-                            IsListAssignment = true
-                        };
-                        instructions.Add(inst);
+                        listIndices.AddToRange((int)(bx - bx % 32 + j));
+                        listValues.Add(new IdentifierReference(irFunction.GetRegister(a + (uint)j)));
                     }
+                    instructions.Add(new ListRangeAssignment(
+                        new IdentifierReference(irFunction.GetRegister(a)), listIndices, listValues));
 
                     break;
                 case Lua50Ops.OpClosure:

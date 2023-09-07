@@ -4,6 +4,47 @@ using System.Collections.Generic;
 namespace LuaDecompilerCore.IR;
 
 /// <summary>
+/// High level categorizing of the type of a register "use"
+/// </summary>
+public enum UseType
+{
+    /// <summary>
+    /// Use is a direct assignee in a list or register assignment
+    /// </summary>
+    Assignee,
+    
+    /// <summary>
+    /// Use is a table in a table access expression or list assignment
+    /// </summary>
+    Table,
+    
+    /// <summary>
+    /// Use is a table index in a table access expression or list assignment
+    /// </summary>
+    TableIndex,
+    
+    /// <summary>
+    /// Use is the left side of a binary op expression or the single use of a unary op expression
+    /// </summary>
+    ExpressionLeft,
+    
+    /// <summary>
+    /// Use is the right side of a binary op expression
+    /// </summary>
+    ExpressionRight,
+    
+    /// <summary>
+    /// Use is closure that is called in a function call
+    /// </summary>
+    Closure,
+    
+    /// <summary>
+    /// Use is an argument in a function call or return instruction
+    /// </summary>
+    Argument,
+}
+
+/// <summary>
 /// Root interface for all nodes in the intermediate representation. Typically this will be either an instruction or
 /// "statement", which is an operation in a basic block, or an expression, which is a computation that yields a result.
 /// </summary>
@@ -32,5 +73,5 @@ public interface IIrNode
     /// <summary>
     /// Calls "function" on all the uses of this node in depth first traversal order.
     /// </summary>
-    public void IterateUses(Action<IIrNode, Identifier> function);
+    public void IterateUses(Action<IIrNode, UseType, Identifier> function);
 }
