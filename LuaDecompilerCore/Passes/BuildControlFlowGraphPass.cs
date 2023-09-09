@@ -151,7 +151,30 @@ public class BuildControlFlowGraphPass : IPass
             }
         }
 
-        // Third pass: Remove unreachable blocks
+        // Third pass: Attempt to resolve unreachable blocks by transforming them into an "if false"
+        for (var b = 0; b < f.BlockList.Count; b++)
+        {
+            // Begin block has no predecessors but shouldn't be removed because :)
+            if (f.BlockList[b] == f.BeginBlock)
+            {
+                continue;
+            }
+            if (f.BlockList[b].Predecessors.Count == 0)
+            {
+                if (f.BlockList[b - 1].Successors.Count == 1 && f.BlockList[b - 1].Last is Jump j)
+                {
+                    f.BlockList[b].Predecessors.Add(f.BlockList[b - 1]);
+                    f.BlockList[b - 1].Successors.Insert(0, f.BlockList[b]);
+                    f.BlockList[b - 1].Last = new ConditionalJump(j.Destination, new Constant(false, -1));
+                    f.BlockList[b - 1].Last.DefinedRegisters = j.DefinedRegisters;
+                    f.BlockList[b - 1].Last.InlinedRegisters = j.InlinedRegisters;
+                    f.BlockList[b - 1].Last.InstructionIndices = j.InstructionIndices;
+                    f.BlockList[b - 1].Last.OriginalBlock = j.OriginalBlock;
+                }
+            }
+        }
+        
+        // Forth pass: Remove unreachable blocks that can't be resolved
         for (var b = 0; b < f.BlockList.Count; b++)
         {
             // Begin block has no predecessors but shouldn't be removed because :)
@@ -170,7 +193,7 @@ public class BuildControlFlowGraphPass : IPass
             }
         }
 
-        // Forth pass: Merge blocks that have a single successor and that successor has a single predecessor
+        // Fifth pass: Merge blocks that have a single successor and that successor has a single predecessor
         var changed = true;
         while (changed)
         {

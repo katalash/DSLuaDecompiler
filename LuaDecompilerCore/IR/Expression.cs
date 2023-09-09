@@ -1182,7 +1182,7 @@ namespace LuaDecompilerCore.IR
         }
         public override void Parenthesize()
         {
-            // If left has a lower precedence than this op, then add parantheses to evaluate it first
+            // If left has a lower precedence than this op, then add parentheses to evaluate it first
             if (Expression is IOperator op1 && op1.GetPrecedence() > GetPrecedence())
             {
                 op1.SetHasParentheses(true);
@@ -1225,6 +1225,10 @@ namespace LuaDecompilerCore.IR
         /// </summary>
         public bool IsThisCall = false;
 
+        // Once the self variables are replaced in this call, the first argument should be ignored for any further use
+        // counts/iterations/queries since in the Lua source it functions as a single use semantically
+        private bool _selfReplaced = false;
+
         public FunctionCall(Expression fun, List<Expression> args)
         {
             Function = fun;
@@ -1235,13 +1239,24 @@ namespace LuaDecompilerCore.IR
         {
             Function.Parenthesize();
             Args.ForEach(x => x.Parenthesize());
+            
+            // ':' and '.' have higher precedence than other binary operators so we must make sure we parenthesize
+            // the table expression if needed.
+            if (Function is TableAccess
+                {
+                    Table: IOperator o,
+                    TableIndices: [Constant { ConstType: Constant.ConstantType.ConstString }]
+                })
+            {
+                o.SetHasParentheses(true);
+            }
         }
 
         public override HashSet<Identifier> GetUsedRegisters(HashSet<Identifier> uses)
         {
-            foreach (var arg in Args)
+            for (var i = _selfReplaced ? 1 : 0; i < Args.Count; i++)
             {
-                arg.GetUsedRegisters(uses);
+                Args[i].GetUsedRegisters(uses);
             }
             Function.GetUsedRegisters(uses);
             return uses;
@@ -1250,9 +1265,9 @@ namespace LuaDecompilerCore.IR
         public override void RenameUses(Identifier original, Identifier newIdentifier)
         {
             Function.RenameUses(original, newIdentifier);
-            foreach (var arg in Args)
+            for (var i = _selfReplaced ? 1 : 0; i < Args.Count; i++)
             {
-                arg.RenameUses(original, newIdentifier);
+                Args[i].RenameUses(original, newIdentifier);
             }
         }
 
@@ -1272,12 +1287,14 @@ namespace LuaDecompilerCore.IR
             {
                 replaced = Function.ReplaceUses(original, sub);
             }
-            for (var i = 0; i < Args.Count; i++)
+            for (var i = _selfReplaced ? 1 : 0; i < Args.Count; i++)
             {
                 if (ShouldReplace(original, Args[i]))
                 {
                     Args[i] = sub;
                     replaced = true;
+                    if (IsThisCall && i == 0)
+                        _selfReplaced = true;
                 }
                 else
                 {
@@ -1289,33 +1306,38 @@ namespace LuaDecompilerCore.IR
 
         public override int UseCount(Identifier use)
         {
-            return Args.Sum(a => a.UseCount(use)) + Function.UseCount(use);
+            int count = Function.UseCount(use);
+            for (var i = _selfReplaced ? 1 : 0; i < Args.Count; i++)
+            {
+                count += Args[i].UseCount(use);
+            }
+            return count;
         }
 
         public override List<Expression> GetExpressions()
         {
             var ret = new List<Expression> { this };
-            foreach (var exp in Args)
-            {
-                ret.AddRange(exp.GetExpressions());
-            }
             ret.AddRange(Function.GetExpressions());
+            for (var i = _selfReplaced ? 1 : 0; i < Args.Count; i++)
+            {
+                ret.AddRange(Args[i].GetExpressions());
+            }
             return ret;
         }
 
         public override int GetLowestConstantId()
         {
             var id = Function.GetLowestConstantId();
-            foreach (var idx in Args)
+            for (var i = _selfReplaced ? 1 : 0; i < Args.Count; i++)
             {
-                var nid = idx.GetLowestConstantId();
+                var nid = Args[i].GetLowestConstantId();
                 if (id == -1)
                 {
                     id = nid;
                 }
                 else if (nid != -1)
                 {
-                    id = Math.Min(id, idx.GetLowestConstantId());
+                    id = Math.Min(id, Args[i].GetLowestConstantId());
                 }
             }
             return id;
@@ -1324,9 +1346,9 @@ namespace LuaDecompilerCore.IR
         public override bool MatchAny(Func<IIrNode, bool> condition)
         {
             var result = condition.Invoke(this);
-            foreach (var idx in Args)
+            for (var i = _selfReplaced ? 1 : 0; i < Args.Count; i++)
             {
-                result = result || idx.MatchAny(condition);
+                result = result || Args[i].MatchAny(condition);
             }
 
             result = result || Function.MatchAny(condition);
@@ -1336,9 +1358,9 @@ namespace LuaDecompilerCore.IR
         public override void IterateUses(Action<IIrNode, UseType, IdentifierReference> function)
         {
             IterateUsesSuccessor(Function, UseType.Closure, function);
-            foreach (var arg in Args)
+            for (var i = _selfReplaced ? 1 : 0; i < Args.Count; i++)
             {
-                IterateUsesSuccessor(arg, UseType.Argument, function);
+                IterateUsesSuccessor(Args[i], UseType.Argument, function);
             }
         }
     }

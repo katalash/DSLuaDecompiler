@@ -63,7 +63,14 @@ public class ExpressionPropagationPass : IPass
                                 definingInstruction.InstructionIndices.End - 1 < fc.FunctionDefIndex &&
                                 fc.GetUsedRegisters(usesSet2).Contains(use))
                             {
-                                continue;
+                                // This is extremely ugly but we still need to allow function chaining if the function
+                                // itself is a register
+                                if (!(fc.Function is IdentifierReference ir && ir.Identifier == use) &&
+                                    !(fc is { IsThisCall: true, Function: TableAccess 
+                                          { Table: IdentifierReference ir2, TableIndices: [Constant] }
+                                      } &&
+                                      ir2.Identifier == use))
+                                    continue;
                             }
                             if (!a.PropagateAlways && inst is Return { ReturnExpressions: [FunctionCall fc2] } && 
                                 definingInstruction.InstructionIndices.End - 1 < fc2.FunctionDefIndex)

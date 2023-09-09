@@ -633,10 +633,10 @@ public partial class FunctionPrinter
             {
                 TableIndices.Count: 1, 
                 TableIndex: Constant { ConstType: Constant.ConstantType.ConstString } c, 
-                Table: IdentifierReference { Identifier.IsGlobalTable: false } ir
-            })
+                Table: not IdentifierReference { Identifier.IsGlobalTable: true }
+            } tableAccess)
         {
-            VisitIdentifier(ir.Identifier);
+            VisitExpression(tableAccess.Table);
             if (functionCall.IsThisCall)
             {
                 Append($":{c.String}(");
