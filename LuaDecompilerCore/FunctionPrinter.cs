@@ -530,17 +530,26 @@ public partial class FunctionPrinter
         {
             if (!initializerList.ListRangeAssignments.Exists(r => r.Contains(i)))
             {
-                if (initializerList.Assignments[i].ConstType == Constant.ConstantType.ConstNumber)
+                if (initializerList.Assignments[i] is Constant c)
                 {
-                    Append($"[{(int)initializerList.Assignments[i].Number}] = ");
+                    if (c.ConstType == Constant.ConstantType.ConstNumber)
+                    {
+                        Append($"[{(int)c.Number}] = ");
+                    }
+                    else if (c.ConstType == Constant.ConstantType.ConstInteger)
+                    {
+                        Append($"[{(int)c.Integer}] = ");
+                    }
+                    else if (c.ConstType == Constant.ConstantType.ConstString)
+                    {
+                        Append(c.String + " = ");
+                    }
                 }
-                else if (initializerList.Assignments[i].ConstType == Constant.ConstantType.ConstInteger)
+                else
                 {
-                    Append($"[{(int)initializerList.Assignments[i].Integer}] = ");
-                }
-                else if (initializerList.Assignments[i].ConstType == Constant.ConstantType.ConstString)
-                {
-                    Append(initializerList.Assignments[i].String + " = ");
+                    Append('[');
+                    VisitExpression(initializerList.Assignments[i]);
+                    Append("] = ");
                 }
             }
             

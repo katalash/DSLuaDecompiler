@@ -222,7 +222,7 @@ namespace LuaDecompilerCore.IR
             return result;
         }
 
-        public override void IterateUses(Action<IIrNode, UseType, Identifier> function)
+        public override void IterateUses(Action<IIrNode, UseType, IdentifierReference> function)
         {
             foreach (var id in LeftList)
             {

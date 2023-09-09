@@ -10,19 +10,17 @@ public class DetectListInitializersPass : IPass
 {
     public bool RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
     {
-        bool changed = false;
+        bool irChanged = false;
         foreach (var b in f.BlockList)
         {
             for (var i = 0; i < b.Instructions.Count; i++)
             {
+                var changed = false;
                 if (b.Instructions[i] is Assignment 
                     {
                         IsSingleAssignment: true, 
                         Left: IdentifierReference tableIr,
-                        Right: InitializerList
-                        {
-                            ExpressionsEmpty: true
-                        } il 
+                        Right: InitializerList il 
                     } a)
                 {
                     // Eat up any statements that follow that match the initializer list pattern
@@ -35,7 +33,7 @@ public class DetectListInitializersPass : IPass
                                 Left: TableAccess
                                 {
                                     Table: IdentifierReference ir,
-                                    TableIndex: Constant c
+                                    TableIndex: { } e
                                 }
                             } a2 && 
                             //Math.Abs(c.Number - initIndex) < 0.0001 && 
@@ -43,7 +41,7 @@ public class DetectListInitializersPass : IPass
                         {
                             if (a2.Right == null)
                                 throw new Exception("Expected assignment");
-                            il.AddTableElement(c, a2.Right);
+                            il.AddTableElement(e, a2.Right);
                             if (a2.LocalAssignments != null)
                             {
                                 a.LocalAssignments = a2.LocalAssignments;
@@ -52,6 +50,7 @@ public class DetectListInitializersPass : IPass
                             b.Instructions.RemoveAt(i + 1);
                             //initIndex++;
                             changed = true;
+                            irChanged = true;
                         }
                         else if (b.Instructions[i + 1] is ListRangeAssignment a3 && 
                                  a3.Table.Identifier == tableIr.Identifier)
@@ -60,16 +59,22 @@ public class DetectListInitializersPass : IPass
                             a.Absorb(a3);
                             b.Instructions.RemoveAt(i + 1);
                             changed = true;
+                            irChanged = true;
                         }
                         else
                         {
                             break;
                         }
                     }
+
+                    if (changed)
+                    {
+                        i = -1;
+                    }
                 }
             }
         }
 
-        return changed;
+        return irChanged;
     }
 }

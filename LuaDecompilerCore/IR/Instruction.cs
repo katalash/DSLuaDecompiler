@@ -43,6 +43,11 @@ namespace LuaDecompilerCore.IR
         /// register defined or inlined into this expression.
         /// </summary>
         public int SelfAssignMinRegister = int.MaxValue;
+
+        /// <summary>
+        /// Register numbers that are this number and above are always temporary registers entering this instruction.
+        /// </summary>
+        public int AlwaysTemporaryRegister = int.MaxValue;
         
         public bool HasClosure => MatchAny(e => e is Closure);
         
@@ -125,13 +130,13 @@ namespace LuaDecompilerCore.IR
             return condition.Invoke(this);
         }
         
-        public virtual void IterateUses(Action<IIrNode, UseType, Identifier> function) { }
+        public virtual void IterateUses(Action<IIrNode, UseType, IdentifierReference> function) { }
 
         protected void IterateUsesSuccessor(IIrNode expression, UseType useType, 
-            Action<IIrNode, UseType, Identifier> function)
+            Action<IIrNode, UseType, IdentifierReference> function)
         {
-            if (expression is IdentifierReference { Identifier: { IsRegister:true } identifier })
-                function.Invoke(this, useType, identifier);
+            if (expression is IdentifierReference { Identifier: { IsRegister:true } } ir)
+                function.Invoke(this, useType, ir);
             else
                 expression.IterateUses(function);
         }

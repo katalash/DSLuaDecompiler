@@ -11,7 +11,12 @@ public class Lua50TheoryData : TheoryData<ITestCase>
     public Lua50TheoryData()
     {
         var entries = Directory.GetFiles("lua\\50", "*.lua", SearchOption.AllDirectories);
+        var entriesShared = Directory.GetFiles("lua\\shared", "*.lua", SearchOption.AllDirectories);
         foreach (var entry in entries)
+        {
+            Add(new SourceFileTestCase(entry));
+        }
+        foreach (var entry in entriesShared)
         {
             Add(new SourceFileTestCase(entry));
         }
@@ -27,7 +32,13 @@ public class LuaHksTheoryData : TheoryData<ITestCase>
     public LuaHksTheoryData()
     {
         var entries = Directory.GetFiles("lua\\hks", "*.lua", SearchOption.AllDirectories);
+        var entriesShared = Directory.GetFiles("lua\\shared", "*.lua", SearchOption.AllDirectories);
+
         foreach (var entry in entries)
+        {
+            Add(new SourceFileTestCase(entry));
+        }
+        foreach (var entry in entriesShared)
         {
             Add(new SourceFileTestCase(entry));
         }

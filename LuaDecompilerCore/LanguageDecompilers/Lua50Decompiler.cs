@@ -590,8 +590,12 @@ public class Lua50Decompiler : ILanguageDecompiler
                             new UnaryOp(RkIr(irFunction, function, b), UnaryOp.OperationType.OpNot)));
                     }
 
-                    instructions.Add(new Assignment(
-                        irFunction.GetRegister(a), new IdentifierReference(irFunction.GetRegister(b))));
+                    if (a != b)
+                    {
+                        instructions.Add(new Assignment(
+                            irFunction.GetRegister(a), new IdentifierReference(irFunction.GetRegister(b))));
+                    }
+
                     break;
                 case Lua50Ops.OpSetTable:
                     instructions.Add(new Assignment(
@@ -713,7 +717,10 @@ public class Lua50Decompiler : ILanguageDecompiler
                         listValues.Add(new IdentifierReference(irFunction.GetRegister(a + (uint)j)));
                     }
                     instructions.Add(new ListRangeAssignment(
-                        new IdentifierReference(irFunction.GetRegister(a)), listIndices, listValues));
+                        new IdentifierReference(irFunction.GetRegister(a)), listIndices, listValues)
+                    {
+                        AlwaysTemporaryRegister = (int)a + 1
+                    });
 
                     break;
                 case Lua50Ops.OpClosure:
@@ -783,7 +790,6 @@ public class Lua50Decompiler : ILanguageDecompiler
     {
         passManager.AddPass("apply-labels", new ApplyLabelsPass());
         passManager.AddPass("vararg-list-assignment", new RewriteVarargListAssignmentPass());
-        passManager.AddPass("eliminate-redundant-assignments", new EliminateRedundantAssignmentsPass());
         passManager.AddPass("merge-conditional-jumps", new MergeConditionalJumpsPass());
         passManager.AddPass("validate-jump-dest-labels", new ValidateJumpDestinationLabelsPass());
 
@@ -793,11 +799,10 @@ public class Lua50Decompiler : ILanguageDecompiler
         passManager.AddPass("resolve-closure-up-values-50", new ResolveClosureUpValues50Pass());
         passManager.AddPass("eliminate-dead-phi-1", new EliminateDeadAssignmentsPass(true));
         passManager.AddPass("eliminate-unused-phi", new EliminateUnusedPhiFunctionsPass());
-        passManager.AddPass("detect-generic-list-initializers-1", new DetectGenericListInitializersPass());
+        passManager.AddPass("detect-list-initializers-initial", new DetectListInitializersPass());
         
         passManager.PushLoopUntilUnchanged();
         passManager.AddPass("expression-propagation-1", new ExpressionPropagationPass());
-        passManager.AddPass("detect-generic-list-initializers-2", new DetectGenericListInitializersPass());
         passManager.AddPass("detect-list-initializers", new DetectListInitializersPass());
         passManager.AddPass("merge-compound-conditionals", new MergeCompoundConditionalsPass());
         passManager.AddPass("merge-conditional-assignments", new MergeConditionalAssignmentsPass());

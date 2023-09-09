@@ -164,8 +164,10 @@ public class LocalVariablesAnalyzer : IAnalyzer
                 // First add registers such that the set contains all the registers used up to this point
                 uint minTemporaryUse = int.MaxValue;
                 Interval temporaryUses = new Interval();
-                b.Instructions[i].IterateUses((node, useType, use) =>
+                b.Instructions[i].IterateUses((node, useType, useReference) =>
                 {
+                    var use = useReference.Identifier;
+                    
                     // If it's used it's no longer an unused definition
                     if (unusedDefines.Contains(use))
                     {
@@ -175,7 +177,15 @@ public class LocalVariablesAnalyzer : IAnalyzer
                     // List range assignment assignees are always temporaries so undo any that were marked as locals.
                     // The use may have been used prior for a table assignment so we need to remove from the recently
                     // used as well.
-                    if (node is ListRangeAssignment a && useType == UseType.Assignee)
+                    /*if (node is ListRangeAssignment && useType == UseType.Assignee &&
+                        useReference.OriginalAssignmentRegisters.Count == 0)
+                    {
+                        MarkTemporary(use);
+                        recentlyUsed.Remove(use.RegNum);
+                    }*/
+                    // If the instruction (such as set list) says that incoming registers above a certain value are
+                    // always temporaries, then unmark them as locals if they are already marked.
+                    if (use.RegNum >= b.Instructions[i].AlwaysTemporaryRegister)
                     {
                         MarkTemporary(use);
                         recentlyUsed.Remove(use.RegNum);
@@ -194,9 +204,13 @@ public class LocalVariablesAnalyzer : IAnalyzer
                         return;
                     }
 
-                    if (recentlyUsed.ContainsKey(use.RegNum))
+                    // IR uses are iterated in the same order that the compiler emits them, which means that each use of
+                    // a temporary register should occur in increasing order. Any uses that occur out of this increasing
+                    // order are probably references to existing global variables. Additionally, uses of a register that
+                    // was already used without being redefined is also probably a local.
+                    if (recentlyUsed.ContainsKey(use.RegNum) || 
+                        (node is not BinOp && temporaryUses.Count > 0 && use.RegNum < temporaryUses.End))
                     {
-                        // Double use. Definitely a local
                         AddLocal(use);
                         thisMaxLocalRegister = Math.Max(thisMaxLocalRegister, (int)use.RegNum);
                         recentlyUsed.Remove(use.RegNum);
@@ -219,8 +233,9 @@ public class LocalVariablesAnalyzer : IAnalyzer
                 if (definesSet.Count == 0 && temporaryUses.Count > 0 && b.Instructions[i].InlinedRegisters.Count > 0)
                 {
                     if (temporaryUses.Begin < b.Instructions[i].InlinedRegisters.Begin)
-                        thisMaxLocalRegister = Math.Max(thisMaxLocalRegister, 
-                            Math.Min(temporaryUses.End - 1, b.Instructions[i].InlinedRegisters.Begin));
+                        thisMaxLocalRegister = Math.Min((int)b.Instructions[i].AlwaysTemporaryRegister - 1,
+                            Math.Max(thisMaxLocalRegister, 
+                            Math.Min(temporaryUses.End - 1, b.Instructions[i].InlinedRegisters.Begin)));
                     foreach (var use in recentlyUsed)
                     {
                         if (temporaryUses.Contains((int)use.Key) && use.Key <= thisMaxLocalRegister)

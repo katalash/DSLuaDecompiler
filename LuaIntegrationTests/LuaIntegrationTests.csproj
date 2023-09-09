@@ -31,10 +31,19 @@
         <None Update="lua\HKS\hello.lua">
           <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
-        <None Update="lua\50\conditional.lua">
+        <None Update="lua\shared\conditional.lua">
           <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
-        <None Update="lua\hks\generic_for.lua">
+        <None Update="lua\shared\expression.lua">
+          <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+        <None Update="lua\shared\generic_for.lua">
+          <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+        <None Update="lua\shared\table_index.lua">
+          <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+        <None Update="lua\shared\list_initializer.lua">
           <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
     </ItemGroup>

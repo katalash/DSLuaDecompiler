@@ -87,7 +87,7 @@ public class ListRangeAssignment : Instruction
         return result;
     }
 
-    public override void IterateUses(Action<IIrNode, UseType, Identifier> function)
+    public override void IterateUses(Action<IIrNode, UseType, IdentifierReference> function)
     {
         IterateUsesSuccessor(Table, UseType.Table, function);
         foreach (var value in Values)

@@ -73,5 +73,5 @@ public interface IIrNode
     /// <summary>
     /// Calls "function" on all the uses of this node in depth first traversal order.
     /// </summary>
-    public void IterateUses(Action<IIrNode, UseType, Identifier> function);
+    public void IterateUses(Action<IIrNode, UseType, IdentifierReference> function);
 }

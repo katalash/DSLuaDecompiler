@@ -1168,8 +1168,13 @@ public class HksDecompiler : ILanguageDecompiler
                             listIndices.AddToRange((c - 1) * 50 + j);
                             listValues.Add(new IdentifierReference(irFunction.GetRegister(a + (uint)j)));
                         }
-                        instructions.Add(new ListRangeAssignment(
-                            new IdentifierReference(irFunction.GetRegister(a)), listIndices, listValues));
+
+                        instructions.Add(
+                            new ListRangeAssignment(
+                                new IdentifierReference(irFunction.GetRegister(a)), listIndices, listValues)
+                            {
+                                AlwaysTemporaryRegister = (int)a + 1
+                            });
                     }
 
                     break;
@@ -1300,7 +1305,6 @@ public class HksDecompiler : ILanguageDecompiler
         passManager.AddPass("cleanup-havok-instructions", new CleanupHavokInstructionsPass());
         passManager.AddPass("vararg-list-assignment", new RewriteVarargListAssignmentPass());
         passManager.AddPass("merge-multiple-bool-assignment", new MergeMultipleBoolAssignmentPass());
-        //passManager.AddPass("eliminate-redundant-assignments", new EliminateRedundantAssignmentsPass());
         passManager.AddPass("merge-conditional-jumps", new MergeConditionalJumpsPass());
         passManager.AddPass("validate-jump-dest-labels", new ValidateJumpDestinationLabelsPass());
 
@@ -1310,6 +1314,7 @@ public class HksDecompiler : ILanguageDecompiler
         passManager.AddPass("resolve-closure-up-values-50", new ResolveClosureUpValues50Pass());
         passManager.AddPass("eliminate-dead-phi-1", new EliminateDeadAssignmentsPass(true));
         passManager.AddPass("eliminate-unused-phi", new EliminateUnusedPhiFunctionsPass());
+        passManager.AddPass("detect-list-initializers-initial", new DetectListInitializersPass());
         
         passManager.PushLoopUntilUnchanged();
         passManager.AddPass("expression-propagation-1", new ExpressionPropagationPass());

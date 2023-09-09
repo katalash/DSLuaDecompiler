@@ -62,13 +62,13 @@ namespace LuaDecompilerCore.IR
 
         public abstract bool MatchAny(Func<IIrNode, bool> condition);
         
-        public virtual void IterateUses(Action<IIrNode, UseType, Identifier> function) { }
+        public virtual void IterateUses(Action<IIrNode, UseType, IdentifierReference> function) { }
 
         protected void IterateUsesSuccessor(IIrNode expression, UseType useType, 
-            Action<IIrNode, UseType, Identifier> function)
+            Action<IIrNode, UseType, IdentifierReference> function)
         {
-            if (expression is IdentifierReference { IsRegister: true, Identifier: var identifier })
-                function.Invoke(this, useType, identifier);
+            if (expression is IdentifierReference { IsRegister: true } ir)
+                function.Invoke(this, useType, ir);
             else
                 expression.IterateUses(function);
         }
@@ -228,12 +228,13 @@ namespace LuaDecompilerCore.IR
             return condition.Invoke(this);
         }
 
-        public override void IterateUses(Action<IIrNode, UseType, Identifier> function)
+        public override void IterateUses(Action<IIrNode, UseType, IdentifierReference> function)
         {
             foreach (var binding in Function.UpValueBindings)
             {
-                if (binding.IsRegister)
-                    function.Invoke(this, UseType.Argument, binding);
+                // TODO: not sure if this is needed
+                //if (binding.IsRegister)
+                //    function.Invoke(this, UseType.Argument, binding);
             }
         }
     }
@@ -318,7 +319,7 @@ namespace LuaDecompilerCore.IR
             return condition.Invoke(this);
         }
 
-        public override void IterateUses(Action<IIrNode, UseType, Identifier> function)
+        public override void IterateUses(Action<IIrNode, UseType, IdentifierReference> function)
         {
             if (Identifier.IsRegister)
             {
@@ -467,7 +468,7 @@ namespace LuaDecompilerCore.IR
             return result;
         }
 
-        public override void IterateUses(Action<IIrNode, UseType, Identifier> function)
+        public override void IterateUses(Action<IIrNode, UseType, IdentifierReference> function)
         {
             IterateUsesSuccessor(Table, UseType.Table, function);
             foreach (var idx in TableIndices)
@@ -589,7 +590,7 @@ namespace LuaDecompilerCore.IR
             return result;
         }
 
-        public override void IterateUses(Action<IIrNode, UseType, Identifier> function)
+        public override void IterateUses(Action<IIrNode, UseType, IdentifierReference> function)
         {
             foreach (var arg in Expressions)
             {
@@ -601,7 +602,7 @@ namespace LuaDecompilerCore.IR
     public sealed class InitializerList : Expression
     {
         public readonly List<Expression> Expressions;
-        public readonly List<Constant> Assignments = new();
+        public readonly List<Expression> Assignments = new();
         public readonly List<Interval> ListRangeAssignments = new();
         
         /// <summary>
@@ -623,7 +624,7 @@ namespace LuaDecompilerCore.IR
             Expressions = expression;
         }
 
-        public void AddTableElement(Constant key, Expression value)
+        public void AddTableElement(Expression key, Expression value)
         {
             Assignments.Add(key);
             Expressions.Add(value);
@@ -651,12 +652,22 @@ namespace LuaDecompilerCore.IR
                 arg.GetUsedRegisters(uses);
             }
 
+            foreach (var arg in Assignments)
+            {
+                arg.GetUsedRegisters(uses);
+            }
+
             return uses;
         }
 
         public override void RenameUses(Identifier original, Identifier newIdentifier)
         {
             foreach (var arg in Expressions)
+            {
+                arg.RenameUses(original, newIdentifier);
+            }
+            
+            foreach (var arg in Assignments)
             {
                 arg.RenameUses(original, newIdentifier);
             }
@@ -667,6 +678,16 @@ namespace LuaDecompilerCore.IR
             var replaced = false;
             for (var i = 0; i < Expressions.Count; i++)
             {
+                if (ShouldReplace(original, Assignments[i]))
+                {
+                    Assignments[i] = sub;
+                    replaced = true;
+                }
+                else
+                {
+                    replaced = replaced || Assignments[i].ReplaceUses(original, sub);
+                }
+                
                 if (ShouldReplace(original, Expressions[i]))
                 {
                     Expressions[i] = sub;
@@ -682,15 +703,16 @@ namespace LuaDecompilerCore.IR
 
         public override int UseCount(Identifier use)
         {
-            return Expressions.Sum(e => e.UseCount(use));
+            return Assignments.Sum(e => e.UseCount(use)) + Expressions.Sum(e => e.UseCount(use));
         }
 
         public override List<Expression> GetExpressions()
         {
             var ret = new List<Expression> { this };
-            foreach (var expression in Expressions)
+            for (var i = 0; i < Expressions.Count; i++)
             {
-                ret.AddRange(expression.GetExpressions());
+                ret.AddRange(Assignments[i].GetExpressions());
+                ret.AddRange(Expressions[i].GetExpressions());
             }
             return ret;
         }
@@ -698,6 +720,14 @@ namespace LuaDecompilerCore.IR
         public override int GetLowestConstantId()
         {
             var id = int.MaxValue;
+            foreach (var expression in Assignments)
+            {
+                var nid = expression.GetLowestConstantId();
+                if (nid != -1)
+                {
+                    id = Math.Min(id, expression.GetLowestConstantId());
+                }
+            }
             foreach (var expression in Expressions)
             {
                 var nid = expression.GetLowestConstantId();
@@ -712,6 +742,10 @@ namespace LuaDecompilerCore.IR
         public override bool MatchAny(Func<IIrNode, bool> condition)
         {
             var result = condition.Invoke(this);
+            foreach (var idx in Assignments)
+            {
+                result = result || idx.MatchAny(condition);
+            }
             foreach (var idx in Expressions)
             {
                 result = result || idx.MatchAny(condition);
@@ -719,11 +753,12 @@ namespace LuaDecompilerCore.IR
             return result;
         }
 
-        public override void IterateUses(Action<IIrNode, UseType, Identifier> function)
+        public override void IterateUses(Action<IIrNode, UseType, IdentifierReference> function)
         {
-            foreach (var arg in Expressions)
+            for (var i = 0; i < Expressions.Count; i++)
             {
-                IterateUsesSuccessor(arg, UseType.Argument, function);
+                IterateUsesSuccessor(Assignments[i], UseType.Argument, function);
+                IterateUsesSuccessor(Expressions[i], UseType.Argument, function);
             }
         }
     }
@@ -1042,7 +1077,7 @@ namespace LuaDecompilerCore.IR
             return result;
         }
 
-        public override void IterateUses(Action<IIrNode, UseType, Identifier> function)
+        public override void IterateUses(Action<IIrNode, UseType, IdentifierReference> function)
         {
             IterateUsesSuccessor(Left, UseType.ExpressionLeft, function);
             IterateUsesSuccessor(Right, UseType.ExpressionRight, function);
@@ -1136,7 +1171,7 @@ namespace LuaDecompilerCore.IR
             return result;
         }
 
-        public override void IterateUses(Action<IIrNode, UseType, Identifier> function)
+        public override void IterateUses(Action<IIrNode, UseType, IdentifierReference> function)
         {
             IterateUsesSuccessor(Expression, UseType.ExpressionLeft, function);
         }
@@ -1298,13 +1333,13 @@ namespace LuaDecompilerCore.IR
             return result;
         }
 
-        public override void IterateUses(Action<IIrNode, UseType, Identifier> function)
+        public override void IterateUses(Action<IIrNode, UseType, IdentifierReference> function)
         {
+            IterateUsesSuccessor(Function, UseType.Closure, function);
             foreach (var arg in Args)
             {
                 IterateUsesSuccessor(arg, UseType.Argument, function);
             }
-            IterateUsesSuccessor(Function, UseType.Closure, function);
         }
     }
 }
