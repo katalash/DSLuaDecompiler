@@ -367,7 +367,20 @@ public partial class FunctionPrinter
                 NewLine();
             }
             Indent();
-            VisitInstruction(inst);
+            
+            // Returns that don't appear at the end of the block need to be wrapped with a do..end scope to compile
+            // correctly
+            if (inst is Return r &&
+                !(j == basicBlock.Instructions.Count - 1 ||
+                 (basicBlock.Last is Return { IsImplicit: true } && j == basicBlock.Instructions.Count - 2)))
+            {
+                VisitReturn(r, true);
+            }
+            else
+            {
+                VisitInstruction(inst);
+            }
+
             if (inst is not IfStatement)
             {
                 NewLine();
@@ -923,12 +936,21 @@ public partial class FunctionPrinter
         Append(placeholderInstruction.Placeholder);
     }
 
-    private void VisitReturn(Return @return)
+    private void VisitReturn(Return @return, bool addScope = false)
     {
         if (@return.IsImplicit)
         {
             return;
         }
+
+        if (addScope)
+        {
+            Append("do");
+            PushIndent();
+            NewLine();
+            Indent();
+        }
+        
         Append("return");
         for (var i = 0; i < @return.ReturnExpressions.Count; i++)
         {
@@ -938,6 +960,14 @@ public partial class FunctionPrinter
             {
                 Append(", ");
             }
+        }
+
+        if (addScope)
+        {
+            PopIndent();
+            NewLine();
+            Indent();
+            Append("end");
         }
     }
 
