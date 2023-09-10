@@ -90,7 +90,8 @@ public class LuaIntegrationTests
                 DumpPassIr = true,
                 DumpCfg = true,
                 MultiThreaded = false,
-                HandleDecompilationExceptions = false
+                HandleDecompilationExceptions = true,
+                IgnoreDebugInfo = true
             });
         tester.AddTestCase(test);
         var result = tester.Execute();

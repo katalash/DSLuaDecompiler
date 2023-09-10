@@ -339,6 +339,8 @@ public class HksDecompiler : ILanguageDecompiler
             switch ((LuaHksOps)opcode)
             {
                 case LuaHksOps.OpGetField:
+                case LuaHksOps.OpGetFieldR1:
+                    builder.Append($"-- R({a}) := R({b})[{function.Constants[c].ToString()}]");
                     break;
                 case LuaHksOps.OpTest:
                     break;
@@ -366,11 +368,11 @@ public class HksDecompiler : ILanguageDecompiler
                         builder.Append($"R({arg})");
                     }
                     break;
-                case LuaHksOps.OpGetTableS:
-                    break;
                 case LuaHksOps.OpGetTableN:
                     break;
                 case LuaHksOps.OpGetTable:
+                case LuaHksOps.OpGetTableS:
+                    builder.Append($"-- R({a}) := R({b})[{RkHks(function, c, sZero)}]");
                     break;
                 case LuaHksOps.OpLoadBool:
                     break;
@@ -387,18 +389,19 @@ public class HksDecompiler : ILanguageDecompiler
                     builder.Append($"if R({a+3}) ~= nil then R({a + 2}) := R({a + 3}) else PC++ (PC = {i / 4 + 2})");
                     break;
                 case LuaHksOps.OpSetField:
+                case LuaHksOps.OpSetFieldR1:
+                    builder.Append($"-- R({a})[{function.Constants[b]}] := {RkHks(function, c, false)}");
                     break;
+                case LuaHksOps.OpSetTable:
                 case LuaHksOps.OpSetTableS:
-                    break;
-                case LuaHksOps.OpSetTableSBK:
+                    builder.Append($"-- R({a})[{RkHks(function, b, false)}] := {RkHks(function, c, false)}");
                     break;
                 case LuaHksOps.OpSetTableN:
                     break;
                 case LuaHksOps.OpSetTableNBK:
                     break;
-                case LuaHksOps.OpSetTable:
-                    break;
                 case LuaHksOps.OpSetTableBK:
+                case LuaHksOps.OpSetTableSBK:
                     break;
                 case LuaHksOps.OpTailCallI:
                     break;
@@ -494,6 +497,7 @@ public class HksDecompiler : ILanguageDecompiler
                 case LuaHksOps.OpPowBk:
                     break;
                 case LuaHksOps.OpNewTable:
+                    builder.Append($"-- R({a}) := {{}} size = {b}, {c}");
                     break;
                 case LuaHksOps.OpUnm:
                     break;
@@ -518,6 +522,23 @@ public class HksDecompiler : ILanguageDecompiler
                 case LuaHksOps.OpForLoop:
                     break;
                 case LuaHksOps.OpSetList:
+                    if (b == 0)
+                    {
+                        if (c == 1)
+                        {
+                            builder.Append($"-- R({a}) := R({a + 1})...");
+                        }
+                    }
+                    else
+                    {
+                        builder.Append($"-- R({a})[{(c - 1) * 50 + 1}...{(c - 1) * 50 + b}] := ");
+                        for (var j = 1; j <= b; j++)
+                        {
+                            if (j != 1)
+                                builder.Append(", ");
+                            builder.Append($"R({a + j})");
+                        }
+                    }
                     break;
                 case LuaHksOps.OpClose:
                     break;
@@ -540,10 +561,6 @@ public class HksDecompiler : ILanguageDecompiler
                 case LuaHksOps.OpTestR1:
                     break;
                 case LuaHksOps.OpNotR1:
-                    break;
-                case LuaHksOps.OpGetFieldR1:
-                    break;
-                case LuaHksOps.OpSetFieldR1:
                     break;
                 case LuaHksOps.OpNewStruct:
                     break;
@@ -681,6 +698,7 @@ public class HksDecompiler : ILanguageDecompiler
                     FirstAssigned(a);
                     break;
                 case LuaHksOps.OpSetUpVal:
+                case LuaHksOps.OpSetUpValR1:
                     up = irFunction.GetUpValue((uint)b);
                     if (b >= irFunction.UpValueCount)
                     {
@@ -1222,9 +1240,10 @@ public class HksDecompiler : ILanguageDecompiler
                     instructions.Add(dat);
                     break;
                 case LuaHksOps.OpSetField:
+                case LuaHksOps.OpSetFieldR1:
                     Assignment = new Assignment(new TableAccess(new IdentifierReference(irFunction.GetRegister(a)),
                             new Constant(function.Constants[b].ToString(), b)),
-                        Register(irFunction, (uint)c));
+                        RkIrHks(irFunction, function, c, false));
                     CheckLocal(Assignment, function, pc);
                     instructions.Add(Assignment);
                     break;
