@@ -763,7 +763,51 @@ namespace LuaDecompilerCore.IR
         }
     }
 
-    public sealed class BinOp : Expression, IOperator
+    /// <summary>
+    /// Interface for a IR node that maps to an instruction that does a "boolean" operation (i.e. evaluates to true or
+    /// false).
+    /// </summary>
+    public interface IConditionalOperatorPrimitive : IIrNode
+    {
+        /// <summary>
+        /// Is it for real a conditional operator though?
+        /// </summary>
+        public bool IsConditionalOp { get; }
+        
+        /// <summary>
+        /// Is this a non equality comparison op? (i.e. <, <=, >, >=)
+        /// </summary>
+        public bool IsNonEqualityComparisonOp { get; }
+        
+        /// <summary>
+        /// Is it a comparison op including equality? (i.e. ==, ~=)
+        /// </summary>
+        public bool IsComparisonOp { get; }
+
+        /// <summary>
+        /// Is it a boolean op? (i.e. and, or)
+        /// </summary>
+        public bool IsBooleanOp { get; }
+        
+        /// <summary>
+        /// Is it a not op? (not)
+        /// </summary>
+        public bool IsNotOp { get; }
+
+        /// <summary>
+        /// Negate conditional expression by applying a "not" operation
+        /// </summary>
+        public void NegateConditionalExpression();
+
+        /// <summary>
+        /// Solve conditional expression by either applying or factoring out implicit "nots" such that conditional
+        /// expression compiles to same ops as source bytecode.
+        /// </summary>
+        public bool SolveConditionalExpression(bool negated = false);
+
+    }
+
+    public sealed class BinOp : Expression, IOperator, IConditionalOperatorPrimitive
     {
         public enum OperationType
         {
@@ -790,28 +834,60 @@ namespace LuaDecompilerCore.IR
             OpLoopCompare,
         }
 
+        /// <summary>
+        /// Original binary op code generated for this expression
+        /// </summary>
+        public enum OriginalOpType
+        {
+            OpNotApplicable,
+            OpLe,
+            OpLt,
+            OpLeBk,
+            OpLtBk,
+        }
+
         public Expression Left;
         public Expression Right;
         public OperationType Operation;
+
+        public readonly OriginalOpType OriginalOp;
 
         /// <summary>
         /// Whether or not this bin-op comparison came from a LT_BK or LE_BK instruction and has position requirements
         /// for the left constant.
         /// </summary>
-        public bool IsBkComparison { get; private set; }
-        public bool HasParentheses { get; private set; }
+        public bool IsBkComparison => OriginalOp is OriginalOpType.OpLeBk or OriginalOpType.OpLtBk;
 
-        public bool IsNonEqualityComparison => Operation is OperationType.OpLessThan or OperationType.OpLessEqual
+        /// <summary>
+        /// Whether this operation has an "implicit" not operator on it. The Lua compiler sometimes does folding of
+        /// "not" operators as an optimization instead of explicitly generating a not instruction, and this is used as
+        /// a convenience to help factor them out instead of generating explicit "not" unary ops.
+        /// </summary>
+        public bool HasImplicitNot { get; set; } = false;
+        
+        public bool HasParentheses { get; private set; }
+        
+        public bool IsNonEqualityComparisonOp => Operation is OperationType.OpLessThan or OperationType.OpLessEqual
             or OperationType.OpGreaterThan or OperationType.OpGreaterEqual;
+
+        public bool IsComparisonOp =>
+            IsNonEqualityComparisonOp || Operation is OperationType.OpEqual or OperationType.OpNotEqual;
+
+        public bool IsBooleanOp => Operation is OperationType.OpAnd or OperationType.OpOr;
+
+        public bool IsConditionalOp => IsComparisonOp || IsBooleanOp;
+
+        public bool IsNotOp => false;
 
         public bool IsBkLegal => IsBkComparison ? Left is Constant : Left is not Constant;
 
-        public BinOp(Expression left, Expression right, OperationType op, bool isBkComparison = false)
+        public BinOp(Expression left, Expression right, OperationType op, 
+            OriginalOpType originalOp = OriginalOpType.OpNotApplicable)
         {
             Left = left;
             Right = right;
             Operation = op;
-            IsBkComparison = isBkComparison;
+            OriginalOp = originalOp;
         }
 
         /// <summary>
@@ -864,50 +940,57 @@ namespace LuaDecompilerCore.IR
         /// <summary>
         /// Negates this op as a conditional expression that may be built of multiple parts
         /// </summary>
-        public bool NegateConditionalExpression()
+        public void NegateConditionalExpression()
         {
-            // Lastly if left and right are binops we negate them
-            bool leftNegated = false;
-            if (Left is BinOp leftBinOp)
-                leftNegated = leftBinOp.NegateConditionalExpression();
-            bool rightNegated = false;
-            if (Right is BinOp rightBinOp)
-                rightNegated = rightBinOp.NegateConditionalExpression();
-            
-            // Comparison operations we just do simple negation
-            if (Operation is OperationType.OpEqual or OperationType.OpNotEqual or OperationType.OpLessThan or
-                OperationType.OpLessEqual or OperationType.OpGreaterThan or OperationType.OpGreaterEqual)
-                NegateCondition();
-            else if (Operation is OperationType.OpAnd or OperationType.OpOr)
-            {
-                Operation = Operation switch
-                {
-                    OperationType.OpAnd => OperationType.OpOr,
-                    OperationType.OpOr => OperationType.OpAnd,
-                    _ => Operation
-                };
+            if (!IsConditionalOp)
+                throw new Exception("Unexpected negation of non boolean op");
+            HasImplicitNot = !HasImplicitNot;
+        }
 
-                if (Left is UnaryOp leftUnaryOp)
-                {
-                    Left = leftUnaryOp.NegateConditionalExpression();
-                }
-                else if (!leftNegated)
-                {
-                    Left = new UnaryOp(Left, UnaryOp.OperationType.OpNot);
-                }
-                
-                if (Right is UnaryOp rightUnaryOp)
-                {
-                    Right = rightUnaryOp.NegateConditionalExpression();
-                }
-                else if (!rightNegated)
-                {
-                    Right = new UnaryOp(Right, UnaryOp.OperationType.OpNot);
-                }
-            }
-            else
+        public bool SolveConditionalExpression(bool negated = false)
+        {
+            if (!IsConditionalOp)
+                return true;
+            
+            // The first thing we need to do is if we have an implicit not try to eliminate it by applying a transform
+            if (Operation is OperationType.OpEqual or OperationType.OpNotEqual && HasImplicitNot)
             {
-                return false;
+                // Comparison op negation is trivial
+                NegateCondition();
+                HasImplicitNot = false;
+            }
+            else if (HasImplicitNot && IsBooleanOp &&
+                     Left is BinOp { IsConditionalOp: true } l &&
+                     Right is BinOp { IsConditionalOp: true } r)
+            {
+                // Use DeMorgan's Law:
+                // not (a and b) -> not a or not b
+                // not (a or b) -> not a and not b
+                l.HasImplicitNot = !l.HasImplicitNot;
+                r.HasImplicitNot = !r.HasImplicitNot;
+                Operation = Operation == OperationType.OpAnd ? OperationType.OpOr : OperationType.OpAnd;
+                HasImplicitNot = false;
+            }
+
+            // If we have an unresolved implicit not, flip the negated flag
+            negated ^= HasImplicitNot;
+            bool negatedLeft = Operation == OperationType.OpOr ? !negated : negated;
+            bool negatedRight = negated;
+            
+            // Process the children if they are conditional expressions as well
+            if (Left is IConditionalOperatorPrimitive { IsConditionalOp: true } l2)
+                l2.SolveConditionalExpression(negatedLeft);
+            if (Right is IConditionalOperatorPrimitive { IsConditionalOp: true } r2)
+                r2.SolveConditionalExpression(negatedRight);
+            
+            // If we are a boolean op, see if child expressions now have an implicit not that can be factored out
+            if (IsBooleanOp && Left is BinOp { HasImplicitNot: true } l3 && Right is BinOp { HasImplicitNot: true} r3)
+            {
+                // Use DeMorgan's Law again to factor out the not
+                l3.HasImplicitNot = false;
+                r3.HasImplicitNot = false;
+                Operation = Operation == OperationType.OpAnd ? OperationType.OpOr : OperationType.OpAnd;
+                HasImplicitNot = true;
             }
 
             return true;
@@ -1089,7 +1172,7 @@ namespace LuaDecompilerCore.IR
         }
     }
 
-    public sealed class UnaryOp : Expression, IOperator
+    public sealed class UnaryOp : Expression, IOperator, IConditionalOperatorPrimitive
     {
         public enum OperationType
         {
@@ -1103,14 +1186,11 @@ namespace LuaDecompilerCore.IR
         public readonly OperationType Operation;
 
         public bool HasParentheses { get; private set; }
-
-        public readonly bool Preserve;
-
-        public UnaryOp(Expression expression, OperationType op, bool preserve = false)
+        
+        public UnaryOp(Expression expression, OperationType op)
         {
             Expression = expression;
             Operation = op;
-            Preserve = preserve;
         }
 
         public override HashSet<Identifier> GetUsedRegisters(HashSet<Identifier> uses)
@@ -1146,17 +1226,36 @@ namespace LuaDecompilerCore.IR
             ret.AddRange(Expression.GetExpressions());
             return ret;
         }
-        
+
+        public bool IsConditionalOp => Operation == OperationType.OpNot;
+        public bool IsNonEqualityComparisonOp => false;
+        public bool IsComparisonOp => false;
+        public bool IsBooleanOp => false;
+        public bool IsNotOp => Operation == OperationType.OpNot;
+
         /// <summary>
         /// Negates this op as a conditional expression that may be built of multiple parts. Since this op may result
         /// in the unary op needing to be removed, the expression returned will indicate what this needs to be replaced
         /// with.
         /// </summary>
-        public Expression NegateConditionalExpression()
+        public void NegateConditionalExpression()
         {
-            if (Operation == OperationType.OpNot && Preserve)
-                return new UnaryOp(this, OperationType.OpNot);
-            return Operation == OperationType.OpNot ? Expression : this;
+            if (Operation != OperationType.OpNot || Expression is not BinOp {} b)
+                throw new Exception("Attempting to negate non-not expression");
+            b.NegateConditionalExpression();
+        }
+
+        public bool SolveConditionalExpression(bool negated = false)
+        {
+            // End of conditional expression
+            if (!IsNotOp)
+                return true;
+            
+            // Explicit ops are always emitted so passthrough
+            if (Expression is IConditionalOperatorPrimitive p)
+                return p.SolveConditionalExpression(negated);
+
+            return true;
         }
 
         public override int GetLowestConstantId()

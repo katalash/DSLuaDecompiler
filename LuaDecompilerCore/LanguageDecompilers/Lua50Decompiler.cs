@@ -508,7 +508,7 @@ public class Lua50Decompiler : ILanguageDecompiler
                     Assignment = new Assignment(
                         irFunction.GetRegister(a),
                         new UnaryOp(
-                            new IdentifierReference(irFunction.GetRegister(b)), UnaryOp.OperationType.OpNot, true));
+                            new IdentifierReference(irFunction.GetRegister(b)), UnaryOp.OperationType.OpNot));
                     CheckLocal(Assignment, function, pc);
                     instructions.Add(Assignment);
                     break;
@@ -549,14 +549,16 @@ public class Lua50Decompiler : ILanguageDecompiler
                         instructions.Add(new ConditionalJumpLabel(
                             irFunction.GetLabel((uint)(i / 4 + 2)),
                             new BinOp(RkIr(irFunction, function, b),
-                                RkIr(irFunction, function, c), BinOp.OperationType.OpLessThan)));
+                                RkIr(irFunction, function, c), 
+                                BinOp.OperationType.OpLessThan, BinOp.OriginalOpType.OpLt)));
                     }
                     else
                     {
                         instructions.Add(new ConditionalJumpLabel(
                             irFunction.GetLabel((uint)(i / 4 + 2)),
                             new BinOp(RkIr(irFunction, function, b),
-                                RkIr(irFunction, function, c), BinOp.OperationType.OpGreaterEqual)));
+                                RkIr(irFunction, function, c), 
+                                BinOp.OperationType.OpLessThan, BinOp.OriginalOpType.OpLt) { HasImplicitNot = true}));
                     }
 
                     break;
@@ -566,14 +568,16 @@ public class Lua50Decompiler : ILanguageDecompiler
                         instructions.Add(new ConditionalJumpLabel(
                             irFunction.GetLabel((uint)(i / 4 + 2)),
                             new BinOp(RkIr(irFunction, function, b),
-                                RkIr(irFunction, function, c), BinOp.OperationType.OpLessEqual)));
+                                RkIr(irFunction, function, c), 
+                                BinOp.OperationType.OpLessEqual, BinOp.OriginalOpType.OpLe)));
                     }
                     else
                     {
                         instructions.Add(new ConditionalJumpLabel(
                             irFunction.GetLabel((uint)(i / 4 + 2)),
                             new BinOp(RkIr(irFunction, function, b),
-                                RkIr(irFunction, function, c), BinOp.OperationType.OpGreaterThan)));
+                                RkIr(irFunction, function, c), 
+                                BinOp.OperationType.OpLessEqual, BinOp.OriginalOpType.OpLe) { HasImplicitNot = true}));
                     }
 
                     break;
@@ -820,6 +824,7 @@ public class Lua50Decompiler : ILanguageDecompiler
         passManager.AddPass("detect-local-variables", new DetectLocalVariablesPass());
         // irfun.ArgumentNames = fun.LocalsAt(0);
         passManager.AddPass("rename-local-variables", new RenameVariablesPass());
+        passManager.AddPass("solve-expressions", new SolveExpressionsPass());
         passManager.AddPass("parenthesize", new ParenthesizePass());
 
         passManager.AddPass("build-ast", new AstTransformPass());

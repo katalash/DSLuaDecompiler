@@ -50,13 +50,16 @@ public class MergeCompoundConditionalsPass : IPass
                             Expression newCond;
                             if (n.Condition is BinOp { IsCompare: true } b)
                             {
-                                newCond = new BinOp(b.NegateCondition(), tj.Condition, BinOp.OperationType.OpOr);
+                                b.NegateConditionalExpression();
+                                newCond = new BinOp(b, tj.Condition, BinOp.OperationType.OpOr);
                             }
                             else
                             {
-                                Expression left;
-                                if (n.Condition is UnaryOp unaryOp)
-                                    left = unaryOp.NegateConditionalExpression();
+                                var left = n.Condition;
+                                if (n.Condition is UnaryOp { Operation: UnaryOp.OperationType.OpNot } unaryOp)
+                                    left = unaryOp.Expression;
+                                else if (n.Condition is BinOp binOp)
+                                    binOp.NegateConditionalExpression();
                                 else
                                     left = new UnaryOp(n.Condition, UnaryOp.OperationType.OpNot);
                                 newCond = new BinOp(left, tj.Condition, BinOp.OperationType.OpOr);
@@ -108,9 +111,11 @@ public class MergeCompoundConditionalsPass : IPass
                     {
                         if (e.EdgeTrue == t)
                         {
-                            Expression left;
-                            if (n.Condition is UnaryOp unaryOp)
-                                left = unaryOp.NegateConditionalExpression();
+                            var left = n.Condition;
+                            if (n.Condition is UnaryOp { Operation: UnaryOp.OperationType.OpNot } unaryOp)
+                                left = unaryOp.Expression;
+                            else if (n.Condition is BinOp binOp)
+                                binOp.NegateConditionalExpression();
                             else
                                 left = new UnaryOp(n.Condition, UnaryOp.OperationType.OpNot);
                             var newCond = new BinOp(left, ej.Condition, BinOp.OperationType.OpOr);

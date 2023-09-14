@@ -607,9 +607,18 @@ public partial class FunctionPrinter
         {
             Append('(');
         }
+
+        if (binOp.HasImplicitNot)
+        {
+            Append("not (");
+        }
         VisitExpression(binOp.Left);
         Append($" {op} ");
         VisitExpression(binOp.Right);
+        if (binOp.HasImplicitNot)
+        {
+            Append(')');
+        }
         if (binOp.HasParentheses)
         {
             Append(')');

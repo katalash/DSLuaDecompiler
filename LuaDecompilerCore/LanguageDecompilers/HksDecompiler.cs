@@ -871,7 +871,7 @@ public class HksDecompiler : ILanguageDecompiler
                 case LuaHksOps.OpNot:
                     Assignment = new Assignment(irFunction.GetRegister(a),
                         new UnaryOp(new IdentifierReference(irFunction.GetRegister((uint)b)),
-                            UnaryOp.OperationType.OpNot, true));
+                            UnaryOp.OperationType.OpNot));
                     FirstAssigned(a);
                     CheckLocal(Assignment, function, pc);
                     instructions.Add(Assignment);
@@ -929,14 +929,16 @@ public class HksDecompiler : ILanguageDecompiler
                         instructions.Add(
                             new ConditionalJumpLabel(irFunction.GetLabel((uint)(i / 4 + 2)),
                                 new BinOp(Register(irFunction, (uint)b),
-                                    RkIrHks(irFunction, function, c, sZero), BinOp.OperationType.OpLessThan)));
+                                    RkIrHks(irFunction, function, c, sZero), 
+                                    BinOp.OperationType.OpLessThan, BinOp.OriginalOpType.OpLt)));
                     }
                     else
                     {
                         instructions.Add(
                             new ConditionalJumpLabel(irFunction.GetLabel((uint)(i / 4 + 2)),
                                 new BinOp(Register(irFunction, (uint)b),
-                                    RkIrHks(irFunction, function, c, sZero), BinOp.OperationType.OpGreaterEqual)));
+                                    RkIrHks(irFunction, function, c, sZero), 
+                                    BinOp.OperationType.OpLessThan, BinOp.OriginalOpType.OpLt) { HasImplicitNot = true}));
                     }
 
                     break;
@@ -946,14 +948,16 @@ public class HksDecompiler : ILanguageDecompiler
                         instructions.Add(
                             new ConditionalJumpLabel(irFunction.GetLabel((uint)(i / 4 + 2)),
                                 new BinOp(ToConstantIr(function.Constants[b], b),
-                                    Register(irFunction, (uint)c), BinOp.OperationType.OpLessThan, true)));
+                                    Register(irFunction, (uint)c), 
+                                    BinOp.OperationType.OpLessThan, BinOp.OriginalOpType.OpLtBk)));
                     }
                     else
                     {
                         instructions.Add(
                             new ConditionalJumpLabel(irFunction.GetLabel((uint)(i / 4 + 2)),
                                 new BinOp(ToConstantIr(function.Constants[b], b),
-                                    Register(irFunction, (uint)c), BinOp.OperationType.OpGreaterEqual, true)));
+                                    Register(irFunction, (uint)c), 
+                                    BinOp.OperationType.OpLessThan, BinOp.OriginalOpType.OpLtBk) { HasImplicitNot = true}));
                     }
 
                     break;
@@ -963,14 +967,16 @@ public class HksDecompiler : ILanguageDecompiler
                         instructions.Add(
                             new ConditionalJumpLabel(irFunction.GetLabel((uint)(i / 4 + 2)),
                                 new BinOp(Register(irFunction, (uint)b),
-                                    RkIrHks(irFunction, function, c, sZero), BinOp.OperationType.OpLessEqual)));
+                                    RkIrHks(irFunction, function, c, sZero), 
+                                    BinOp.OperationType.OpLessEqual, BinOp.OriginalOpType.OpLe)));
                     }
                     else
                     {
                         instructions.Add(
                             new ConditionalJumpLabel(irFunction.GetLabel((uint)(i / 4 + 2)),
                                 new BinOp(Register(irFunction, (uint)b),
-                                    RkIrHks(irFunction, function, c, sZero), BinOp.OperationType.OpGreaterThan)));
+                                    RkIrHks(irFunction, function, c, sZero), 
+                                    BinOp.OperationType.OpLessEqual, BinOp.OriginalOpType.OpLe) { HasImplicitNot = true}));
                     }
 
                     break;
@@ -980,13 +986,15 @@ public class HksDecompiler : ILanguageDecompiler
                         instructions.Add(
                             new ConditionalJumpLabel(irFunction.GetLabel((uint)(i / 4 + 2)),
                                 new BinOp(ToConstantIr(function.Constants[b], b),
-                                    Register(irFunction, (uint)c), BinOp.OperationType.OpLessEqual, true)));
+                                    Register(irFunction, (uint)c), 
+                                    BinOp.OperationType.OpLessEqual, BinOp.OriginalOpType.OpLeBk)));
                     }
                     else
                     {
                         instructions.Add(new ConditionalJumpLabel(irFunction.GetLabel((uint)(i / 4 + 2)),
                             new BinOp(ToConstantIr(function.Constants[b], b),
-                                Register(irFunction, (uint)c), BinOp.OperationType.OpGreaterThan, true)));
+                                Register(irFunction, (uint)c), 
+                                BinOp.OperationType.OpLessEqual, BinOp.OriginalOpType.OpLeBk) { HasImplicitNot = true}));
                     }
 
                     break;
@@ -1354,6 +1362,7 @@ public class HksDecompiler : ILanguageDecompiler
         passManager.AddPass("detect-local-variables", new DetectLocalVariablesPass());
         // irfun.ArgumentNames = fun.LocalsAt(0);
         passManager.AddPass("rename-local-variables", new RenameVariablesPass());
+        passManager.AddPass("solve-expressions", new SolveExpressionsPass());
         passManager.AddPass("parenthesize", new ParenthesizePass());
         //passManager.AddPass("annotate-env-act", new AnnotateEnvActFunctionsPass());
 

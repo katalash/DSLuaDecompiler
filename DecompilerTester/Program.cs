@@ -177,8 +177,8 @@ namespace DecompilerTester
                 {
                     DumpPassIr = true,
                     DumpCfg = true,
-                    MultiThreaded = true,
-                    HandleDecompilationExceptions = true
+                    MultiThreaded = false,
+                    HandleDecompilationExceptions = false
                 });
             if (!TestUtilities.AddCompiledLuaBndDirectoryToTester(args[0], tester))
             {

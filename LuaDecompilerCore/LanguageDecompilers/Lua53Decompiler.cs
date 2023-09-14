@@ -409,8 +409,7 @@ public class Lua53Decompiler : ILanguageDecompiler
                     break;
                 case Lua53Ops.OpNot:
                     Assignment = new Assignment(irFunction.GetRegister(a),
-                        new UnaryOp(new IdentifierReference(irFunction.GetRegister(b)), UnaryOp.OperationType.OpNot,
-                            true));
+                        new UnaryOp(new IdentifierReference(irFunction.GetRegister(b)), UnaryOp.OperationType.OpNot));
                     CheckLocal(Assignment, function, pc);
                     instructions.Add(Assignment);
                     break;
@@ -448,13 +447,13 @@ public class Lua53Decompiler : ILanguageDecompiler
                     {
                         instructions.Add(new ConditionalJumpLabel(irFunction.GetLabel((uint)(i / 4 + 2)),
                             new BinOp(RkIr53(irFunction, function, b), RkIr53(irFunction, function, c),
-                                BinOp.OperationType.OpLessThan)));
+                                BinOp.OperationType.OpLessThan, BinOp.OriginalOpType.OpLt)));
                     }
                     else
                     {
                         instructions.Add(new ConditionalJumpLabel(irFunction.GetLabel((uint)(i / 4 + 2)),
                             new BinOp(RkIr53(irFunction, function, b), RkIr53(irFunction, function, c),
-                                BinOp.OperationType.OpGreaterEqual)));
+                                BinOp.OperationType.OpGreaterEqual, BinOp.OriginalOpType.OpLt)));
                     }
 
                     break;
@@ -463,13 +462,13 @@ public class Lua53Decompiler : ILanguageDecompiler
                     {
                         instructions.Add(new ConditionalJumpLabel(irFunction.GetLabel((uint)(i / 4 + 2)),
                             new BinOp(RkIr53(irFunction, function, b), RkIr53(irFunction, function, c),
-                                BinOp.OperationType.OpLessEqual)));
+                                BinOp.OperationType.OpLessEqual, BinOp.OriginalOpType.OpLe)));
                     }
                     else
                     {
                         instructions.Add(new ConditionalJumpLabel(irFunction.GetLabel((uint)(i / 4 + 2)),
                             new BinOp(RkIr53(irFunction, function, b), RkIr53(irFunction, function, c),
-                                BinOp.OperationType.OpGreaterThan)));
+                                BinOp.OperationType.OpGreaterThan, BinOp.OriginalOpType.OpLe)));
                     }
 
                     break;
