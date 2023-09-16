@@ -18,8 +18,8 @@ public class DetectLoopBreakContinuePass : IPass
     {
         var changed = false;
         var dominance = functionContext.GetAnalysis<DominanceAnalyzer>();
-        var visited = new HashSet<CFG.BasicBlock>();
-        void Visit(CFG.BasicBlock b, CFG.BasicBlock? loopHead)
+        var visited = new HashSet<BasicBlock>();
+        void Visit(BasicBlock b, BasicBlock? loopHead)
         {
             visited.Add(b);
             var nextHead = b.IsLoopHead ? b : loopHead;
@@ -30,7 +30,7 @@ public class DetectLoopBreakContinuePass : IPass
         
             // Detect unstructured if statements
             if (nextHead != null && b.IsConditionalJump && 
-                b is not { IsLoopHead: true, LoopType: CFG.LoopType.LoopPretested })
+                b is not { IsLoopHead: true, LoopType: LoopType.LoopPretested })
             {
                 if (b.LoopType == LoopType.LoopEndless)
                 {

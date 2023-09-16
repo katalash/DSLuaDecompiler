@@ -19,6 +19,7 @@ public class DetectTwoWayConditionalsPass : IPass
         HashSet<CFG.BasicBlock> Visit(CFG.BasicBlock b)
         {
             var unresolved = new HashSet<CFG.BasicBlock>();
+            var unresolved2 = new HashSet<CFG.BasicBlock>();
             dominance.RunOnDominanceTreeSuccessors(f, b, successor =>
             {
                 if (debugVisited.Contains(successor))
@@ -151,15 +152,16 @@ public class DetectTwoWayConditionalsPass : IPass
             // The loop head or latch is the implicit follow of any unmatched conditionals
             if (b.IsLoopHead)
             {
-                bool loopFollowUnresolved = false;
+                unresolved2.Clear();
                 foreach (var ur in unresolved)
                 {
                     // If the unresolved block is the follow of the loop then the loop head is not the follow. This may
                     // need to be updated to use the interval information and exclude blocks that occur outside the
                     // loop's interval.
-                    if (b.LoopFollow == ur)
+                    //if (b.LoopFollow == ur)
+                    if (b.LoopFollow is not null && ur.BlockId >= b.LoopFollow.BlockId)
                     {
-                        loopFollowUnresolved = true;
+                        unresolved2.Add(ur);
                         continue;
                     }
 
@@ -176,8 +178,7 @@ public class DetectTwoWayConditionalsPass : IPass
                     }
                 }
                 unresolved.Clear();
-                if (loopFollowUnresolved && b.LoopFollow != null)
-                    unresolved.Add(b.LoopFollow);
+                unresolved = unresolved2;
             }
 
             return unresolved;
