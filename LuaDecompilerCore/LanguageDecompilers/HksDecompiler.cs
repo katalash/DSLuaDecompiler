@@ -345,8 +345,10 @@ public class HksDecompiler : ILanguageDecompiler
                 case LuaHksOps.OpTest:
                     break;
                 case LuaHksOps.OpEq:
+                    builder.Append($"-- if ((R({b}) == {RkHks(function, c, sZero)}) ~= {a}) PC++ (PC = {i / 4 + 2})");
                     break;
                 case LuaHksOps.OpEqBk:
+                    builder.Append($"-- if (({function.Constants[b].ToString()} == R({c})) ~= {a}) PC++ (PC = {i / 4 + 2})");
                     break;
                 case LuaHksOps.OpGetGlobal:
                 case LuaHksOps.OpGetGlobalMem:
@@ -423,6 +425,7 @@ public class HksDecompiler : ILanguageDecompiler
                 case LuaHksOps.OpCallM:
                     break;
                 case LuaHksOps.OpCallI:
+                case LuaHksOps.OpCallIR1:
                 case LuaHksOps.OpCallC:
                 case LuaHksOps.OpCall:
                     builder.Append("-- ");
@@ -506,12 +509,16 @@ public class HksDecompiler : ILanguageDecompiler
                 case LuaHksOps.OpLen:
                     break;
                 case LuaHksOps.OpLt:
+                    builder.Append($"-- if ((R({b}) <  {RkHks(function, c, sZero)}) ~= {a}) PC++ (PC = {i / 4 + 2})");
                     break;
                 case LuaHksOps.OpLtBk:
+                    builder.Append($"-- if (({function.Constants[b].ToString()} <  R({c})) ~= {a}) PC++ (PC = {i / 4 + 2})");
                     break;
                 case LuaHksOps.OpLe:
+                    builder.Append($"-- if ((R({b}) <=  {RkHks(function, c, sZero)}) ~= {a}) PC++ (PC = {i / 4 + 2})");
                     break;
                 case LuaHksOps.OpLeBk:
+                    builder.Append($"-- if (({function.Constants[b].ToString()} <= R({c})) ~= {a}) PC++ (PC = {i / 4 + 2})");
                     break;
                 case LuaHksOps.OpConcat:
                     break;
@@ -553,8 +560,6 @@ public class HksDecompiler : ILanguageDecompiler
                 case LuaHksOps.OpVarArg:
                     break;
                 case LuaHksOps.OpTailCallIR1:
-                    break;
-                case LuaHksOps.OpCallIR1:
                     break;
                 case LuaHksOps.OpSetUpValR1:
                     break;

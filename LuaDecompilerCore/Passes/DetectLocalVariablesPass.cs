@@ -30,7 +30,7 @@ public class DetectLocalVariablesPass : IPass
             // Go through the graph and mark declared nodes
             foreach (var inst in b.Instructions)
             {
-                if (inst is Assignment { IsSingleAssignment: true } a)
+                if (inst is Assignment a)
                 {
                     definesSet.Clear();
                     foreach (var def in a.GetDefinedRegisters(definesSet))
