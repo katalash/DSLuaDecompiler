@@ -13,7 +13,7 @@ namespace LuaDecompilerCore.IR
         /// <summary>
         /// Range of registers that this expression was first assigned to before expression propagation
         /// </summary>
-        public Interval OriginalAssignmentRegisters = new();
+        public Interval OriginalAssignmentRegisters;
 
         public HashSet<Identifier> GetDefinedRegisters(HashSet<Identifier> defines)
         {
@@ -24,7 +24,12 @@ namespace LuaDecompilerCore.IR
         {
             return uses;
         }
-        
+
+        public virtual Interval GetTemporaryRegisterRange()
+        {
+            return new Interval();
+        }
+
         public HashSet<Identifier> GetUsedRegisters()
         {
             var uses = new HashSet<Identifier>(5);
@@ -71,6 +76,11 @@ namespace LuaDecompilerCore.IR
                 function.Invoke(this, useType, ir);
             else
                 expression.IterateUses(function);
+        }
+
+        public virtual Interval GetOriginalUseRegisters()
+        {
+            return OriginalAssignmentRegisters;
         }
     }
 
@@ -281,6 +291,11 @@ namespace LuaDecompilerCore.IR
             return uses;
         }
 
+        public override Interval GetTemporaryRegisterRange()
+        {
+            return IsRegister ? new Interval((int)Identifier.RegNum) : new Interval();
+        }
+
         public override void RenameUses(Identifier original, Identifier newIdentifier)
         {
             if (Identifier == original)
@@ -326,17 +341,19 @@ namespace LuaDecompilerCore.IR
                 throw new Exception("Iteration should be handled by parent");
             }
         }
+
+        public override Interval GetOriginalUseRegisters()
+        {
+            if (OriginalAssignmentRegisters.Count == 0)
+                return GetTemporaryRegisterRange();
+            return OriginalAssignmentRegisters;
+        }
     }
     
     public sealed class TableAccess : Expression, IAssignable
     {
         public Expression Table;
-        
-        // Each entry represents a new level of indirection for multidimensional arrays
-        public List<Expression> TableIndices;
-        
-        public bool HasSingleIndex => TableIndices.Count == 1;
-        public Expression TableIndex => TableIndices[0];
+        public Expression TableIndex;
 
         /// <summary>
         /// This identifier reference comes from a SELF op and should be printed with this (':') semantics
@@ -350,67 +367,56 @@ namespace LuaDecompilerCore.IR
         public TableAccess(Expression table, Expression index)
         {
             Table = table;
-            TableIndices = new List<Expression>(1) { index };
+            TableIndex = index;
         }
 
         public override void Parenthesize()
         {
-            foreach (var idx in TableIndices)
-            {
-                idx.Parenthesize();
-            }
+            TableIndex.Parenthesize();
         }
 
         public override HashSet<Identifier> GetUsedRegisters(HashSet<Identifier> uses)
         {
             Table.GetUsedRegisters(uses);
-            foreach (var idx in TableIndices)
-            {
-                idx.GetUsedRegisters(uses);
-            }
+            TableIndex.GetUsedRegisters(uses);
 
             return uses;
+        }
+
+        public override Interval GetTemporaryRegisterRange()
+        {
+            var temporaries = new Interval();
+            temporaries.AddToTemporaryRegisterRange(Table.GetOriginalUseRegisters());
+            temporaries.AddToTemporaryRegisterRange(TableIndex.GetOriginalUseRegisters());
+            temporaries.MergeTemporaryRegisterRange(Table.GetTemporaryRegisterRange());
+            temporaries.MergeTemporaryRegisterRange(TableIndex.GetTemporaryRegisterRange());
+            return temporaries;
         }
 
         public override void RenameUses(Identifier original, Identifier newIdentifier)
         {
             Table.RenameUses(original, newIdentifier);
-            foreach (var idx in TableIndices)
-            {
-                idx.RenameUses(original, newIdentifier);
-            }
+            TableIndex.RenameUses(original, newIdentifier);
         }
 
         public override bool ReplaceUses(Identifier original, Expression sub)
         {
             var changed = false;
-            for (var i = 0; i < TableIndices.Count; i++)
+            if (ShouldReplace(original, TableIndex))
             {
-                if (ShouldReplace(original, TableIndices[i]))
-                {
-                    TableIndices[i] = sub;
-                    changed = true;
-                }
-                else
-                {
-                    changed = changed || TableIndices[i].ReplaceUses(original, sub);
-                }
+                TableIndex = sub;
+                changed = true;
+            }
+            else
+            {
+                changed = changed || TableIndex.ReplaceUses(original, sub);
             }
             
             // Don't substitute in initializer lists
             if (sub is InitializerList)
                 return changed;
             
-            if (ShouldReplace(original, Table) && sub is TableAccess access)
-            {
-                Table = access.Table;
-                var newTableIndices = new List<Expression>();
-                newTableIndices.AddRange(access.TableIndices);
-                newTableIndices.AddRange(TableIndices);
-                TableIndices = newTableIndices;
-                changed = true;
-            }
-            else if (ShouldReplace(original, Table))
+            if (ShouldReplace(original, Table))
             {
                 Table = sub;
                 changed = true;
@@ -424,35 +430,28 @@ namespace LuaDecompilerCore.IR
 
         public override int UseCount(Identifier use)
         {
-            var count = TableIndices.Sum(i => i.UseCount(use));
-            return count + Table.UseCount(use);
+            return TableIndex.UseCount(use) + Table.UseCount(use);
         }
 
         public override List<Expression> GetExpressions()
         {
             var ret = new List<Expression> { this };
             ret.AddRange(Table.GetExpressions());
-            foreach (var idx in TableIndices)
-            {
-                ret.AddRange(idx.GetExpressions());
-            }
+            ret.AddRange(TableIndex.GetExpressions());
             return ret;
         }
 
         public override int GetLowestConstantId()
         {
             var id = Table.GetLowestConstantId();
-            foreach (var idx in TableIndices)
+            var nid = TableIndex.GetLowestConstantId();
+            if (id == -1)
             {
-                var nid = idx.GetLowestConstantId();
-                if (id == -1)
-                {
-                    id = nid;
-                }
-                else if (nid != -1)
-                {
-                    id = Math.Min(id, idx.GetLowestConstantId());
-                }
+                id = nid;
+            }
+            else if (nid != -1)
+            {
+                id = Math.Min(id, TableIndex.GetLowestConstantId());
             }
             return id;
         }
@@ -461,20 +460,14 @@ namespace LuaDecompilerCore.IR
         {
             var result = condition.Invoke(this);
             result = result || Table.MatchAny(condition);
-            foreach (var idx in TableIndices)
-            {
-                result = result || idx.MatchAny(condition);
-            }
+            result = result || TableIndex.MatchAny(condition);
             return result;
         }
 
         public override void IterateUses(Action<IIrNode, UseType, IdentifierReference> function)
         {
             IterateUsesSuccessor(Table, UseType.Table, function);
-            foreach (var idx in TableIndices)
-            {
-                IterateUsesSuccessor(idx, UseType.TableIndex, function);
-            }
+            IterateUsesSuccessor(TableIndex, UseType.TableIndex, function);
         }
     }
 
@@ -518,6 +511,22 @@ namespace LuaDecompilerCore.IR
             }
 
             return uses;
+        }
+
+        public override Interval GetTemporaryRegisterRange()
+        {
+            var temporaries = new Interval();
+            foreach (var exp in Expressions)
+            {
+                temporaries.AddToTemporaryRegisterRange(exp.GetOriginalUseRegisters());
+            }
+            
+            foreach (var exp in Expressions)
+            {
+                temporaries.MergeTemporaryRegisterRange(exp.GetTemporaryRegisterRange());
+            }
+
+            return temporaries;
         }
 
         public override void RenameUses(Identifier original, Identifier newIdentifier)
@@ -658,6 +667,18 @@ namespace LuaDecompilerCore.IR
             }
 
             return uses;
+        }
+
+        public override Interval GetTemporaryRegisterRange()
+        {
+            var temporaries = new Interval();
+            for (var i = 0; i < Expressions.Count; i++)
+            {
+                temporaries.MergeTemporaryRegisterRange(Assignments[i].GetTemporaryRegisterRange());
+                temporaries.MergeTemporaryRegisterRange(Expressions[i].GetTemporaryRegisterRange());
+            }
+
+            return temporaries;
         }
 
         public override void RenameUses(Identifier original, Identifier newIdentifier)
@@ -863,7 +884,7 @@ namespace LuaDecompilerCore.IR
         /// "not" operators as an optimization instead of explicitly generating a not instruction, and this is used as
         /// a convenience to help factor them out instead of generating explicit "not" unary ops.
         /// </summary>
-        public bool HasImplicitNot { get; set; } = false;
+        public bool HasImplicitNot { get; set; }
         
         public bool HasParentheses { get; private set; }
         
@@ -1095,6 +1116,16 @@ namespace LuaDecompilerCore.IR
             return uses;
         }
 
+        public override Interval GetTemporaryRegisterRange()
+        {
+            var temporaries = new Interval();
+            temporaries.AddToTemporaryRegisterRange(Left.GetOriginalUseRegisters());
+            temporaries.AddToTemporaryRegisterRange(Right.GetOriginalUseRegisters());
+            temporaries.MergeTemporaryRegisterRange(Left.GetTemporaryRegisterRange());
+            temporaries.MergeTemporaryRegisterRange(Right.GetTemporaryRegisterRange());
+            return temporaries;
+        }
+
         public override void RenameUses(Identifier original, Identifier newIdentifier)
         {
             Left.RenameUses(original, newIdentifier);
@@ -1197,6 +1228,15 @@ namespace LuaDecompilerCore.IR
         {
             Expression.GetUsedRegisters(uses);
             return uses;
+        }
+
+        public override Interval GetTemporaryRegisterRange()
+        {
+            var temporaries = new Interval();
+            temporaries.AddToTemporaryRegisterRange(Expression.GetOriginalUseRegisters());
+            temporaries.MergeTemporaryRegisterRange(Expression.GetTemporaryRegisterRange());
+
+            return temporaries;
         }
 
         public override void RenameUses(Identifier original, Identifier newIdentifier)
@@ -1322,11 +1362,11 @@ namespace LuaDecompilerCore.IR
         /// <summary>
         /// Call is a "this" call where the first argument is implicit
         /// </summary>
-        public bool IsThisCall = false;
+        public bool IsThisCall;
 
         // Once the self variables are replaced in this call, the first argument should be ignored for any further use
         // counts/iterations/queries since in the Lua source it functions as a single use semantically
-        private bool _selfReplaced = false;
+        private bool _selfReplaced;
 
         public FunctionCall(Expression fun, List<Expression> args)
         {
@@ -1344,7 +1384,7 @@ namespace LuaDecompilerCore.IR
             if (Function is TableAccess
                 {
                     Table: IOperator o,
-                    TableIndices: [Constant { ConstType: Constant.ConstantType.ConstString }]
+                    TableIndex: Constant { ConstType: Constant.ConstantType.ConstString }
                 })
             {
                 o.SetHasParentheses(true);
@@ -1359,6 +1399,25 @@ namespace LuaDecompilerCore.IR
             }
             Function.GetUsedRegisters(uses);
             return uses;
+        }
+
+        public override Interval GetTemporaryRegisterRange()
+        {
+            var temporaries = new Interval();
+            
+            temporaries.AddToTemporaryRegisterRange(Function.GetOriginalUseRegisters());
+            for (var i = _selfReplaced ? 1 : 0; i < Args.Count; i++)
+            {
+                temporaries.AddToTemporaryRegisterRange(Args[i].GetOriginalUseRegisters());
+            }
+
+            temporaries.MergeTemporaryRegisterRange(Function.GetTemporaryRegisterRange());
+            for (var i = _selfReplaced ? 1 : 0; i < Args.Count; i++)
+            {
+                temporaries.MergeTemporaryRegisterRange(Args[i].GetTemporaryRegisterRange());
+            }
+            
+            return temporaries;
         }
 
         public override void RenameUses(Identifier original, Identifier newIdentifier)

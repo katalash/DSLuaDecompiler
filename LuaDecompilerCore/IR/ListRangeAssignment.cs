@@ -43,6 +43,24 @@ public class ListRangeAssignment : Instruction
         }
         return uses;
     }
+    
+    public override Interval GetTemporaryRegisterRange()
+    {
+        var temporaries = new Interval();
+        temporaries.AddToTemporaryRegisterRange(Table.GetOriginalUseRegisters());
+        foreach (var v in Values)
+        {
+            temporaries.AddToTemporaryRegisterRange(v.GetOriginalUseRegisters());
+        }
+        
+        temporaries.MergeTemporaryRegisterRange(Table.GetTemporaryRegisterRange());
+        foreach (var v in Values)
+        {
+            temporaries.MergeTemporaryRegisterRange(v.GetTemporaryRegisterRange());
+        }
+
+        return temporaries;
+    }
 
     public override void RenameUses(Identifier original, Identifier newIdentifier)
     {

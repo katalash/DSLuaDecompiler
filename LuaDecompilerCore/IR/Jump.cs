@@ -24,6 +24,14 @@ namespace LuaDecompilerCore.IR
             Condition.GetUsedRegisters(uses);
             return uses;
         }
+        
+        public override Interval GetTemporaryRegisterRange()
+        {
+            var temporaries = new Interval();
+            temporaries.AddToTemporaryRegisterRange(Condition.GetOriginalUseRegisters());
+            temporaries.MergeTemporaryRegisterRange(Condition.GetTemporaryRegisterRange());
+            return temporaries;
+        }
 
         public override void RenameUses(Identifier original, Identifier newIdentifier)
         {

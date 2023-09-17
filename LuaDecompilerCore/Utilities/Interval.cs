@@ -1,4 +1,5 @@
 ﻿using System;
+using LuaDecompilerCore.IR;
 
 namespace LuaDecompilerCore.Utilities;
 
@@ -79,6 +80,61 @@ public struct Interval
     }
 
     /// <summary>
+    /// Add a new range to a range representing a range of contiguous temporary registers. This method is specialized
+    /// for temporary register ranges and enforces constraints regarding them. Registers should be added in code
+    /// generation order.
+    /// </summary>
+    /// <param name="range"></param>
+    public void AddToTemporaryRegisterRange(Interval range)
+    {
+        if (range._range == 0)
+            return;
+        
+        // First if we are empty then we obviously need to start with the value.
+        if (_range == 0)
+        {
+            _start = range._start;
+            _range = range._range;
+            return;
+        }
+        
+        // For a valid temporary range we need to enforce the following constraints on the start value:
+        // 1. If the value is the next sequentially (i.e. is equal to end) then we can add it
+        if (range.Begin == End)
+        {
+            End = range.End;
+            return;
+        }
+        
+        // 2. If the value is lower than the start of this range it's probably a local and can be ignored
+        if (range.End <= Begin)
+            return;
+        
+        // 3. If the value is higher than the end, it breaks the continuity of the range which means that the current
+        //    range is all locals.
+        if (range.Begin > End)
+        {
+            _start = range._start;
+            _range = range._range;
+            return;
+        }
+
+        // 4. If the value is within the current range then it's a double use which means it's a local and the range
+        //    needs to be clipped such that the start is the next value.
+        var end1 = End;
+        var end2 = range.End;
+        Begin = Math.Min(end1, end2);
+        End = Math.Max(end1, end2);
+    }
+
+    public void MergeTemporaryRegisterRange(Interval range)
+    {
+        if (range.Count == 0)
+            return;
+        End = Math.Max(End, range.End);
+    }
+
+    /// <summary>
     /// Unions this interval with another such that the interval contains all the values of both this range and the
     /// other range
     /// </summary>
@@ -112,7 +168,6 @@ public struct Interval
 
         return new Interval();
     }
-
     
     /// <summary>
     /// Sets the beginning of the range without affecting the end. If the new beginning is bigger than the current end,

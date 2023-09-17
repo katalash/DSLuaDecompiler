@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using LuaDecompilerCore.Utilities;
 
 namespace LuaDecompilerCore.IR;
 
@@ -65,6 +66,13 @@ public interface IIrNode
     /// <param name="uses">The set to add used registers to</param>
     /// <returns>The uses set after the used registers are added</returns>
     public HashSet<Identifier> GetUsedRegisters(HashSet<Identifier> uses);
+
+    /// <summary>
+    /// Get the range of registers used in this node that are potentially temporary registers. This would be the highest
+    /// contiguous range of registers with the gaps being known locals in compiler emit order.
+    /// </summary>
+    /// <returns></returns>
+    public Interval GetTemporaryRegisterRange();
 
     public void Parenthesize();
     

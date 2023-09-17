@@ -67,7 +67,7 @@ public class ExpressionPropagationPass : IPass
                                 // itself is a register
                                 if (!(fc.Function is IdentifierReference ir && ir.Identifier == use) &&
                                     !(fc is { IsThisCall: true, Function: TableAccess 
-                                          { Table: IdentifierReference ir2, TableIndices: [Constant] }
+                                          { Table: IdentifierReference ir2, TableIndex: Constant }
                                       } &&
                                       ir2.Identifier == use))
                                     continue;

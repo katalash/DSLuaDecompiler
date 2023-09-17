@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using LuaDecompilerCore.Utilities;
 
 namespace LuaDecompilerCore.IR
 {
@@ -156,6 +157,34 @@ namespace LuaDecompilerCore.IR
 
             Right?.GetUsedRegisters(uses);
             return uses;
+        }
+
+        public override Interval GetTemporaryRegisterRange()
+        {
+            var temporaries = new Interval();
+            foreach (var id in LeftList)
+            {
+                if (id is Expression e and not IdentifierReference)
+                    temporaries.AddToTemporaryRegisterRange(e.GetOriginalUseRegisters());
+            }
+
+            if (Right != null)
+            {
+                temporaries.AddToTemporaryRegisterRange(Right.GetOriginalUseRegisters());
+            }
+            
+            foreach (var id in LeftList)
+            {
+                if (id is Expression e and not IdentifierReference)
+                    temporaries.MergeTemporaryRegisterRange(e.GetTemporaryRegisterRange());
+            }
+
+            if (Right != null)
+            {
+                temporaries.MergeTemporaryRegisterRange(Right.GetTemporaryRegisterRange());
+            }
+
+            return temporaries;
         }
 
         public override void RenameDefines(Identifier original, Identifier newIdentifier)

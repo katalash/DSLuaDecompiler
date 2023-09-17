@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using LuaDecompilerCore.Utilities;
 
 namespace LuaDecompilerCore.IR
 {
@@ -35,6 +36,22 @@ namespace LuaDecompilerCore.IR
             }
 
             return uses;
+        }
+        
+        public override Interval GetTemporaryRegisterRange()
+        {
+            var temporaries = new Interval();
+            foreach (var e in ReturnExpressions)
+            {
+                temporaries.AddToTemporaryRegisterRange(e.GetOriginalUseRegisters());
+            }
+        
+            foreach (var e in ReturnExpressions)
+            {
+                temporaries.MergeTemporaryRegisterRange(e.GetTemporaryRegisterRange());
+            }
+
+            return temporaries;
         }
 
         public override void RenameUses(Identifier original, Identifier newIdentifier)

@@ -135,6 +135,8 @@ public class LocalVariablesAnalyzer : IAnalyzer
         // ReSharper disable AccessToModifiedClosure
         int LocalIdentifyVisit(BasicBlock b, int incomingMaxLocalRegister)
         {
+            if (b.BlockId == 92)
+                Debugger.Break();
             var thisMaxLocalRegister = incomingMaxLocalRegister;
             
             void MarkTemporary(Identifier identifier)

@@ -65,7 +65,12 @@ namespace LuaDecompilerCore.IR
             Left: IdentifierReference { Identifier.IsGlobal: true },
             Right: Closure
         };
-        
+
+        public virtual Interval GetTemporaryRegisterRange()
+        {
+            return new Interval();
+        }
+
         public virtual void Parenthesize() { }
 
         /// <summary>

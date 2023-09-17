@@ -493,23 +493,19 @@ public partial class FunctionPrinter
         var isGlobal = tableAccess.Table is IdentifierReference { Identifier.IsGlobalTable: true };
         if (!isGlobal) 
             VisitExpression(tableAccess.Table);
-        foreach (var idx in tableAccess.TableIndices)
+        if (isGlobal && tableAccess.TableIndex is Constant { ConstType: Constant.ConstantType.ConstString } g)
         {
-            if (isGlobal && idx is Constant { ConstType: Constant.ConstantType.ConstString } g)
-            {
-                Append(g.String);
-                isGlobal = false;
-            }
-            else if (/*DotNotation && */idx is Constant { ConstType: Constant.ConstantType.ConstString } c)
-            {
-                Append("." + c.String);
-            }
-            else
-            {
-                Append('[');
-                VisitExpression(idx);
-                Append(']');
-            }
+            Append(g.String);
+        }
+        else if (/*DotNotation &&*/tableAccess.TableIndex is Constant { ConstType: Constant.ConstantType.ConstString } c)
+        {
+            Append("." + c.String);
+        }
+        else
+        {
+            Append('[');
+            VisitExpression(tableAccess.TableIndex);
+            Append(']');
         }
     }
 
@@ -653,7 +649,6 @@ public partial class FunctionPrinter
         var beginArg = 0;
         if (functionCall.Function is TableAccess
             {
-                TableIndices.Count: 1, 
                 TableIndex: Constant { ConstType: Constant.ConstantType.ConstString } c, 
                 Table: not IdentifierReference { Identifier.IsGlobalTable: true }
             } tableAccess)
@@ -669,7 +664,7 @@ public partial class FunctionPrinter
                 Append($".{c.String}(");
             }
         }
-        else if (functionCall is 
+        /*else if (functionCall is 
                  { 
                      Function: TableAccess
                      {
@@ -695,7 +690,7 @@ public partial class FunctionPrinter
         {
             Append($"{c3.String}:{c2.String}(");
             beginArg = 1;
-        }
+        }*/
         else
         {
             VisitExpression(functionCall.Function);
