@@ -89,6 +89,10 @@ public class ExpressionPropagationPass : IPass
                                 continue;
                             }
                             
+                            // Make sure the use falls within the temporary range for this instruction
+                            if (!a.PropagateAlways && !inst.GetTemporaryRegisterRange().Contains((int)use.RegNum))
+                                continue;
+                            
                             if (inst.ReplaceUses(use, a.Right))
                             {
                                 var definingBlock = f.BlockList[defineUseAnalysis.DefiningInstructionBlock(use)];

@@ -176,15 +176,6 @@ public class LocalVariablesAnalyzer : IAnalyzer
                         unusedDefines.Remove(use);
                     }
                     
-                    // List range assignment assignees are always temporaries so undo any that were marked as locals.
-                    // The use may have been used prior for a table assignment so we need to remove from the recently
-                    // used as well.
-                    /*if (node is ListRangeAssignment && useType == UseType.Assignee &&
-                        useReference.OriginalAssignmentRegisters.Count == 0)
-                    {
-                        MarkTemporary(use);
-                        recentlyUsed.Remove(use.RegNum);
-                    }*/
                     // If the instruction (such as set list) says that incoming registers above a certain value are
                     // always temporaries, then unmark them as locals if they are already marked.
                     if (use.RegNum >= b.Instructions[i].AlwaysTemporaryRegister)
@@ -232,7 +223,7 @@ public class LocalVariablesAnalyzer : IAnalyzer
                 // If this instruction has no defines, but has inlined expressions that did define, then we still need
                 // to compare the outstanding recently used against what has been inlined to detect if any of them are
                 // local.
-                if (definesSet.Count == 0 && temporaryUses.Count > 0 && b.Instructions[i].InlinedRegisters.Count > 0)
+                /*if (definesSet.Count == 0 && temporaryUses.Count > 0 && b.Instructions[i].InlinedRegisters.Count > 0)
                 {
                     if (temporaryUses.Begin < b.Instructions[i].InlinedRegisters.Begin)
                         thisMaxLocalRegister = Math.Min((int)b.Instructions[i].AlwaysTemporaryRegister - 1,
@@ -244,7 +235,7 @@ public class LocalVariablesAnalyzer : IAnalyzer
                             AddLocal(use.Value);
                     }
                     recentlyUsed.Clear();
-                }
+                }*/
                 
                 // Analyze each define individually. Multiple assignment definitions are actually either all locals or
                 // all temporaries, but hopefully we can get away without modeling that for now.

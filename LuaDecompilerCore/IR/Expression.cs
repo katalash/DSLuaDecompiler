@@ -78,8 +78,13 @@ namespace LuaDecompilerCore.IR
                 expression.IterateUses(function);
         }
 
-        public virtual Interval GetOriginalUseRegisters()
+        /// <summary>
+        /// Gets the original temporary register range for this expression discounting any inlining that has occured.
+        /// </summary>
+        public Interval GetOriginalUseRegisters()
         {
+            if (OriginalAssignmentRegisters.Count == 0)
+                return GetTemporaryRegisterRange();
             return OriginalAssignmentRegisters;
         }
     }
@@ -340,13 +345,6 @@ namespace LuaDecompilerCore.IR
             {
                 throw new Exception("Iteration should be handled by parent");
             }
-        }
-
-        public override Interval GetOriginalUseRegisters()
-        {
-            if (OriginalAssignmentRegisters.Count == 0)
-                return GetTemporaryRegisterRange();
-            return OriginalAssignmentRegisters;
         }
     }
     
@@ -1119,10 +1117,24 @@ namespace LuaDecompilerCore.IR
         public override Interval GetTemporaryRegisterRange()
         {
             var temporaries = new Interval();
-            temporaries.AddToTemporaryRegisterRange(Left.GetOriginalUseRegisters());
-            temporaries.AddToTemporaryRegisterRange(Right.GetOriginalUseRegisters());
-            temporaries.MergeTemporaryRegisterRange(Left.GetTemporaryRegisterRange());
-            temporaries.MergeTemporaryRegisterRange(Right.GetTemporaryRegisterRange());
+            var leftOriginal = Left.GetOriginalUseRegisters();
+            var rightOriginal = Right.GetOriginalUseRegisters();
+            var leftTemporary = Left.GetTemporaryRegisterRange();
+            var rightTemporary = Right.GetTemporaryRegisterRange();
+            
+            // Comparison ops may have their arguments swapped for comparisons, so account for this by accepting the
+            // lowest interval first
+            if (IsNonEqualityComparisonOp && leftOriginal.Count > 0 && rightOriginal.Count > 0 &&
+                rightOriginal.Begin < leftOriginal.Begin)
+            {
+                (leftOriginal, rightOriginal) = (rightOriginal, leftOriginal);
+                (leftTemporary, rightTemporary) = (rightTemporary, leftTemporary);
+            }
+            
+            temporaries.AddToTemporaryRegisterRange(leftOriginal);
+            temporaries.AddToTemporaryRegisterRange(rightOriginal);
+            temporaries.MergeTemporaryRegisterRange(leftTemporary);
+            temporaries.MergeTemporaryRegisterRange(rightTemporary);
             return temporaries;
         }
 
@@ -1406,9 +1418,9 @@ namespace LuaDecompilerCore.IR
             var temporaries = new Interval();
             
             temporaries.AddToTemporaryRegisterRange(Function.GetOriginalUseRegisters());
-            for (var i = _selfReplaced ? 1 : 0; i < Args.Count; i++)
+            foreach (var t in Args)
             {
-                temporaries.AddToTemporaryRegisterRange(Args[i].GetOriginalUseRegisters());
+                temporaries.AddToTemporaryRegisterRange(t.GetOriginalUseRegisters());
             }
 
             temporaries.MergeTemporaryRegisterRange(Function.GetTemporaryRegisterRange());
