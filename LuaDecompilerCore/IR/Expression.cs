@@ -1078,7 +1078,9 @@ namespace LuaDecompilerCore.IR
             var leftConstId = Left.GetLowestConstantId();
             var rightConstId = Right.GetLowestConstantId();
 
-            if (IsNonEqualityComparisonOp && ((leftConstId != -1 && rightConstId != -1 && leftConstId > rightConstId) ||
+            if (IsNonEqualityComparisonOp && 
+                ((leftConstId != -1 && rightConstId != -1 && leftConstId > rightConstId &&
+                  (Left.OriginalAssignmentRegisters.Count == 0 || Right.OriginalAssignmentRegisters.Count == 0)) ||
                 (IsNonEqualityComparisonOp && Left.OriginalAssignmentRegisters.Count > 0 && 
                  Right.OriginalAssignmentRegisters.Count > 0 && 
                  Left.OriginalAssignmentRegisters.Begin > Right.OriginalAssignmentRegisters.Begin)))
