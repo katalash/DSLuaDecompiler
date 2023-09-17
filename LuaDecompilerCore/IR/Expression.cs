@@ -1071,13 +1071,17 @@ namespace LuaDecompilerCore.IR
                 op2.SetHasParentheses(true);
             }
 
-            // If we're a comparison op, we may need to swap the left and right if they both refer to constants
+            // If we're a comparison op, we may need to swap the left and right if they both refer to constants, or if
+            // they both were temporary registers with the left register being greater than the right one. This
+            // indicates that the Lua compiler swapped the operands when emitting the op, and we must swap back in the
+            // emitted source code.
             var leftConstId = Left.GetLowestConstantId();
             var rightConstId = Right.GetLowestConstantId();
 
-            if (IsCompare && Operation is not OperationType.OpLoopCompare and not OperationType.OpEqual 
-                    and not OperationType.OpNotEqual && 
-                leftConstId != -1 && rightConstId != -1 && leftConstId > rightConstId)
+            if (IsNonEqualityComparisonOp && ((leftConstId != -1 && rightConstId != -1 && leftConstId > rightConstId) ||
+                (IsNonEqualityComparisonOp && Left.OriginalAssignmentRegisters.Count > 0 && 
+                 Right.OriginalAssignmentRegisters.Count > 0 && 
+                 Left.OriginalAssignmentRegisters.Begin > Right.OriginalAssignmentRegisters.Begin)))
             {
                 // We need to swap the left and right to keep matching recompiles
                 (Right, Left) = (Left, Right);
