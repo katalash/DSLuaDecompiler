@@ -121,7 +121,7 @@ public class ExpressionPropagationPass : IPass
                 for (var i = 0; i < b.Instructions.Count; i++)
                 {
                     var inst = b.Instructions[i];
-                    if (inst is Assignment { Right: FunctionCall { Args.Count: > 0 } fc } a &&
+                    if (inst is Assignment { Right: FunctionCall { Args.Count: > 0, IsThisCall: true } fc } a &&
                         fc.Args[0] is IdentifierReference ir &&
                         defineUseAnalysis.UseCount(ir.Identifier) == 2 &&
                         i > 0 && b.Instructions[i - 1] is Assignment { IsSingleAssignment: true, Left: IdentifierReference ir2 } a2 && 
