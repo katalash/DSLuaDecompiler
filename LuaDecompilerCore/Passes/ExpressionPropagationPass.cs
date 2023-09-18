@@ -1,4 +1,6 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using LuaDecompilerCore.Analyzers;
 using LuaDecompilerCore.IR;
 
@@ -27,7 +29,7 @@ public class ExpressionPropagationPass : IPass
             changed = false;
             foreach (var b in f.BlockList)
             {
-                for (var i = 1; i < b.Instructions.Count; i++)
+                for (var i = 0; i < b.Instructions.Count; i++)
                 {
                     var inst = b.Instructions[i];
                     usesSet.Clear();
