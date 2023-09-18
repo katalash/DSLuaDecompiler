@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using LuaDecompilerCore.CFG;
 using LuaDecompilerCore.IR;
@@ -12,6 +13,31 @@ namespace LuaDecompilerCore.Passes;
 /// </summary>
 public class AstTransformPass : IPass
 {
+    private static BasicBlock LastBlockInScope(BasicBlock b)
+    {
+        while (b.Instructions.Count > 0)
+        {
+            switch (b.Last)
+            {
+                case IfStatement { Follow: { } f }:
+                    b = f;
+                    continue;
+                case While { Follow: { } wf }:
+                    b = wf;
+                    continue;
+                case GenericFor { Follow: { } gf }:
+                    b = gf;
+                    continue;
+                case NumericFor { Follow: { } nf }:
+                    b = nf;
+                    continue;
+            }
+            break;
+        }
+
+        return b;
+    }
+    
     public bool RunOnFunction(DecompilationContext decompilationContext, FunctionContext functionContext, Function f)
     {
         if (f.IsAst)
@@ -500,8 +526,29 @@ public class AstTransformPass : IPass
                 node.Instructions[^1] = ifStatement;
             }
         }
+        
+        // Step 2: Do some post operations that require the full context of things
+        foreach (var b in f.PostorderTraversal(true))
+        {
+            if (!b.HasInstructions)
+                continue;
 
-        // Step 2: Remove Jump instructions from follows if they exist
+            if (b.Last is IfStatement { True: { } t, False: null, Follow: { } follow } i)
+            {
+                // A jump from the end of the true edge to the follow typically indicates an empty else statement
+                var endBlock = LastBlockInScope(t);
+                if (endBlock is { HasInstructions: true, Last: Jump j } &&
+                    endBlock.OrderNumber + 1 == follow.OrderNumber && 
+                    j.Destination == follow)
+                {
+                    i.False = f.CreateBasicBlock();
+                    i.False.MarkCodeGenerated(f.FunctionId, f.Warnings);
+                    endBlock.Instructions.RemoveAt(endBlock.Instructions.Count - 1);
+                }
+            }
+        }
+
+        // Step 3: Remove Jump instructions from follows if they exist
         foreach (var follow in usedFollows)
         {
             if (follow is { HasInstructions: true, Last: Jump or ConditionalJump })
@@ -510,7 +557,7 @@ public class AstTransformPass : IPass
             }
         }
 
-        // Step 3: For debug walk the CFG and print blocks that haven't been codegened
+        // Step 4: For debug walk the CFG and print blocks that haven't been codegened
         foreach (var b in f.PostorderTraversal(true).Where(b => b != f.BeginBlock && !b.IsCodeGenerated))
         {
             f.Warnings.Add($@"-- Warning: block_{b.BlockId} in function {f.FunctionId} was not used in code generation. THIS IS LIKELY A DECOMPILER BUG!");
