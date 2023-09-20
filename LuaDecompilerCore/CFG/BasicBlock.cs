@@ -233,6 +233,20 @@ namespace LuaDecompilerCore.CFG
             return null;
         }
 
+        /// <summary>
+        /// Gets the "peephole" successor, which ultimately follows blocks that are "jumps to jumps" to the final
+        /// destination
+        /// </summary>
+        public BasicBlock PeepholeSuccessor()
+        {
+            var b = this;
+            while (b.Successors.Count == 1 && b.Instructions.Count == 1 && b.Last is Jump)
+            {
+                b = b.Successors[0];
+            }
+            return b;
+        }
+
         public void MarkCodeGenerated(int debugFuncId, List<string> warnings)
         {
             if (_isCodeGenerated)

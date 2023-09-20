@@ -45,8 +45,19 @@ public class MergeCompoundConditionalsPass : IPass
                     var e = node.EdgeFalse;
                     if (t is { IsConditionalJump: true, First: ConditionalJump tj, Predecessors.Count: 1 })
                     {
-                        if (t.EdgeTrue == e && t.EdgeFalse != e)
+                        var trueTruePeepholeSuccessor = t.EdgeTrue.PeepholeSuccessor();
+                        if ((t.EdgeTrue == e || trueTruePeepholeSuccessor == e) && t.EdgeFalse != e)
                         {
+                            // If there was a peephole optimization that "broke" the CFG, attempt to restore it so
+                            // CFG collapsing will work properly
+                            if (trueTruePeepholeSuccessor != t.EdgeTrue)
+                            {
+                                e.Predecessors.Remove(node);
+                                node.EdgeFalse = t.EdgeTrue;
+                                t.EdgeTrue.Predecessors.Add(node);
+                                e = t.EdgeTrue;
+                            }
+                            
                             Expression newCond;
                             if (n.Condition is BinOp { IsCompare: true } b)
                             {
@@ -78,8 +89,6 @@ public class MergeCompoundConditionalsPass : IPass
                             var i = t.EdgeFalse.Predecessors.IndexOf(t);
                             t.EdgeFalse.Predecessors[i] = node;
                             node.EdgeTrue = e;
-                            i = t.EdgeTrue.Predecessors.IndexOf(t);
-                            //e.Predecessors[i] = node;
                             f.BlockList.Remove(t);
                             e.Predecessors.Remove(t);
                             t.EdgeFalse.Predecessors.Remove(t);
@@ -139,22 +148,7 @@ public class MergeCompoundConditionalsPass : IPass
                         }
                         else if (e.EdgeFalse == t)
                         {
-                            // TODO: not correct
-                            throw new Exception("this is used so fix it");
-#if false
-                            var newCond = new BinOp(n.Condition, ej.Condition, BinOp.OperationType.OpOr);
-                            n.Condition = newCond;
-                            if (e.Follow != null)
-                            {
-                                node.Follow = node.Follow.ReversePostorderNumber > e.Follow.ReversePostorderNumber ? node.Follow : e.Follow;
-                            }
-                            node.EdgeFalse = e.EdgeTrue;
-                            var i = e.EdgeTrue.Predecessors.IndexOf(e);
-                            e.EdgeTrue.Predecessors[i] = node;
-                            t.Predecessors.Remove(e);
-                            f.BlockList.Remove(e);
-                            changed = true;
-#endif
+                            throw new Exception("Unused compound CFG pattern");
                         }
                     }
                 }
