@@ -21,11 +21,11 @@ public class BuildControlFlowGraphPass : IPass
         // Before CFG creation there should be only a single block. Save the instructions and clear the block list
         Debug.Assert(f.BlockList.Count == 1);
         var instructions = f.BlockList[0].Instructions;
-        f.BlockList.Clear();
+        f.ClearBlocks();
         
         // Create the begin and end basic blocks
         f.BeginBlock = f.CreateAndAddBasicBlock();
-        f.EndBlock = f.CreateBasicBlock();
+        f.EndBlock = f.CreateBasicBlock(true);
 
         // These are used to connect jumps to their destinations later
         var labelBasicBlockMap = new Dictionary<Label, BasicBlock>();
@@ -188,48 +188,8 @@ public class BuildControlFlowGraphPass : IPass
                 {
                     successor.Predecessors.Remove(f.BlockList[b]);
                 }
-                f.BlockList.RemoveAt(b);
+                f.RemoveBlockAt(b);
                 b--;
-            }
-        }
-
-        // Fifth pass: Merge blocks that have a single successor and that successor has a single predecessor
-        var changed = true;
-        while (changed)
-        {
-            changed = false;
-            for (var b = 0; b < f.BlockList.Count; b++)
-            {
-                if (f.BlockList[b].Successors.Count == 1 && f.BlockList[b].Successors[0].Predecessors.Count == 1 &&
-                    (f.BlockList[b].Last is Jump || 
-                     (b + 1 < f.BlockList.Count && f.BlockList[b].Successors[0] == f.BlockList[b + 1])))
-                {
-                    var current = f.BlockList[b];
-                    var successor = f.BlockList[b].Successors[0];
-                    if (f.BlockList[b].Last is Jump)
-                    {
-                        current.Instructions.RemoveAt(current.Instructions.Count - 1);
-                    }
-                    foreach (var inst in successor.Instructions)
-                    {
-                        inst.OriginalBlock = current.BlockId;
-                    }
-                    current.Instructions.AddRange(successor.Instructions);
-                    current.Successors = successor.Successors;
-                    foreach (var s in successor.Successors)
-                    {
-                        for (var p = 0; p < s.Predecessors.Count; p++)
-                        {
-                            if (s.Predecessors[p] == successor)
-                            {
-                                s.Predecessors[p] = current;
-                            }
-                        }
-                    }
-                    f.BlockList.Remove(successor);
-                    b = Math.Max(0, b - 2);
-                    changed = true;
-                }
             }
         }
 
@@ -246,7 +206,7 @@ public class BuildControlFlowGraphPass : IPass
             }
         }
 
-        f.BlockList.Add(f.EndBlock);
+        f.AddBasicBlock(f.EndBlock);
 
         return true;
     }

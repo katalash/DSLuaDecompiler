@@ -698,13 +698,13 @@ public class HksDecompiler : ILanguageDecompiler
                     instructions.Add(Assignment);
                     break;
                 case LuaHksOps.OpGetUpVal:
-                    var up = irFunction.GetUpValue((uint)b);
+                    var up = Function.GetUpValue((uint)b);
                     instructions.Add(new Assignment(irFunction.GetRegister(a), new IdentifierReference(up)));
                     FirstAssigned(a);
                     break;
                 case LuaHksOps.OpSetUpVal:
                 case LuaHksOps.OpSetUpValR1:
-                    up = irFunction.GetUpValue((uint)b);
+                    up = Function.GetUpValue((uint)b);
                     if (b >= irFunction.UpValueCount)
                     {
                         throw new Exception("Reference to unbound upvalue: " + up);

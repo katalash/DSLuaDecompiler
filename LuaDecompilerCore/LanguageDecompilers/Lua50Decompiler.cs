@@ -402,7 +402,7 @@ public class Lua50Decompiler : ILanguageDecompiler
                     }
                     break;
                 case Lua50Ops.OpGetUpVal:
-                    var up = irFunction.GetUpValue(b);
+                    var up = Function.GetUpValue(b);
                     if (b >= irFunction.UpValueCount)
                     {
                         throw new Exception("Reference to unbound upvalue");
@@ -431,7 +431,7 @@ public class Lua50Decompiler : ILanguageDecompiler
                         new IdentifierReference(irFunction.GetRegister(a))));
                     break;
                 case Lua50Ops.OpSetUpVal:
-                    up = irFunction.GetUpValue(b);
+                    up = Function.GetUpValue(b);
                     if (b >= irFunction.UpValueCount)
                     {
                         throw new Exception("Reference to unbound upvalue");

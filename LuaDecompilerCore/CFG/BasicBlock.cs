@@ -49,6 +49,7 @@ namespace LuaDecompilerCore.CFG
         public BasicBlock? LoopContinueFollow = null;
         public bool IsBreakNode = false;
         public bool IsContinueNode = false;
+        
         // Set to true if both the true and false branch lead to a return
         public bool IfOrphaned = false;
 
@@ -128,6 +129,8 @@ namespace LuaDecompilerCore.CFG
         
         public bool Empty => Instructions.Count == 0;
         public bool HasInstructions => Instructions.Count > 0;
+
+        public bool HasBackEdge => Successors.Any(s => s.BlockId < BlockId);
 
         /// <summary>
         /// Debug validation of block to ensure it is well formed and no unexpected/illegal states have formed. Validation

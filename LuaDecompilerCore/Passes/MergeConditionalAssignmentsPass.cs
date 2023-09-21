@@ -101,7 +101,7 @@ public class MergeConditionalAssignmentsPass : IPass
                         successor.Predecessors[idx] = b;
                     }
 
-                    f.BlockList.RemoveAll(block => block == edgeFalse || block == edgeTrue || block == follow);
+                    f.RemoveAllBlocks(block => block == edgeFalse || block == edgeTrue || block == follow);
 
                     changed = true;
                     irChanged = true;

@@ -89,7 +89,7 @@ public class MergeCompoundConditionalsPass : IPass
                             var i = t.EdgeFalse.Predecessors.IndexOf(t);
                             t.EdgeFalse.Predecessors[i] = node;
                             node.EdgeTrue = e;
-                            f.BlockList.Remove(t);
+                            f.RemoveBlockAt(t.BlockIndex);
                             e.Predecessors.Remove(t);
                             t.EdgeFalse.Predecessors.Remove(t);
                             irChanged = true;
@@ -111,7 +111,7 @@ public class MergeCompoundConditionalsPass : IPass
                             var i = t.EdgeTrue.Predecessors.IndexOf(t);
                             t.EdgeTrue.Predecessors[i] = node;
                             e.Predecessors.Remove(t);
-                            f.BlockList.Remove(t);
+                            f.RemoveBlockAt(t.BlockIndex);
                             irChanged = true;
                             changed = true;
                         }
@@ -142,7 +142,7 @@ public class MergeCompoundConditionalsPass : IPass
                             var i = e.EdgeFalse.Predecessors.IndexOf(e);
                             e.EdgeFalse.Predecessors[i] = node;
                             t.Predecessors.Remove(e);
-                            f.BlockList.Remove(e);
+                            f.RemoveBlockAt(e.BlockIndex);
                             irChanged = true;
                             changed = true;
                         }

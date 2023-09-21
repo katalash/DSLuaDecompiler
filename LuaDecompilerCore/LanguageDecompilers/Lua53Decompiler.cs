@@ -147,9 +147,9 @@ public class Lua53Decompiler : ILanguageDecompiler
     {
         if (upValueId < function.UpValues.Length && function.UpValues[upValueId].InStack)
         {
-            return irFunction.GetStackUpValue(upValueId);
+            return Function.GetStackUpValue(upValueId);
         }
-        return irFunction.GetUpValue(upValueId);
+        return Function.GetUpValue(upValueId);
     }
 
     public void InitializeFunction(LuaFile.Function function, Function irFunction)

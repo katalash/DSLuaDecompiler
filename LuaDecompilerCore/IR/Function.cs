@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -33,10 +34,12 @@ namespace LuaDecompilerCore.IR
         /// </summary>
         public BasicBlock EndBlock { get; set; }
 
+        private List<BasicBlock> _blockList;
+
         /// <summary>
         /// List of all the blocks for some analyses
         /// </summary>
-        public List<BasicBlock> BlockList { get; }
+        public IReadOnlyList<BasicBlock> BlockList => _blockList;
 
         /// <summary>
         /// Identifiers that are used in more than one basic block
@@ -102,13 +105,13 @@ namespace LuaDecompilerCore.IR
         {
             Closures = new List<Function>();
             Labels = new Dictionary<uint, Label>();
-            BlockList = new List<BasicBlock>();
+            _blockList = new List<BasicBlock>();
             GlobalIdentifiers = new HashSet<Identifier>();
             SsaVariables = new HashSet<Identifier>();
             FunctionId = functionId;
             
             // Create initial basic block
-            BlockList.Add(CreateBasicBlock());
+            _blockList.Add(CreateBasicBlock());
             BeginBlock = EndBlock = BlockList[0];
         }
 
@@ -155,31 +158,60 @@ namespace LuaDecompilerCore.IR
         /// </summary>
         /// <param name="upValue">UpValue number</param>
         /// <returns>Identifier representing this UpValue</returns>
-        public Identifier GetUpValue(uint upValue)
+        public static Identifier GetUpValue(uint upValue)
         {
             return Identifier.GetUpValue(upValue);
         }
         
-        public Identifier GetStackUpValue(uint upValue)
+        public static Identifier GetStackUpValue(uint upValue)
         {
             return Identifier.GetStackUpValue(upValue);
         }
 
-        public BasicBlock CreateBasicBlock()
+        public void ClearBlocks()
         {
-            return new BasicBlock(_currentBlockId++);
+            _blockList.Clear();
+        }
+        
+        public BasicBlock CreateBasicBlock(bool end = false)
+        {
+            return new BasicBlock(end ? int.MaxValue : _currentBlockId++);
+        }
+
+        public void AddBasicBlock(BasicBlock block)
+        {
+            block.BlockIndex = _blockList.Count;
+            _blockList.Add(block);
+        }
+
+        public void RemoveBlockAt(int index)
+        {
+            _blockList.RemoveAt(index);
+            for (var i = index; i < BlockList.Count; i++)
+            {
+                BlockList[i].BlockIndex = i;
+            }
+        }
+
+        public void RemoveAllBlocks(Predicate<BasicBlock> match)
+        {
+            _blockList.RemoveAll(match);
+            RefreshBlockIndices();
         }
         
         public BasicBlock CreateAndAddBasicBlock()
         {
-            var b = new BasicBlock(_currentBlockId++);
-            BlockList.Add(b);
+            var b = new BasicBlock(_currentBlockId++)
+            {
+                BlockIndex = _blockList.Count
+            };
+            _blockList.Add(b);
             return b;
         }
 
-        public void RefreshBlockIndices()
+        private void RefreshBlockIndices()
         {
-            for (int i = 0; i < BlockList.Count; i++)
+            for (var i = 0; i < BlockList.Count; i++)
             {
                 BlockList[i].BlockIndex = i;
             }
