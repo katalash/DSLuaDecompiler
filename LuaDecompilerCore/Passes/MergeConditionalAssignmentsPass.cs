@@ -87,22 +87,10 @@ public class MergeConditionalAssignmentsPass : IPass
                         unaryOp.NegateConditionalExpression();
                     falseAssignment.Absorb(jump);
                     falseAssignment.Absorb(trueAssignment);
-                    b.Successors = follow.Successors;
-                    foreach (var instruction in follow.Instructions)
-                    {
-                        if (instruction.OriginalBlock == follow.BlockId)
-                            instruction.OriginalBlock = b.BlockId;
-                    }
-
-                    b.Instructions.AddRange(follow.Instructions);
-                    foreach (var successor in b.Successors)
-                    {
-                        var idx = successor.Predecessors.FindIndex(predecessor => predecessor == follow);
-                        successor.Predecessors[idx] = b;
-                    }
-
+                    b.ClearSuccessors();
+                    b.StealSuccessors(follow);
+                    b.AbsorbInstructions(follow);
                     f.RemoveAllBlocks(block => block == edgeFalse || block == edgeTrue || block == follow);
-
                     changed = true;
                     irChanged = true;
                     break;

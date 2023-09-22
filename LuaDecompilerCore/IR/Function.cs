@@ -209,6 +209,14 @@ namespace LuaDecompilerCore.IR
             return b;
         }
 
+        /// <summary>
+        /// Gets the next block in the program order regardless of control flow.
+        /// </summary>
+        public BasicBlock? NextBlock(BasicBlock block)
+        {
+            return block.BlockIndex + 1 >= _blockList.Count ? null : _blockList[block.BlockIndex + 1];
+        }
+
         private void RefreshBlockIndices()
         {
             for (var i = 0; i < BlockList.Count; i++)

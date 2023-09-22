@@ -12,8 +12,10 @@ namespace LuaDecompilerCore.CFG
     public sealed class BasicBlock
     {
         public readonly int BlockId;
-        public List<BasicBlock> Predecessors;
-        public List<BasicBlock> Successors;
+        private List<BasicBlock> _predecessors;
+        private List<BasicBlock> _successors;
+        public IReadOnlyList<BasicBlock> Predecessors => _predecessors;
+        public IReadOnlyList<BasicBlock> Successors => _successors;
         public List<Instruction> Instructions;
         public Dictionary<uint, PhiFunction> PhiFunctions;
 
@@ -83,7 +85,7 @@ namespace LuaDecompilerCore.CFG
         public BasicBlock EdgeTrue
         {
             get => Successors[0];
-            set => Successors[0] = value;
+            set => ChangeSuccessor(0, value);
         }
         
         /// <summary>
@@ -92,7 +94,7 @@ namespace LuaDecompilerCore.CFG
         public BasicBlock EdgeFalse
         {
             get => Successors[1];
-            set => Successors[1] = value;
+            set => ChangeSuccessor(1, value);
         }
 
         /// <summary>
@@ -154,19 +156,9 @@ namespace LuaDecompilerCore.CFG
             if (this == beginBlock && Predecessors.Count > 0)
                 throw new Exception($@"Begin block {Name} has predecessors");
             
-            // Ensure all successors have us as a predecessor
-            foreach (var successor in Successors)
-            {
-                if (!successor.Predecessors.Contains(this))
-                    throw new Exception($@"{Name} successor {successor} does not contain {Name} as predecessor");
-            }
-            
-            // Ensure all predecessors have us as a successors
-            foreach (var predecessor in Predecessors)
-            {
-                if (!predecessor.Successors.Contains(this))
-                    throw new Exception($@"{Name} predecessor {predecessor} does not contain {Name} as successor");
-            }
+            // Blocks that end with return should have a single end block as successor
+            if (HasInstructions && Last is Return && (Successors.Count != 1 || Successors[0] == endBlock))
+                throw new Exception($@"Block {Name} has return but does not have end block as single successor");
             
             // All blocks except the end block should have 1 or 2 successors in current implementation
             if (Successors.Count is < 1 or > 2)
@@ -180,16 +172,31 @@ namespace LuaDecompilerCore.CFG
             if (Successors.Count == 2 && (Empty || Last is not ConditionalJump))
                 throw new Exception($@"Block {Name} has 2 successor but does not end with conditional jump");
             
-            // Blocks that end with return should have a single end block as successor
-            if (HasInstructions && Last is Return && (Successors.Count != 1 || Successors[0] == endBlock))
-                throw new Exception($@"Block {Name} has return but does not have end block as single successor");
+            ValidateBasic();
+        }
+
+        public void ValidateBasic()
+        {
+            // Ensure all successors have us as a predecessor
+            foreach (var successor in Successors)
+            {
+                if (!successor.Predecessors.Contains(this))
+                    throw new Exception($@"{Name} successor {successor} does not contain {Name} as predecessor");
+            }
+            
+            // Ensure all predecessors have us as a successors
+            foreach (var predecessor in Predecessors)
+            {
+                if (!predecessor.Successors.Contains(this))
+                    throw new Exception($@"{Name} predecessor {predecessor} does not contain {Name} as successor");
+            }
         }
         
         public BasicBlock(int blockId)
         {
             BlockId = blockId;
-            Predecessors = new List<BasicBlock>();
-            Successors = new List<BasicBlock>();
+            _predecessors = new List<BasicBlock>();
+            _successors = new List<BasicBlock>();
             Instructions = new List<Instruction>(10);
             PhiFunctions = new Dictionary<uint, PhiFunction>();
             KilledIdentifiers = new HashSet<Identifier>();
@@ -213,7 +220,27 @@ namespace LuaDecompilerCore.CFG
         /// <param name="instruction">The instruction to insert</param>
         public void InsertInstruction(int index, Instruction instruction)
         {
-            Instructions.Insert(0, instruction);
+            instruction.OriginalBlock = BlockId;
+            Instructions.Insert(index, instruction);
+        }
+
+        public void AbsorbInstructions(BasicBlock block, bool changeOriginal = false)
+        {
+            foreach (var instruction in block.Instructions)
+            {
+                if (changeOriginal && instruction.OriginalBlock == block.BlockId)
+                    instruction.OriginalBlock = BlockId;
+            }
+            Instructions.AddRange(block.Instructions);
+            block.Instructions.Clear();
+        }
+
+        /// <summary>
+        /// Ensures predecessors are always sorted by their block index. List is small so this shouldn't be that costly
+        /// </summary>
+        private void SortPredecessors()
+        {
+            _predecessors.Sort((l, r) => l.BlockIndex < r.BlockIndex ? -1 : 1);
         }
 
         /// <summary>
@@ -222,8 +249,85 @@ namespace LuaDecompilerCore.CFG
         /// <param name="successor">The block to add as a successor</param>
         public void AddSuccessor(BasicBlock successor)
         {
-            Successors.Add(successor);
-            successor.Predecessors.Add(this);
+            _successors.Add(successor);
+            successor._predecessors.Add(this);
+            successor.SortPredecessors();
+        }
+
+        /// <summary>
+        /// Inserts a new successor at the specified index
+        /// </summary>
+        /// <param name="index">The index to insert to</param>
+        /// <param name="successor">The block to add as a successor</param>
+        public void InsertSuccessor(int index, BasicBlock successor)
+        {
+            _successors.Insert(index, successor);
+            successor._predecessors.Add(this);
+            successor.SortPredecessors();
+        }
+        
+        /// <summary>
+        /// Removes a successor from the block if it exists
+        /// </summary>
+        /// <param name="successor">The block to remove as a successor</param>
+        public void RemoveSuccessor(BasicBlock successor)
+        {
+            _successors.Remove(successor);
+            successor._predecessors.Remove(this);
+        }
+
+        /// <summary>
+        /// Replace an existing successor with a new one
+        /// </summary>
+        /// <param name="index">The index of the successor to replace</param>
+        /// <param name="successor">The successor to change to</param>
+        public void ChangeSuccessor(int index, BasicBlock successor)
+        {
+            if (index >= Successors.Count)
+                throw new Exception("Successor out of range");
+            _successors[index]._predecessors.Remove(this);
+            _successors[index] = successor;
+            successor._predecessors.Add(this);
+            successor.SortPredecessors();
+        }
+
+        /// <summary>
+        /// Takes the successors from another block and adds them to this one. This will clear the successors of the
+        /// other block.
+        /// </summary>
+        /// <param name="block">The block to take successors from</param>
+        public void StealSuccessors(BasicBlock block)
+        {
+            foreach (var successor in block.Successors)
+            {
+                _successors.Add(successor);
+                var idx = successor._predecessors.IndexOf(block);
+                successor._predecessors[idx] = this;
+                successor.SortPredecessors();
+            }
+            block._successors.Clear();
+        }
+
+        /// <summary>
+        /// Clear all successors to this block
+        /// </summary>
+        public void ClearSuccessors()
+        {
+            foreach (var successor in _successors)
+            {
+                successor._predecessors.Remove(this);
+            }
+            _successors.Clear();
+        }
+
+        public int IndexOfSuccessor(BasicBlock b)
+        {
+            return _successors.IndexOf(b);
+        }
+        
+        public int IndexOfPredecessor(BasicBlock b)
+        {
+            return _predecessors.IndexOf(b);
         }
         
         /// <summary>

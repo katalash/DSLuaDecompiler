@@ -163,8 +163,7 @@ public class BuildControlFlowGraphPass : IPass
             {
                 if (f.BlockList[b - 1].Successors.Count == 1 && f.BlockList[b - 1].Last is Jump j)
                 {
-                    f.BlockList[b].Predecessors.Add(f.BlockList[b - 1]);
-                    f.BlockList[b - 1].Successors.Insert(0, f.BlockList[b]);
+                    f.BlockList[b - 1].InsertSuccessor(0, f.BlockList[b]);
                     f.BlockList[b - 1].Last = new ConditionalJump(j.Destination, new Constant(false, -1));
                     f.BlockList[b - 1].Last.DefinedRegisters = j.DefinedRegisters;
                     f.BlockList[b - 1].Last.InlinedRegisters = j.InlinedRegisters;
@@ -184,10 +183,7 @@ public class BuildControlFlowGraphPass : IPass
             }
             if (f.BlockList[b].Predecessors.Count == 0)
             {
-                foreach (var successor in f.BlockList[b].Successors)
-                {
-                    successor.Predecessors.Remove(f.BlockList[b]);
-                }
+                f.BlockList[b].ClearSuccessors();
                 f.RemoveBlockAt(b);
                 b--;
             }

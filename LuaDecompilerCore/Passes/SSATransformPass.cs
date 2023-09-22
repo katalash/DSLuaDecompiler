@@ -128,7 +128,7 @@ public class SsaTransformPass : IPass
             foreach (var successor in b.Successors)
             {
                 if (successor == f.EndBlock) continue;
-                var index = successor.Predecessors.IndexOf(b);
+                var index = successor.IndexOfPredecessor(b);
                 foreach (var phi in successor.PhiFunctions)
                 {
                     if (phi.Value.Right[index] is { RegNum: var k } && stacks[k].Count > 0)

@@ -52,9 +52,7 @@ public class MergeCompoundConditionalsPass : IPass
                             // CFG collapsing will work properly
                             if (trueTruePeepholeSuccessor != t.EdgeTrue)
                             {
-                                e.Predecessors.Remove(node);
                                 node.EdgeFalse = t.EdgeTrue;
-                                t.EdgeTrue.Predecessors.Add(node);
                                 e = t.EdgeTrue;
                             }
                             
@@ -86,12 +84,9 @@ public class MergeCompoundConditionalsPass : IPass
                             }
                             node.EdgeFalse = t.EdgeFalse;
                             n.Destination = node.EdgeFalse;
-                            var i = t.EdgeFalse.Predecessors.IndexOf(t);
-                            t.EdgeFalse.Predecessors[i] = node;
                             node.EdgeTrue = e;
+                            t.ClearSuccessors();
                             f.RemoveBlockAt(t.BlockIndex);
-                            e.Predecessors.Remove(t);
-                            t.EdgeFalse.Predecessors.Remove(t);
                             irChanged = true;
                             changed = true;
                         }
@@ -108,9 +103,7 @@ public class MergeCompoundConditionalsPass : IPass
                                     node.Follow : t.Follow;
                             }
                             node.EdgeTrue = t.EdgeTrue;
-                            var i = t.EdgeTrue.Predecessors.IndexOf(t);
-                            t.EdgeTrue.Predecessors[i] = node;
-                            e.Predecessors.Remove(t);
+                            t.ClearSuccessors();
                             f.RemoveBlockAt(t.BlockIndex);
                             irChanged = true;
                             changed = true;
@@ -139,9 +132,7 @@ public class MergeCompoundConditionalsPass : IPass
                             }
                             node.EdgeFalse = e.EdgeFalse;
                             n.Destination = node.EdgeFalse;
-                            var i = e.EdgeFalse.Predecessors.IndexOf(e);
-                            e.EdgeFalse.Predecessors[i] = node;
-                            t.Predecessors.Remove(e);
+                            e.ClearSuccessors();
                             f.RemoveBlockAt(e.BlockIndex);
                             irChanged = true;
                             changed = true;
