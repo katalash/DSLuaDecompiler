@@ -89,7 +89,7 @@ public class MergeConditionalAssignmentsPass : IPass
                     falseAssignment.Absorb(trueAssignment);
                     b.ClearSuccessors();
                     b.StealSuccessors(follow);
-                    b.AbsorbInstructions(follow);
+                    b.AbsorbInstructions(follow, true);
                     f.RemoveAllBlocks(block => block == edgeFalse || block == edgeTrue || block == follow);
                     changed = true;
                     irChanged = true;
