@@ -172,7 +172,7 @@ namespace DecompilerTester
             var tester = new DecompilationTester(
                 new Lua50Decompiler(),
                 new Lua50Compiler(),
-                Encoding.GetEncoding("shift_jis"),
+                Encoding.UTF8,
                 new DecompilationTesterOptions
                 {
                     DumpPassIr = true,
@@ -190,7 +190,7 @@ namespace DecompilerTester
                     {
                         DumpPassIr = true,
                         DumpCfg = true,
-                        MultiThreaded = true,
+                        MultiThreaded = false,
                         HandleDecompilationExceptions = true
                     });
                 TestUtilities.AddCompiledLuaDirectoryToTester(args[0], "hks", tester);
@@ -201,7 +201,7 @@ namespace DecompilerTester
             if (!Directory.Exists("output"))
                 Directory.CreateDirectory("output");
             TestUtilities.WriteTestResultArtifactsToDirectory(
-                results, "output", Encoding.GetEncoding("shift_jis"), true);
+                results, "output", Encoding.UTF8, true);
         }
     }
 }
