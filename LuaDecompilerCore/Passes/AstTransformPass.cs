@@ -464,15 +464,7 @@ public class AstTransformPass : IPass
                     ifStatement.True.MarkCodeGenerated(f.FunctionId, f.Warnings);
                     if (ifStatement.True.Last is Jump lj)
                     {
-                        if (ifStatement.True.IsBreakNode)
-                        {
-                            ifStatement.True.Instructions[^1] = new Break();
-                        }
-                        else if (ifStatement.True.IsContinueNode)
-                        {
-                            ifStatement.True.Instructions[^1] = new Continue();
-                        }
-                        else if (ifStatement.True.IsLoopLatch || !ifStatement.True.EdgeTrue.IsLoopHead)
+                        if (ifStatement.True.IsLoopLatch || !ifStatement.True.EdgeTrue.IsLoopHead)
                         {
                             if (!ifStatement.True.IsLoopLatch &&
                                 !ifStatement.True.IsEmptyIf &&
@@ -487,13 +479,6 @@ public class AstTransformPass : IPass
                             ifStatement.True.Instructions.Remove(lj);
                         }
                     }
-                    //if (ifStatement.True.Instructions.Last() is Jump && ifStatement.True.IsContinueNode)
-                    if (node.IsContinueNode)// && node.Successors[0].IsLoopHead)
-                    {
-                        var bb = f.CreateBasicBlock();
-                        bb.Instructions = new List<Instruction> { new Continue() };
-                        ifStatement.True = bb;
-                    }
                 }
                 if (node.EdgeFalse != node.Follow)
                 {
@@ -501,20 +486,7 @@ public class AstTransformPass : IPass
                     ifStatement.False.MarkCodeGenerated(f.FunctionId, f.Warnings);
                     if (ifStatement.False.Last is Jump fj)
                     {
-                        if (ifStatement.False.IsBreakNode)
-                        {
-                            ifStatement.False.Instructions[^1] = new Break();
-                        }
-                        else
-                        {
-                            ifStatement.False.Instructions.Remove(fj);
-                        }
-                    }
-                    if (node is { IsContinueNode: true, EdgeFalse.IsLoopHead: true })
-                    {
-                        var bb = f.CreateBasicBlock();
-                        bb.Instructions = new List<Instruction> { new Continue() };
-                        ifStatement.False = bb;
+                        ifStatement.False.Instructions.Remove(fj);
                     }
                 }
                 if (!usedFollows.Contains(node.Follow))

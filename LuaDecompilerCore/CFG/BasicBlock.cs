@@ -38,6 +38,12 @@ namespace LuaDecompilerCore.CFG
         /// </summary>
         public HashSet<uint> ScopeKilled = new();
 
+        /// <summary>
+        /// If this is set to true, then the "true" edge was unreachable logically but a control flow edge was inserted
+        /// when building the CFG.
+        /// </summary>
+        public bool UnreachableSuccessor = false;
+        
         // Control flow analysis
         public int ReversePostorderNumber = 0;
         public int OrderNumber = 0;
@@ -47,10 +53,6 @@ namespace LuaDecompilerCore.CFG
         public readonly List<BasicBlock> LoopLatches = new();
         public LoopType LoopType = LoopType.LoopNone;
         public BasicBlock? Follow = null;
-        public BasicBlock? LoopBreakFollow = null;
-        public BasicBlock? LoopContinueFollow = null;
-        public bool IsBreakNode = false;
-        public bool IsContinueNode = false;
         
         // Set to true if both the true and false branch lead to a return
         public bool IfOrphaned = false;
@@ -304,8 +306,10 @@ namespace LuaDecompilerCore.CFG
                 var idx = successor._predecessors.IndexOf(block);
                 successor._predecessors[idx] = this;
                 successor.SortPredecessors();
+                successor.ValidateBasic();
             }
             block._successors.Clear();
+            ValidateBasic();
         }
 
         /// <summary>
@@ -474,10 +478,6 @@ namespace LuaDecompilerCore.CFG
             else if (Follow != null)
             {
                 ret += $@"(IfFollow: {Follow})";
-            }
-            else if (LoopBreakFollow != null)
-            {
-                ret += $@"(BreakFollow: {LoopBreakFollow})";
             }
             return ret;
         }

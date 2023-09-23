@@ -45,15 +45,8 @@ public class DetectTwoWayConditionalsPass : IPass
                     // At least two incoming blocks are required for a block to be a follow
                     var predecessorsRequired = 2;
 
-                    // If there is a break or while, the follow node is only going to have one back-edge since the block
-                    // with the break or the while will not necessarily go to the block following the if statement
-                    if (b.LoopBreakFollow != null || b.LoopContinueFollow != null)
-                    {
-                        predecessorsRequired = 1;
-                    }
-
                     if (d.Predecessors.Count >= predecessorsRequired && d.Predecessors.Count > maxPredecessors &&
-                        !d.IsContinueNode && !d.IsBreakNode && d != f.EndBlock)
+                        d != f.EndBlock)
                     {
                         maxPredecessors = d.Predecessors.Count;
                         followCandidate = d;

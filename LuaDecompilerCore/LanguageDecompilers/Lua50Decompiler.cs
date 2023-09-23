@@ -813,12 +813,12 @@ public class Lua50Decompiler : ILanguageDecompiler
         passManager.PopLoopUntilUnchanged();
 
         passManager.AddPass("multi-assignment-propagation", new MultiAssignmentPropagationPass());
-        passManager.AddPass("detect-loops", new DetectLoopsPass());
-        passManager.AddPass("detect-break-continue", new DetectLoopBreakContinuePass());
-        passManager.AddPass("detect-two-way-conditionals", new DetectTwoWayConditionalsPass());
-        passManager.AddPass("simplify-if-else-follow-chain", new SimplifyIfElseFollowChainPass());
         passManager.AddPass("eliminate-dead-phi-2", new EliminateDeadAssignmentsPass(true));
         passManager.AddPass("validate-liveness-no-interference", new ValidateLivenessNoInterferencePass());
+        passManager.AddPass("detect-loops", new DetectLoopsPass());
+        passManager.AddPass("detect-break-continue", new StructureLoopBreaksPass());
+        passManager.AddPass("detect-two-way-conditionals", new DetectTwoWayConditionalsPass());
+        passManager.AddPass("simplify-if-else-follow-chain", new SimplifyIfElseFollowChainPass());
 
         passManager.AddPass("drop-ssa-subscripts", new DropSsaSubscriptsPass());
         passManager.AddPass("detect-local-variables", new DetectLocalVariablesPass());

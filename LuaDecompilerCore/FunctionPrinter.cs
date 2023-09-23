@@ -376,6 +376,12 @@ public partial class FunctionPrinter
             {
                 VisitReturn(r, true);
             }
+            else if (inst is Break &&
+                !(j == basicBlock.Instructions.Count - 1 ||
+                  (basicBlock.Last is Return { IsImplicit: true } && j == basicBlock.Instructions.Count - 2)))
+            {
+                VisitBreak(true);
+            }
             else
             {
                 VisitInstruction(inst);
@@ -748,9 +754,25 @@ public partial class FunctionPrinter
         VisitIdentifier(closureBinding.Identifier);
     }
 
-    private void VisitBreak()
+    private void VisitBreak(bool addScope = false)
     {
+        if (addScope)
+        {
+            Append("do");
+            PushIndent();
+            NewLine();
+            Indent();
+        }
+        
         Append("break");
+        
+        if (addScope)
+        {
+            PopIndent();
+            NewLine();
+            Indent();
+            Append("end");
+        }
     }
 
     private void VisitContinue()

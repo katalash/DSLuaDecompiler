@@ -169,6 +169,7 @@ public class BuildControlFlowGraphPass : IPass
                     f.BlockList[b - 1].Last.InlinedRegisters = j.InlinedRegisters;
                     f.BlockList[b - 1].Last.InstructionIndices = j.InstructionIndices;
                     f.BlockList[b - 1].Last.OriginalBlock = j.OriginalBlock;
+                    f.BlockList[b - 1].UnreachableSuccessor = true;
                 }
             }
         }

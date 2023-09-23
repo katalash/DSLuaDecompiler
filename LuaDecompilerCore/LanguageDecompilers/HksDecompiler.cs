@@ -1356,7 +1356,7 @@ public class HksDecompiler : ILanguageDecompiler
         passManager.PopLoopUntilUnchanged();
         
         passManager.AddPass("detect-loops", new DetectLoopsPass());
-        passManager.AddPass("detect-break-continue", new DetectLoopBreakContinuePass());
+        passManager.AddPass("detect-break-continue", new StructureLoopBreaksPass());
         passManager.AddPass("detect-two-way-conditionals", new DetectTwoWayConditionalsPass());
         passManager.AddPass("simplify-if-else-follow-chain", new SimplifyIfElseFollowChainPass());
         passManager.AddPass("eliminate-dead-phi-2", new EliminateDeadAssignmentsPass(true));
