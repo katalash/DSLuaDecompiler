@@ -370,6 +370,7 @@ namespace LuaDecompilerCore.IR
 
         public override void Parenthesize()
         {
+            Table.Parenthesize();
             TableIndex.Parenthesize();
         }
 
