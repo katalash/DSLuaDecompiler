@@ -22,6 +22,12 @@ public class AstTransformPass : IPass
                 case IfStatement { Follow: { } f }:
                     b = f;
                     continue;
+                case IfStatement { Follow: null, False: { } e}:
+                    b = e;
+                    continue;
+                case IfStatement { Follow: null, False: null, True: { } t}:
+                    b = t;
+                    continue;
                 case While { Follow: { } wf }:
                     b = wf;
                     continue;
@@ -484,7 +490,10 @@ public class AstTransformPass : IPass
                 {
                     ifStatement.False = node.EdgeFalse;
                     ifStatement.False.MarkCodeGenerated(f.FunctionId, f.Warnings);
-                    if (ifStatement.False.Last is Jump fj)
+                    // Don't remove the jump if it's a jump to the follow
+                    if (ifStatement.False.Last is Jump fj &&
+                        !(fj.Destination.OrderNumber == ifStatement.False.OrderNumber + 1 && 
+                          fj.Destination == node.Follow && !ifStatement.False.IsLoopLatch))
                     {
                         ifStatement.False.Instructions.Remove(fj);
                     }
@@ -516,6 +525,41 @@ public class AstTransformPass : IPass
                     i.False = f.CreateBasicBlock();
                     i.False.MarkCodeGenerated(f.FunctionId, f.Warnings);
                     endBlock.Instructions.RemoveAt(endBlock.Instructions.Count - 1);
+                }
+            }
+            else if (b.Last is IfStatement { False: { Instructions.Count: 1 } f2, Follow: { } follow2 } ifStatement)
+            {
+                var endBlock = LastBlockInScope(f2);
+                if (endBlock is { HasInstructions: true, Last: Jump j } &&
+                    endBlock.OrderNumber + 1 == follow2.OrderNumber && 
+                    j.Destination == follow2)
+                {
+                    // We have a jump to the end in an if-else chain. We need to get to the last statement in there to
+                    // insert an empty else if needed
+                    BasicBlock searchBlock = ifStatement.False;
+                    while (searchBlock is { Instructions.Count: 1 })
+                    {
+                        if (searchBlock.Last is IfStatement { False: null, Follow: null } foundStatement)
+                        {
+                            // Found the last block in the if/else chain and it doesn't have an else. Insert empty else.
+                            foundStatement.False = f.CreateBasicBlock();
+                            foundStatement.False.MarkCodeGenerated(f.FunctionId, f.Warnings);
+                            endBlock.Instructions.RemoveAt(endBlock.Instructions.Count - 1);
+                            break;
+                        }
+                        
+                        // Otherwise see if there's another else if leaf to check
+                        if (searchBlock.Last is IfStatement
+                            {
+                                False.Instructions.Count: 1, Follow: null
+                            } searchStatement)
+                        {
+                            searchBlock = searchStatement.False;
+                            continue;
+                        }
+                        
+                        break;
+                    }
                 }
             }
         }
