@@ -985,17 +985,29 @@ namespace LuaDecompilerCore.IR
                 NegateCondition();
                 HasImplicitNot = false;
             }
-            else if (HasImplicitNot && IsBooleanOp &&
-                     Left is BinOp { IsConditionalOp: true } l &&
-                     Right is BinOp { IsConditionalOp: true } r)
+            else if (HasImplicitNot && IsBooleanOp && 
+                     Left is BinOp { IsConditionalOp: true } or UnaryOp { Operation: UnaryOp.OperationType.OpNot} &&
+                     Right is BinOp { IsConditionalOp: true } or UnaryOp { Operation: UnaryOp.OperationType.OpNot})
             {
+                // Constraints on whether we can apply this transform
+                bool valid = Left is UnaryOp { IsImplicit: true } || Right is UnaryOp { IsImplicit: true } || 
+                             (Left is BinOp && Right is BinOp);
                 // Use DeMorgan's Law:
                 // not (a and b) -> not a or not b
                 // not (a or b) -> not a and not b
-                l.HasImplicitNot = !l.HasImplicitNot;
-                r.HasImplicitNot = !r.HasImplicitNot;
-                Operation = Operation == OperationType.OpAnd ? OperationType.OpOr : OperationType.OpAnd;
-                HasImplicitNot = false;
+                if (valid)
+                {
+                    if (Left is BinOp bl)
+                        bl.HasImplicitNot = !bl.HasImplicitNot;
+                    else if (Left is UnaryOp l)
+                        Left = l.Expression;
+                    if (Right is BinOp br)
+                        br.HasImplicitNot = !br.HasImplicitNot;
+                    else if (Right is UnaryOp r)
+                        Right = r.Expression;
+                    Operation = Operation == OperationType.OpAnd ? OperationType.OpOr : OperationType.OpAnd;
+                    HasImplicitNot = false;
+                }
             }
 
             // If we have an unresolved implicit not, flip the negated flag
@@ -1250,6 +1262,8 @@ namespace LuaDecompilerCore.IR
         public readonly OperationType Operation;
 
         public bool HasParentheses { get; private set; }
+
+        public bool IsImplicit = false;
         
         public UnaryOp(Expression expression, OperationType op)
         {

@@ -73,7 +73,7 @@ public class MergeCompoundConditionalsPass : IPass
                                 else if (n.Condition is BinOp binOp)
                                     binOp.NegateConditionalExpression();
                                 else
-                                    left = new UnaryOp(n.Condition, UnaryOp.OperationType.OpNot);
+                                    left = new UnaryOp(n.Condition, UnaryOp.OperationType.OpNot) { IsImplicit = true };
                                 newCond = new BinOp(left, tj.Condition, BinOp.OperationType.OpOr)
                                 {
                                     IsMergedCompoundConditional = true
@@ -126,7 +126,7 @@ public class MergeCompoundConditionalsPass : IPass
                             else if (n.Condition is BinOp binOp)
                                 binOp.NegateConditionalExpression();
                             else
-                                left = new UnaryOp(n.Condition, UnaryOp.OperationType.OpNot);
+                                left = new UnaryOp(n.Condition, UnaryOp.OperationType.OpNot) { IsImplicit = true };
                             var newCond = new BinOp(left, ej.Condition, BinOp.OperationType.OpOr)
                             {
                                 IsMergedCompoundConditional = true
