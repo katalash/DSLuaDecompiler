@@ -886,6 +886,12 @@ namespace LuaDecompilerCore.IR
         public bool HasImplicitNot { get; set; }
         
         public bool HasParentheses { get; private set; }
+
+        /// <summary>
+        /// If this is set to true, it means that this op is the result of merging two compound conditional blocks
+        /// together. Has implications on temporary register use.
+        /// </summary>
+        public bool IsMergedCompoundConditional = false;
         
         public bool IsNonEqualityComparisonOp => Operation is OperationType.OpLessThan or OperationType.OpLessEqual
             or OperationType.OpGreaterThan or OperationType.OpGreaterEqual;
@@ -1140,8 +1146,9 @@ namespace LuaDecompilerCore.IR
                 (leftTemporary, rightTemporary) = (rightTemporary, leftTemporary);
             }
             
+            // If this was a compound conditional, the right side will have no temporaries left and should be ignored
             temporaries.AddToTemporaryRegisterRange(leftOriginal);
-            temporaries.AddToTemporaryRegisterRange(rightOriginal);
+            temporaries.AddToTemporaryRegisterRange(rightOriginal, IsMergedCompoundConditional);
             temporaries.MergeTemporaryRegisterRange(leftTemporary);
             temporaries.MergeTemporaryRegisterRange(rightTemporary);
             return temporaries;
@@ -1165,6 +1172,11 @@ namespace LuaDecompilerCore.IR
             {
                 replaced = Left.ReplaceUses(original, sub);
             }
+
+            // Don't perform replacements on the right side if it's been merged in
+            if (IsMergedCompoundConditional)
+                return replaced;
+            
             if (ShouldReplace(original, Right))
             {
                 Right = sub;

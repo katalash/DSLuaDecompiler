@@ -85,7 +85,8 @@ public struct Interval
     /// generation order.
     /// </summary>
     /// <param name="range"></param>
-    public void AddToTemporaryRegisterRange(Interval range)
+    /// <param name="allowDuplicates">Duplicates (overlapping ranges) are permitted</param>
+    public void AddToTemporaryRegisterRange(Interval range, bool allowDuplicates = false)
     {
         if (range._range == 0)
             return;
@@ -123,7 +124,8 @@ public struct Interval
         //    needs to be clipped such that the start is the next value.
         var end1 = End;
         var end2 = range.End;
-        Begin = Math.Min(end1, end2);
+        if (!allowDuplicates)
+            Begin = Math.Min(end1, end2);
         End = Math.Max(end1, end2);
     }
 
