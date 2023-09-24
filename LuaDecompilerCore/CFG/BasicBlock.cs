@@ -58,7 +58,13 @@ namespace LuaDecompilerCore.CFG
 
         // Code gen
         public bool IsInfiniteLoop = false;
+        
+        /// <summary>
+        /// Indicates that this block was completely empty in the source bytecode and any jumps in it were decompiler
+        /// generated.
+        /// </summary>
         public bool IsEmptyIf = false;
+        
         private bool _isCodeGenerated;
 
         /// <summary>

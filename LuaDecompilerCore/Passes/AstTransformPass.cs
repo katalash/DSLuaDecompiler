@@ -446,18 +446,9 @@ public class AstTransformPass : IPass
                 {
                     if (ifStatement.True.IsLoopLatch || !ifStatement.True.EdgeTrue.IsLoopHead)
                     {
-                        if (!ifStatement.True.IsLoopLatch &&
-                            !ifStatement.True.IsEmptyIf &&
-                            lj.Destination == node.Follow && 
-                            node.EdgeFalse == node.Follow && 
-                            ifStatement.True.BlockIndex + 1 == node.Follow.BlockIndex)
-                        {
-                            // Generate an empty else statement if there's a jump to the follow,
-                            // the follow is the next block sequentially, and it isn't fallthrough
-                            ifStatement.False = f.CreateBasicBlock();
-                            ifStatement.True.Instructions.Remove(lj);
-                        }
-                        else if (node.Follow == null || ifStatement.True.BlockIndex + 1 != lj.Destination.BlockIndex)
+                        // Remove jumps if they don't jump immediately to the following block
+                        // (these will be handled later)
+                        if (node.Follow == null || ifStatement.True.BlockIndex + 1 != lj.Destination.BlockIndex)
                         {
                             ifStatement.True.Instructions.Remove(lj);
                         }
@@ -489,8 +480,19 @@ public class AstTransformPass : IPass
         // else statement
         void InsertEmptyElseIfNeeded(BasicBlock node, BasicBlock? loopHead)
         {
+            var newLoopHead = loopHead;
+            if (node.IsLoopHead)
+            {
+                newLoopHead = node;
+            }
+            
+            dominance.RunOnDominanceTreeSuccessors(f, node, successor =>
+            {
+                InsertEmptyElseIfNeeded(successor, successor == node.LoopFollow ? loopHead : newLoopHead);
+            });
+            
             var follow = loopHead;
-            if (node is { HasInstructions: true, Last: IfStatement { Follow: { } ifFollow } })
+            if (node is { HasInstructions: true, Last: IfStatement { }, Follow: { } ifFollow })
             {
                 follow = ifFollow;
             }
@@ -505,8 +507,13 @@ public class AstTransformPass : IPass
                         endBlock.BlockIndex + 1 == follow.BlockIndex &&
                         j.Destination == follow)
                     {
-                        i.False = f.CreateBasicBlock();
-                        i.False.MarkCodeGenerated(f.FunctionId, f.Warnings);
+                        // If we were an empty if then it's not an empty else. Just remove the jump.
+                        if (!endBlock.IsEmptyIf)
+                        {
+                            i.False = f.CreateBasicBlock();
+                            i.False.MarkCodeGenerated(f.FunctionId, f.Warnings);
+                        }
+
                         endBlock.Instructions.RemoveAt(endBlock.Instructions.Count - 1);
                     }
                 }
@@ -525,9 +532,13 @@ public class AstTransformPass : IPass
                             if (searchBlock.Last is IfStatement { False: null, Follow: null } foundStatement)
                             {
                                 // Found the last block in the if/else chain and it doesn't have an else.
-                                // Insert empty else.
-                                foundStatement.False = f.CreateBasicBlock();
-                                foundStatement.False.MarkCodeGenerated(f.FunctionId, f.Warnings);
+                                // Insert empty else if this block wasn't an empty if in the bytecode.
+                                if (!endBlock.IsEmptyIf)
+                                {
+                                    foundStatement.False = f.CreateBasicBlock();
+                                    foundStatement.False.MarkCodeGenerated(f.FunctionId, f.Warnings);
+                                }
+
                                 endBlock.Instructions.RemoveAt(endBlock.Instructions.Count - 1);
                                 break;
                             }
@@ -547,17 +558,6 @@ public class AstTransformPass : IPass
                     }
                 }
             }
-
-            var newLoopHead = loopHead;
-            if (node.IsLoopHead)
-            {
-                newLoopHead = node;
-            }
-            
-            dominance.RunOnDominanceTreeSuccessors(f, node, successor =>
-            {
-                InsertEmptyElseIfNeeded(successor, successor == node.LoopFollow ? loopHead : newLoopHead);
-            });
         }
 
         // Step 1: build the AST for ifs/loops based on follow information
