@@ -1062,12 +1062,14 @@ namespace LuaDecompilerCore.IR
 
         public override void Parenthesize()
         {
-            // If left has a lower precedence than this op, then add parentheses to evaluate it first
+            // If left has a lower precedence than this op, then add parentheses to evaluate it first. If the right side
+            // is of equal precedence, then we also need to insert parentheses.
             if (Left is IOperator op1 && op1.GetPrecedence() > GetPrecedence())
             {
                 op1.SetHasParentheses(true);
             }
-            if (Right is IOperator op2 && op2.GetPrecedence() > GetPrecedence())
+            if (Right is IOperator op2 && (op2.GetPrecedence() > GetPrecedence() || 
+                                           (op2.GetPrecedence() == GetPrecedence() && !IsConditionalOp)))
             {
                 op2.SetHasParentheses(true);
             }
