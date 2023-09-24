@@ -35,10 +35,14 @@ public class StructureLoopBreaksPass : IPass
             if (b.IsLoopHead || loopHead?.LoopFollow == null)
                 return;
             
+            // Due to Lua compiler optimizations the loop follow might jump to another block and breaks will go to that
+            // block instead. We need to take those targets into account too.
+            var followTarget = loopHead.LoopFollow.PeepholeSuccessor();
+            
             // An unconditional jump to the loop follow can be replaced with a break and rewriting the CFG to fall
             // through to the next block
-            if (b.Successors.Count == 1 && b.Successors[0] == loopHead.LoopFollow && b.Instructions.Count > 0 &&
-                b.Last is Jump j)
+            if (b.Successors.Count == 1 && b.Instructions.Count > 0 && b.Last is Jump j &&
+                (b.Successors[0] == loopHead.LoopFollow || b.Successors[0] == followTarget))
             {
                 b.Last = new Break();
                 b.Last.Absorb(j);
@@ -49,7 +53,8 @@ public class StructureLoopBreaksPass : IPass
             
             // A block with an unreachable successor may actually be a break, in which case we can replace with a break
             // and merge the following block in
-            if (b.UnreachableSuccessor && b.EdgeFalse == loopHead.LoopFollow && b.Last is ConditionalJump cj)
+            if (b is { UnreachableSuccessor: true, Last: ConditionalJump cj } && 
+                (b.EdgeFalse == loopHead.LoopFollow || b.EdgeFalse == followTarget))
             {
                 b.Last = new Break();
                 b.Last.Absorb(cj);
