@@ -67,7 +67,7 @@ namespace LuaDecompilerCore.IR
             var replace = false;
             for (var i = 0; i < ReturnExpressions.Count; i++)
             {
-                if (Expression.ShouldReplace(orig, ReturnExpressions[i]))
+                if (Expression.ShouldReplace(orig, ReturnExpressions[i], sub))
                 {
                     ReturnExpressions[i] = sub;
                     replace = true;

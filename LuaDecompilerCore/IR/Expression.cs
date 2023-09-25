@@ -39,8 +39,11 @@ namespace LuaDecompilerCore.IR
 
         public virtual void RenameUses(Identifier original, Identifier newIdentifier) { }
 
-        public static bool ShouldReplace(Identifier orig, Expression candidate)
+        public static bool ShouldReplace(Identifier orig, Expression candidate, Expression replacement)
         {
+            if (candidate is IdentifierReference { MinConstantReplacement: var minConstant } &&
+                replacement is Constant { ConstantId: var cid } && cid < minConstant && cid != -1)
+                return false;
             return candidate is IdentifierReference ident && ident.Identifier == orig;
         }
 
@@ -275,6 +278,13 @@ namespace LuaDecompilerCore.IR
     {
         public Identifier Identifier;
 
+        /// <summary>
+        /// The minimum constant ID that a constant needs to be able to be inlined. This is because if a constant was
+        /// lower than the ID, the compiler would have placed the constant in the op if it weren't part of a separate
+        /// expression.
+        /// </summary>
+        public int MinConstantReplacement = 0;
+
         public bool IsRegister => Identifier.IsRegister;
 
         public bool IsRegisterBase => IsRegister;
@@ -312,8 +322,7 @@ namespace LuaDecompilerCore.IR
         public override bool ReplaceUses(Identifier original, Expression sub)
         {
             if (original != Identifier) return false;
-            if (sub is not IdentifierReference ir)
-                throw new Exception("Replacement should be handled by parent");
+            if (sub is not IdentifierReference ir) return false;
             Identifier = ir.Identifier;
             return true;
         }
@@ -401,7 +410,7 @@ namespace LuaDecompilerCore.IR
         public override bool ReplaceUses(Identifier original, Expression sub)
         {
             var changed = false;
-            if (ShouldReplace(original, TableIndex))
+            if (ShouldReplace(original, TableIndex, sub))
             {
                 TableIndex = sub;
                 changed = true;
@@ -415,7 +424,7 @@ namespace LuaDecompilerCore.IR
             if (sub is InitializerList)
                 return changed;
             
-            if (ShouldReplace(original, Table))
+            if (ShouldReplace(original, Table, sub))
             {
                 Table = sub;
                 changed = true;
@@ -541,7 +550,7 @@ namespace LuaDecompilerCore.IR
             var replaced = false;
             for (var i = 0; i < Expressions.Count; i++)
             {
-                if (ShouldReplace(original, Expressions[i]))
+                if (ShouldReplace(original, Expressions[i], sub))
                 {
                     Expressions[i] = sub;
                     replaced = true;
@@ -698,7 +707,7 @@ namespace LuaDecompilerCore.IR
             var replaced = false;
             for (var i = 0; i < Expressions.Count; i++)
             {
-                if (ShouldReplace(original, Assignments[i]))
+                if (ShouldReplace(original, Assignments[i], sub))
                 {
                     Assignments[i] = sub;
                     replaced = true;
@@ -708,7 +717,7 @@ namespace LuaDecompilerCore.IR
                     replaced = replaced || Assignments[i].ReplaceUses(original, sub);
                 }
                 
-                if (ShouldReplace(original, Expressions[i]))
+                if (ShouldReplace(original, Expressions[i], sub))
                 {
                     Expressions[i] = sub;
                     replaced = true;
@@ -1190,7 +1199,7 @@ namespace LuaDecompilerCore.IR
         public override bool ReplaceUses(Identifier original, Expression sub)
         {
             bool replaced;
-            if (ShouldReplace(original, Left))
+            if (ShouldReplace(original, Left, sub))
             {
                 Left = sub;
                 replaced = true;
@@ -1204,7 +1213,7 @@ namespace LuaDecompilerCore.IR
             if (IsMergedCompoundConditional)
                 return replaced;
             
-            if (ShouldReplace(original, Right))
+            if (ShouldReplace(original, Right, sub))
             {
                 Right = sub;
                 replaced = true;
@@ -1308,7 +1317,7 @@ namespace LuaDecompilerCore.IR
 
         public override bool ReplaceUses(Identifier original, Expression sub)
         {
-            if (ShouldReplace(original, Expression))
+            if (ShouldReplace(original, Expression, sub))
             {
                 Expression = sub;
                 return true;
@@ -1494,7 +1503,8 @@ namespace LuaDecompilerCore.IR
         public override bool ReplaceUses(Identifier original, Expression sub)
         {
             bool replaced;
-            if (ShouldReplace(original, Function) && sub is IdentifierReference or TableAccess or Constant or FunctionCall)
+            if (ShouldReplace(original, Function, sub) && 
+                sub is IdentifierReference or TableAccess or Constant or FunctionCall)
             {
                 if (sub is TableAccess { IsSelfReference : true })
                 {
@@ -1509,7 +1519,7 @@ namespace LuaDecompilerCore.IR
             }
             for (var i = _selfReplaced ? 1 : 0; i < Args.Count; i++)
             {
-                if (ShouldReplace(original, Args[i]))
+                if (ShouldReplace(original, Args[i], sub))
                 {
                     Args[i] = sub;
                     replaced = true;

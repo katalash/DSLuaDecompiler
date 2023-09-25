@@ -221,7 +221,7 @@ namespace LuaDecompilerCore.IR
                     replaced = replaced || access.ReplaceUses(orig, sub);
                 }
             }
-            if (Right != null && Expression.ShouldReplace(orig, Right))
+            if (Right != null && Expression.ShouldReplace(orig, Right, sub))
             {
                 replaced = true;
                 Right = sub;

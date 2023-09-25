@@ -40,7 +40,7 @@ namespace LuaDecompilerCore.IR
 
         public override bool ReplaceUses(Identifier orig, Expression sub)
         {
-            if (Expression.ShouldReplace(orig, Condition))
+            if (Expression.ShouldReplace(orig, Condition, sub))
             {
                 Condition = sub;
                 return true;

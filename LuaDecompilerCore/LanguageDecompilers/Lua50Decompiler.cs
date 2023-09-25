@@ -117,7 +117,7 @@ public class Lua50Decompiler : ILanguageDecompiler
     {
         if (val < 250)
         {
-            return new IdentifierReference(irFunction.GetRegister(val));
+            return new IdentifierReference(irFunction.GetRegister(val)) { MinConstantReplacement = 261 };
         }
 
         return ToConstantIr(fun.Constants[val - 250], (int)val - 250);
