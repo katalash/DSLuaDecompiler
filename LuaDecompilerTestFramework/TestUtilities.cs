@@ -48,13 +48,28 @@ public static class TestUtilities
         var archives = Directory.GetFileSystemEntries(path, "*.luabnd.dcx").ToList();
         foreach (var archive in archives)
         {
-            foreach (var file in SoulsFormats.BND4.Read(archive).Files)
+            if (SoulsFormats.BND4.Is(archive))
             {
-                if (file.Name.EndsWith(".lua"))
+                foreach (var file in SoulsFormats.BND4.Read(archive).Files)
                 {
-                    tester.AddTestCase(new CompiledBytesTestCase(
+                    if (file.Name.EndsWith(".lua"))
+                    {
+                        tester.AddTestCase(new CompiledBytesTestCase(
                             $"{Path.GetFileNameWithoutExtension(archive)}/{Path.GetFileName(file.Name)}", file.Bytes));
-                    added = true;
+                        added = true;
+                    }
+                }
+            }
+            else
+            {
+                foreach (var file in SoulsFormats.BND3.Read(archive).Files)
+                {
+                    if (file.Name.EndsWith(".lua"))
+                    {
+                        tester.AddTestCase(new CompiledBytesTestCase(
+                            $"{Path.GetFileNameWithoutExtension(archive)}/{Path.GetFileName(file.Name)}", file.Bytes));
+                        added = true;
+                    }
                 }
             }
         }
