@@ -591,7 +591,8 @@ public class Lua50Decompiler : ILanguageDecompiler
                     {
                         instructions.Add(new ConditionalJumpLabel(
                             irFunction.GetLabel((uint)(i / 4 + 2)),
-                            new UnaryOp(RkIr(irFunction, function, b), UnaryOp.OperationType.OpNot)));
+                            new UnaryOp(RkIr(irFunction, function, b), UnaryOp.OperationType.OpNot)
+                                { IsImplicit = true }));
                     }
 
                     if (a != b)

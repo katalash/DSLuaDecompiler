@@ -994,29 +994,25 @@ namespace LuaDecompilerCore.IR
                 NegateCondition();
                 HasImplicitNot = false;
             }
-            else if (HasImplicitNot && IsBooleanOp && 
-                     Left is BinOp { IsConditionalOp: true } or UnaryOp { Operation: UnaryOp.OperationType.OpNot} &&
-                     Right is BinOp { IsConditionalOp: true } or UnaryOp { Operation: UnaryOp.OperationType.OpNot})
+            else if (HasImplicitNot && IsBooleanOp &&
+                     Left is BinOp { IsConditionalOp: true } or
+                         UnaryOp { Operation: UnaryOp.OperationType.OpNot, IsImplicit: true } &&
+                     Right is BinOp { IsConditionalOp: true } or
+                         UnaryOp { Operation: UnaryOp.OperationType.OpNot, IsImplicit: true })
             {
-                // Constraints on whether we can apply this transform
-                bool valid = Left is UnaryOp { IsImplicit: true } || Right is UnaryOp { IsImplicit: true } || 
-                             Left is BinOp || Right is BinOp;
                 // Use DeMorgan's Law:
                 // not (a and b) -> not a or not b
                 // not (a or b) -> not a and not b
-                if (valid)
-                {
-                    if (Left is BinOp bl)
-                        bl.HasImplicitNot = !bl.HasImplicitNot;
-                    else if (Left is UnaryOp l)
-                        Left = l.Expression;
-                    if (Right is BinOp br)
-                        br.HasImplicitNot = !br.HasImplicitNot;
-                    else if (Right is UnaryOp r)
-                        Right = r.Expression;
-                    Operation = Operation == OperationType.OpAnd ? OperationType.OpOr : OperationType.OpAnd;
-                    HasImplicitNot = false;
-                }
+                if (Left is BinOp bl)
+                    bl.HasImplicitNot = !bl.HasImplicitNot;
+                else if (Left is UnaryOp l)
+                    Left = l.Expression;
+                if (Right is BinOp br)
+                    br.HasImplicitNot = !br.HasImplicitNot;
+                else if (Right is UnaryOp r)
+                    Right = r.Expression;
+                Operation = Operation == OperationType.OpAnd ? OperationType.OpOr : OperationType.OpAnd;
+                HasImplicitNot = false;
             }
 
             // If we have an unresolved implicit not, flip the negated flag
@@ -1031,28 +1027,23 @@ namespace LuaDecompilerCore.IR
                 r2.SolveConditionalExpression(negatedRight);
             
             // If we are a boolean op, see if child expressions now have an implicit not that can be factored out
-            if (IsBooleanOp && 
-                Left is BinOp { IsConditionalOp: true, HasImplicitNot: true } or 
-                    UnaryOp { Operation: UnaryOp.OperationType.OpNot} &&
-                Right is BinOp { IsConditionalOp: true, HasImplicitNot: true } or 
-                    UnaryOp { Operation: UnaryOp.OperationType.OpNot})
+            if (IsBooleanOp &&
+                Left is BinOp { IsConditionalOp: true, HasImplicitNot: true } or
+                    UnaryOp { Operation: UnaryOp.OperationType.OpNot, IsImplicit: true } &&
+                Right is BinOp { IsConditionalOp: true, HasImplicitNot: true } or
+                    UnaryOp { Operation: UnaryOp.OperationType.OpNot, IsImplicit: true })
             {
                 // Use DeMorgan's Law again to factor out the not
-                bool valid = Left is UnaryOp { IsImplicit: true } || Right is UnaryOp { IsImplicit: true } || 
-                             Left is BinOp || Right is BinOp;
-                if (valid)
-                {
-                    if (Left is BinOp bl)
-                        bl.HasImplicitNot = false;
-                    else if (Left is UnaryOp l)
-                        Left = l.Expression;
-                    if (Right is BinOp br)
-                        br.HasImplicitNot = false;
-                    else if (Right is UnaryOp r)
-                        Right = r.Expression;
-                    Operation = Operation == OperationType.OpAnd ? OperationType.OpOr : OperationType.OpAnd;
-                    HasImplicitNot = true;
-                }
+                if (Left is BinOp bl)
+                    bl.HasImplicitNot = false;
+                else if (Left is UnaryOp l)
+                    Left = l.Expression;
+                if (Right is BinOp br)
+                    br.HasImplicitNot = false;
+                else if (Right is UnaryOp r)
+                    Right = r.Expression;
+                Operation = Operation == OperationType.OpAnd ? OperationType.OpOr : OperationType.OpAnd;
+                HasImplicitNot = true;
             }
 
             return true;

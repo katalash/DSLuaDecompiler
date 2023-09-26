@@ -1014,7 +1014,8 @@ public class HksDecompiler : ILanguageDecompiler
                     {
                         instructions.Add(
                             new ConditionalJumpLabel(irFunction.GetLabel((uint)(i / 4 + 2)),
-                                new UnaryOp(Register(irFunction, a), UnaryOp.OperationType.OpNot)));
+                                new UnaryOp(Register(irFunction, a), UnaryOp.OperationType.OpNot)
+                                    { IsImplicit = true }));
                     }
 
                     break;
