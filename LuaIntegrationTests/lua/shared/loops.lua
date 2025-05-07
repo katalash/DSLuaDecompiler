@@ -105,3 +105,25 @@ function break10()
         b(i)
     end
 end
+
+local function processTable(t)
+    local result = {}
+    local index = 1
+    for k, v in pairs(t) do
+        -- Nested ifs and table manipulation
+        if type(v) == "number" then
+            if v > 10 then
+                result[index] = v * 2
+                index = index + 1
+            end
+        elseif type(v) == "table" then
+            for _, n in pairs(v) do
+                if type(n) == "number" then
+                    result[index] = n
+                    index = index + 1
+                end
+            end
+        end
+    end
+    return result
+end

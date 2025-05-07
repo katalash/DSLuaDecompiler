@@ -97,7 +97,13 @@ public class MergeConditionalAssignmentsPass : IPass
                 }
             }
         }
-        functionContext.InvalidateAnalysis<DominanceAnalyzer>();
+
+        if (irChanged)
+        {
+            functionContext.InvalidateAnalysis<DominanceAnalyzer>();
+            functionContext.InvalidateAnalysis<IdentifierDefinitionUseAnalyzer>();
+            functionContext.InvalidateAnalysis<LocalVariablesAnalyzer>();
+        }
 
         return irChanged;
     }

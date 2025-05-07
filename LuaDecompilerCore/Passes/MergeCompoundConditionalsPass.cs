@@ -62,7 +62,7 @@ public class MergeCompoundConditionalsPass : IPass
                                 b.NegateConditionalExpression();
                                 newCond = new BinOp(b, tj.Condition, BinOp.OperationType.OpOr)
                                 {
-                                    IsMergedCompoundConditional = true
+                                    MergedCompoundConditional = BinOp.MergedCompoundConditionalType.MergedLeft
                                 };
                             }
                             else
@@ -76,7 +76,7 @@ public class MergeCompoundConditionalsPass : IPass
                                     left = new UnaryOp(n.Condition, UnaryOp.OperationType.OpNot) { IsImplicit = true };
                                 newCond = new BinOp(left, tj.Condition, BinOp.OperationType.OpOr)
                                 {
-                                    IsMergedCompoundConditional = true
+                                    MergedCompoundConditional = BinOp.MergedCompoundConditionalType.MergedLeft
                                 };
                             }
                             n.Condition = newCond;
@@ -99,7 +99,7 @@ public class MergeCompoundConditionalsPass : IPass
                         {
                             var newCond = new BinOp(n.Condition, tj.Condition, BinOp.OperationType.OpAnd)
                             {
-                                IsMergedCompoundConditional = true
+                                MergedCompoundConditional = BinOp.MergedCompoundConditionalType.MergedLeft
                             };
                             n.Condition = newCond;
                             n.Absorb(tj);
@@ -129,7 +129,7 @@ public class MergeCompoundConditionalsPass : IPass
                                 left = new UnaryOp(n.Condition, UnaryOp.OperationType.OpNot) { IsImplicit = true };
                             var newCond = new BinOp(left, ej.Condition, BinOp.OperationType.OpOr)
                             {
-                                IsMergedCompoundConditional = true
+                                MergedCompoundConditional = BinOp.MergedCompoundConditionalType.MergedLeft
                             };
                             n.Condition = newCond;
                             n.Absorb(ej);
@@ -154,7 +154,13 @@ public class MergeCompoundConditionalsPass : IPass
                 }
             }
         }
-        functionContext.InvalidateAnalysis<DominanceAnalyzer>();
+
+        if (irChanged)
+        {
+            functionContext.InvalidateAnalysis<DominanceAnalyzer>();
+            functionContext.InvalidateAnalysis<IdentifierDefinitionUseAnalyzer>();
+            functionContext.InvalidateAnalysis<LocalVariablesAnalyzer>();
+        }
 
         return irChanged;
     }

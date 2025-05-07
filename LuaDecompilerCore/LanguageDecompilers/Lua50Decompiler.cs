@@ -809,6 +809,7 @@ public class Lua50Decompiler : ILanguageDecompiler
         passManager.PushLoopUntilUnchanged();
         passManager.AddPass("expression-propagation-1", new ExpressionPropagationPass());
         passManager.AddPass("detect-list-initializers", new DetectListInitializersPass());
+        passManager.AddPass("merge-logical-expressions", new MergeLogicalExpressionsPass());
         passManager.AddPass("merge-compound-conditionals", new MergeCompoundConditionalsPass());
         passManager.AddPass("merge-conditional-assignments", new MergeConditionalAssignmentsPass());
         passManager.PopLoopUntilUnchanged();

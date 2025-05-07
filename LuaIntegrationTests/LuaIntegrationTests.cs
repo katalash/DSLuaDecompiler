@@ -27,6 +27,22 @@ public class Lua50TheoryData : TheoryData<ITestCase>
     }
 }
 
+public class Lua50AdHocTheoryData : TheoryData<ITestCase>
+{
+    public Lua50AdHocTheoryData()
+    {
+        var entries = Directory.GetFiles("lua\\50AdHoc", "*.lua", SearchOption.AllDirectories);
+        foreach (var entry in entries)
+        {
+            Add(new SourceFileTestCase(entry));
+        }
+        
+        if (Directory.Exists("output/lua50adhoc"))
+            Directory.Delete("output/lua50", true);
+        Directory.CreateDirectory("output/lua50adhoc");
+    }
+}
+
 public class LuaHksTheoryData : TheoryData<ITestCase>
 {
     public LuaHksTheoryData()
@@ -52,6 +68,7 @@ public class LuaHksTheoryData : TheoryData<ITestCase>
 public class LuaIntegrationTests
 {
     public static Lua50TheoryData Lua50TestData = new();
+    public static Lua50AdHocTheoryData Lua50AdHocTestData = new();
     public static LuaHksTheoryData LuaHksTestData = new();
     
     [Theory]
@@ -74,6 +91,29 @@ public class LuaIntegrationTests
         var result = tester.Execute();
         TestUtilities.WriteTestResultArtifactsToDirectory(
             result, "output/lua50", Encoding.UTF8, true, false);
+        Assert.Equal(TestCaseError.Success, result[0].Error);
+    }
+    
+    [Theory]
+    [MemberData(nameof(Lua50AdHocTestData))]
+    public void Lua50AdHocTests(ITestCase test)
+    {
+        var tester = new DecompilationTester(
+            new Lua50Decompiler(),
+            new Lua50Compiler(),
+            Encoding.UTF8,
+            new DecompilationTesterOptions
+            {
+                DumpPassIr = true,
+                DumpCfg = true,
+                MultiThreaded = false,
+                HandleDecompilationExceptions = false,
+                IgnoreDebugInfo = true
+            });
+        tester.AddTestCase(test);
+        var result = tester.Execute();
+        TestUtilities.WriteTestResultArtifactsToDirectory(
+            result, "output/lua50adhoc", Encoding.UTF8, true, false);
         Assert.Equal(TestCaseError.Success, result[0].Error);
     }
     
