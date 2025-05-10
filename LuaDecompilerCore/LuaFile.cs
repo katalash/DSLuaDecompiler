@@ -55,6 +55,8 @@ namespace LuaDecompilerCore
             {
                 br.AssertByte(0); // Eat null terminator
             }
+
+            ret = ret.Replace("\n", "\\n");
             return ret;
         }
 
